@@ -1,0 +1,439 @@
+\sheet{7}{Laplace Transform}{Chapter~7 (Laplace transform, transfer functions, stability)}
+
+\begin{goals}
+\begin{itemize}
+  \item Describe engine sensors by transfer functions $H(s)$; relate poles and
+    zeros to decay time, resonance frequency, damping, $Q$ and bandwidth.
+  \item Compute impulse and step responses by partial fractions and decide
+    stability from the pole locations.
+  \item Read and sketch Bode diagrams; judge an RC anti-aliasing filter.
+  \item Handle a transport delay $\e^{-sT_d}$ by Pad\'e approximation and
+    understand the consequences of a right-half-plane zero.
+  \item Verify analytic results by numerical ODE integration (Euler, RK4) and
+    understand the stability limit of explicit integrators.
+  \item Map an analog system into the $z$-domain (forward Euler, impulse
+    invariance, bilinear transform) -- a preview of Sheets~9 and~10.
+\end{itemize}
+\end{goals}
+
+\section*{Background}
+
+For a causal signal $x(t)$ the (unilateral) Laplace transform is
+$X(s)=\int_0^\infty x(t)\,\e^{-st}\dd t$. An LTI system described by a linear
+ODE with constant coefficients has the \emph{transfer function}
+\[
+  H(s)=\frac{Y(s)}{X(s)}=\frac{b_0s^m+\dots+b_m}{a_0s^n+\dots+a_n}
+      = K\,\frac{\prod_k (s-z_k)}{\prod_k (s-p_k)} ,
+\]
+the Laplace transform of its impulse response $h(t)$. A causal system is
+BIBO stable iff all poles satisfy $\operatorname{Re}p_k<0$. On the imaginary
+axis, $s=\jj\omega$, $H(\jj\omega)$ is the frequency response.
+
+The knock burst of the virtual engine (\codefile{common/engine\_signals.h}) is
+\[
+  x_k(t)=A\,\e^{-t/\tau}\sin(2\pi f_d t)\,\varepsilon(t),\qquad
+  f_d=\SI{6.5}{kHz},\ \tau=\SI{0.8}{ms}
+\]
+(plus a second mode at \SI{10.5}{kHz}). We interpret it as the impulse response
+of the mechanical path \emph{combustion chamber $\rightarrow$ engine block
+$\rightarrow$ piezo sensor}, which is excited by the short pressure shock of
+knocking combustion. Throughout this sheet we use the normalised second-order
+model ($\sigma=1/\tau$, $\omega_d=2\pi f_d$)
+\begin{equation}
+  H_K(s)=\frac{\omega_0^2}{s^2+2\sigma s+\omega_0^2},\qquad
+  \omega_0^2=\omega_d^2+\sigma^2,\qquad \zeta=\sigma/\omega_0 .
+  \label{eq:s7res}
+\end{equation}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Sensor models in the $s$-domain}{\Paper}
+\begin{tasks}
+  \item \textbf{Knock resonator.} Show that the impulse response of
+    \eqref{eq:s7res} is $h_K(t)=\frac{\omega_0^2}{\omega_d}\e^{-\sigma t}
+    \sin(\omega_d t)\,\varepsilon(t)$. Compute $\sigma$, $\omega_0$ (and
+    $f_0$), $\zeta$, the quality factor $Q=1/(2\zeta)$, the poles and the
+    region of convergence. Is the system stable? What would $\sigma<0$ mean?
+  \item Compute the \textbf{step response} of $H_K$ with partial fractions.
+    Give the overshoot, the time of the first maximum and the 2\,\% settling
+    time. The DC gain is $H_K(0)=1$: what does this imply for the slow
+    combustion vibration (a half sine over $60^\circ$ crank angle) that is also
+    present on the sensor signal?
+  \item \textbf{Bode diagram.} Sketch $|H_K(\jj\omega)|$ in dB and the phase
+    over $\log f$ (asymptotes!). Compute the height and frequency of the
+    resonance peak and show that the $-3$\,dB bandwidth is
+    $\Delta\omega\approx2\sigma$, i.e.\ $B\approx 1/(\pi\tau)$ in Hz. Interpret
+    this relation between decay time and bandwidth.
+  \item The second knock mode has $f_d=\SI{10.5}{kHz}$ and the same $\tau$.
+    Mark all four poles of the two-mode model in the $s$-plane. What
+    distinguishes the poles of the two modes, and what do they have in common?
+  \item \textbf{RC anti-aliasing filter.} The knock signal is sampled at
+    $f_s=\SI{40}{kHz}$ behind an RC low-pass with $R=\SI{1}{k\ohm}$,
+    $C=\SI{10}{nF}$. Give $H_{RC}(s)$, its pole and $f_c$. Compute the
+    attenuation at \SI{6.5}{kHz}, \SI{10.5}{kHz} and at \SI{30}{kHz}. Onto which
+    frequency does a \SI{30}{kHz} component alias, and why is that critical?
+    Which $f_c$ would a first-order filter need for \SI{40}{dB} attenuation at
+    \SI{30}{kHz}? Compare with a second-order Butterworth filter with the same
+    $f_c$ and conclude. Also give the phase and the group delay of the RC
+    filter at \SI{6.5}{kHz}.
+  \item \textbf{Lambda sensor with transport delay.} Fuel change
+    $\rightarrow$ sensor is modelled as $G(s)=\e^{-sT_d}/(1+sT)$ with
+    $T_d=\SI{200}{ms}$ (gas travel) and $T=\SI{30}{ms}$ (sensor), the values of
+    the Wokwi \texttt{lambda-probe} chip.
+    \begin{tasks}
+      \item Why is $G(s)$ not a rational function, and why is this a problem
+        for the methods of this chapter?
+      \item Derive the Pad\'e(1,1) approximation
+        $\e^{-sT_d}\approx(1-sT_d/2)/(1+sT_d/2)$ by matching the Taylor series
+        of both sides as far as possible. Where are poles and zeros of the
+        approximated $G_1(s)$?
+      \item Compute the step response of $G_1(s)$ with partial fractions.
+        Determine the minimum (time and value) and explain the
+        \emph{undershoot}. Compare with the exact step response.
+      \item Phase error: the exact delay has phase $-\omega T_d$, the Pad\'e
+        term $-2\arctan(\omega T_d/2)$. Up to which frequency is the error
+        below $5^\circ$? (Use the series $\arctan x\approx x-x^3/3$.)
+    \end{tasks}
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) With $\Lap\{\e^{-\sigma t}\sin(\omega_d t)\varepsilon(t)\}=\omega_d/((s+\sigma)^2+\omega_d^2)$
+and $(s+\sigma)^2+\omega_d^2=s^2+2\sigma s+\sigma^2+\omega_d^2=s^2+2\sigma s+\omega_0^2$
+we get $\Lap\{h_K\}=\frac{\omega_0^2}{\omega_d}\cdot\frac{\omega_d}{s^2+2\sigma s+\omega_0^2}=H_K(s)$.
+Numbers: $\sigma=1/\tau=\SI{1250}{s^{-1}}$, $\omega_d=\SI{40840.7}{rad/s}$,
+$\omega_0=\SI{40859.8}{rad/s}$ ($f_0=\SI{6503.0}{Hz}$), $\zeta=0.0306$, $Q=16.3$.
+Poles $p_{1,2}=-\sigma\pm\jj\omega_d=-1250\pm\jj\,40841\,\si{s^{-1}}$,
+ROC $\operatorname{Re}s>-1250\,\si{s^{-1}}$. It contains the imaginary axis:
+the causal system is stable. $\sigma<0$ means poles in the right half plane:
+the oscillation grows like $\e^{|\sigma|t}$ (unstable).
+
+b) $\frac{H_K(s)}{s}=\frac1s-\frac{s+2\sigma}{(s+\sigma)^2+\omega_d^2}
+=\frac1s-\frac{s+\sigma}{(s+\sigma)^2+\omega_d^2}-\frac{\sigma}{\omega_d}\frac{\omega_d}{(s+\sigma)^2+\omega_d^2}$, hence
+\[ y_\varepsilon(t)=\Bigl[1-\e^{-\sigma t}\Bigl(\cos\omega_d t+\frac{\sigma}{\omega_d}\sin\omega_d t\Bigr)\Bigr]\varepsilon(t). \]
+First maximum at $t_p=\pi/\omega_d=\SI{76.9}{\micro s}$, overshoot
+$\e^{-\pi\sigma/\omega_d}=\e^{-0.0962}=0.908$, i.e.\ \textbf{90.8\,\%};
+2\,\% settling time $\approx 4/\sigma=\SI{3.2}{ms}$. Because $H_K(0)=1$ the slow
+combustion vibration (half sine of \SI{3.3}{ms} at \SI{3000}{rpm}, i.e.\ some
+\SI{100}{Hz}) passes unattenuated -- the resonator alone is no knock filter; a
+band-pass (Sheet~10) or at least a high-pass is required.
+
+c) Asymptotes: \SI{0}{dB} below $f_0$, $-40$\,dB/decade above $f_0$ (two poles);
+phase $0^\circ\to-180^\circ$, $-90^\circ$ at $f_0$, the transition takes place
+within $\approx\pm B/2$ around $f_0$. Peak: $|H|_{\max}=1/(2\zeta\sqrt{1-\zeta^2})=16.35$
+(\SI{24.27}{dB}) at $f_r=f_0\sqrt{1-2\zeta^2}=\SI{6497}{Hz}$. Near the pole
+$p_1$, $|H|\propto1/|\jj\omega-p_1|=1/\sqrt{\sigma^2+(\omega-\omega_d)^2}$, which
+drops by $\sqrt2$ for $|\omega-\omega_d|=\sigma$: $\Delta\omega=2\sigma$,
+$B=\sigma/\pi=1/(\pi\tau)=\SI{398}{Hz}$. A short burst (small $\tau$)
+necessarily has a wide spectrum and vice versa (time--bandwidth product
+$B\tau=1/\pi$). Numerical check in Exercise~7.2: $B=\SI{398.3}{Hz}$.
+\begin{center}
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=0.75\textwidth,height=4.6cm,xmin=100,xmax=1e5,
+  ymin=-50,ymax=30,grid=both,xlabel={$f$ in Hz},ylabel={$|H_K|$ in dB},
+  every axis plot/.append style={thick}]
+\addplot[domain=100:1e5,samples=1500,dspblue]
+  {-10*log10((1-(x/6503)^2)^2+(2*0.0306*x/6503)^2)};
+\addplot[domain=6000:7000,samples=300,dspblue]
+  {-10*log10((1-(x/6503)^2)^2+(2*0.0306*x/6503)^2)};
+\addplot[domain=100:6503,dashed,gray] {0};
+\addplot[domain=6503:1e5,dashed,gray] {-40*log10(x/6503)};
+\end{semilogxaxis}
+\end{tikzpicture}
+\end{center}
+
+d) Mode~2: $p_{3,4}=-1250\pm\jj\,65973\,\si{s^{-1}}$. Same real part (same decay
+time $\tau$, i.e.\ same distance from the imaginary axis, same bandwidth
+\SI{398}{Hz}), but larger imaginary part (frequency); its damping ratio
+$\zeta_2=\sigma/\omega_{0,2}=0.019$ and $Q_2=26$ are therefore different.
+
+e) $H_{RC}(s)=1/(1+sRC)$, $RC=\SI{10}{\micro s}$, pole $s=-10^5\,\si{s^{-1}}$,
+$f_c=1/(2\pi RC)=\SI{15.9}{kHz}$.
+$|H|$: \SI{-0.67}{dB} at \SI{6.5}{kHz}, \SI{-1.57}{dB} at \SI{10.5}{kHz},
+\SI{-6.58}{dB} at \SI{30}{kHz}. At $f_s=\SI{40}{kHz}$ a \SI{30}{kHz} component
+aliases to $40-30=\SI{10}{kHz}$, right next to the second knock mode, and is
+attenuated by a factor of only 0.47. For \SI{40}{dB}:
+$\sqrt{1+(30/f_c)^2}=100\Rightarrow f_c\approx\SI{300}{Hz}$ -- that would also
+destroy the knock band. A second-order Butterworth with $f_c=\SI{15.9}{kHz}$
+gives $-10\log_{10}(1+(f/f_c)^4)$: \SI{-0.12}{dB} at \SI{6.5}{kHz} and
+\SI{-11.3}{dB} at \SI{30}{kHz}; still not enough. Conclusion: either a
+higher-order analog filter or (better) oversampling with a digital decimation
+filter. Phase at \SI{6.5}{kHz}: $-\arctan(\omega RC)=-22.2^\circ$; group delay
+$\tau_g=RC/(1+(\omega RC)^2)=\SI{8.6}{\micro s}$ ($\approx0.15^\circ$ crank
+angle at \SI{3000}{rpm} -- negligible).
+
+f) i.~$\Lap\{x(t-T_d)\}=\e^{-sT_d}X(s)$ is a transcendental function of $s$;
+it cannot be written as a ratio of polynomials, so there are no finite sets of
+poles and zeros, no partial fraction expansion and no finite-dimensional ODE /
+state-space model (the ``state'' of a delay is the complete input history of
+length $T_d$).
+
+ii.~$\e^{-x}=1-x+\frac{x^2}{2}-\frac{x^3}{6}+\dots$ and
+$\frac{1-ax}{1+ax}=1-2ax+2a^2x^2-2a^3x^3+\dots$; matching the linear and the
+quadratic term gives $a=\frac12$ (the error starts with $x^3/12$). $G_1(s)=
+\frac{1-0.1s}{(1+0.1s)(1+0.03s)}$: poles $s=-10$ and $s=-33.3\,\si{s^{-1}}$,
+zero $s=+10\,\si{s^{-1}}$ in the right half plane (non-minimum phase, all-pass
+factor).
+
+iii.~$\frac{G_1(s)}{s}=\frac{1-0.1s}{0.003\,s(s+10)(s+100/3)}=\frac1s-\frac{20/7}{s+10}+\frac{13/7}{s+100/3}$:
+\[ y(t)=1-\tfrac{20}{7}\e^{-10t}+\tfrac{13}{7}\e^{-100t/3}\quad(t\text{ in s}). \]
+$y(0)=0$, $\dot y(0)=\frac{200}{7}-\frac{1300}{21}=-33.3\,\si{s^{-1}}<0$: the
+response starts in the \emph{wrong direction} (typical of an RHP zero).
+$\dot y=0$ for $\e^{70t/3}=13/6$, i.e.\ $t=\SI{33.1}{ms}$, where
+$y_{\min}=-0.436$. The exact response is $0$ for $t<T_d$ and
+$1-\e^{-(t-T_d)/T}$ afterwards; the approximation reaches $0.5$ already after
+\SI{173}{ms} instead of \SI{221}{ms} (Exercise~7.3).
+
+iv.~$\Delta\varphi=\omega T_d-2\arctan(\omega T_d/2)\approx(\omega T_d)^3/12$.
+$\Delta\varphi=5^\circ=0.0873$ gives $\omega T_d\approx1.02$; the exact
+numerical solution (Exercise~7.3) is $\omega T_d=1.069$, i.e.\
+$f=\SI{0.85}{Hz}$. Pad\'e(1,1) is fine for controller design at loop
+frequencies below $\approx\SI{0.5}{Hz}$, useless for the time response
+around $t=T_d$.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Knock resonator: ODE solvers vs.\ Laplace}{\JSLinux}
+Program \codefile{jslinux/sheet07/resonator\_ode.c} integrates the ODE
+$\ddot y+2\sigma\dot y+\omega_0^2y=\omega_0^2u$ of \eqref{eq:s7res} in state-space
+form $x=(y,\dot y)^T$.
+\begin{tasks}
+  \item Implement \texttt{rhs()}, one step of the forward Euler method and one
+    step of the classical Runge--Kutta method (RK4).
+  \item Implement the analytic impulse and step responses of Exercise~7.1.
+    The program simulates the impulse response (initial state
+    $y(0)=0$, $\dot y(0)=\omega_0^2$ -- why?) and the step response for step
+    sizes $h=40,20,\dots,\SI{0.625}{\micro s}$ and prints the maximum error.
+    Estimate the order of convergence $p$ from successive errors
+    ($e(h)\propto h^p$).
+  \item Explain the results of the Euler method: derive the stability
+    condition $|1+h\lambda|<1$ for $\dot x=\lambda x$ and evaluate it for the
+    poles of $H_K$. Compare the limit with the sampling period of the engine
+    chip (\SI{20}{\micro s}). Why does the chip compute the burst from the
+    closed-form solution instead of integrating an ODE?
+  \item Implement \texttt{freq\_resp()} and compare peak, resonance frequency
+    and $-3$\,dB bandwidth with your results of Exercise~7.1\,c).
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a)/b) Key part of \codefile{solutions/jslinux/sheet07/resonator\_ode.c}:
+\inputcode[firstline=40,lastline=67]{solutions/jslinux/sheet07/resonator_ode.c}
+The input $\omega_0^2\delta(t)$ integrated over $[0^-,0^+]$ changes $\dot y$ by
+$\omega_0^2$ while $y$ stays continuous, hence the initial state.
+Program output (maximum error relative to the peak of the exact response,
+\SI{0}{}--\SI{4}{ms}):
+\begin{center}\footnotesize\setlength{\tabcolsep}{4pt}
+\begin{tabular}{rrrrrrrr}
+\toprule
+$h$ [\si{\micro s}] & 40 & 20 & 10 & 5 & 2.5 & 1.25 & 0.625\\
+\midrule
+Euler & $3.1\cdot10^{27}$ & $7.8\cdot10^{20}$ & $2.9\cdot10^{11}$ & $1.0\cdot10^{5}$ & 28.7 & 0.613 & 0.206\\
+RK4 & 0.361 & $4.6\cdot10^{-2}$ & $3.0\cdot10^{-3}$ & $1.8\cdot10^{-4}$ & $1.1\cdot10^{-5}$ & $7.2\cdot10^{-7}$ & $4.5\cdot10^{-8}$\\
+RK4 order $p$ & -- & 2.97 & 3.96 & 4.00 & 4.01 & 4.00 & 4.00\\
+\bottomrule
+\end{tabular}
+\end{center}
+RK4 converges with order 4 (error ratio 16 per halving of $h$) once
+$\omega_0h\lesssim0.4$; at $h=\SI{20}{\micro s}$ (50 samples/ms) the error is
+4.6\,\%. The step response behaves the same way (RK4: $2.3\cdot10^{-2}$ at
+\SI{20}{\micro s}, $9.2\cdot10^{-5}$ at \SI{5}{\micro s}). The Euler method
+diverges for $h\ge\SI{2.5}{\micro s}$; for $h=1.25$ and \SI{0.625}{\micro s} it
+is stable but still has 61\,\% and 21\,\% error (the observed order 1.57 is
+still pre-asymptotic, theoretically $p=1$).
+
+c) Euler applied to $\dot x=\lambda x$: $x_{n+1}=(1+h\lambda)x_n$, stable iff
+$|1+h\lambda|<1$ (a circle of radius 1 around $-1$ in the $h\lambda$-plane).
+With $\lambda=-\sigma\pm\jj\omega_d$:
+$|1+h\lambda|^2=1-2h\sigma+h^2\omega_0^2<1\iff h<2\sigma/\omega_0^2=\SI{1.497}{\micro s}$.
+For lightly damped poles close to the imaginary axis the forward Euler method
+is unstable for any reasonable step -- the chip samples every
+\SI{20}{\micro s}, more than 13 times this limit. For the poles of $H_K$,
+RK4 is stable up to $h\omega_0\approx2.8$ ($h\approx\SI{69}{\micro s}$),
+but still inaccurate. The chip therefore evaluates the closed-form solution
+$\e^{-t/\tau}\sin(\omega_dt)$ which is exact for every step size -- this is
+precisely what the inverse Laplace transform gives us.
+
+d) Peak \SI{24.27}{dB} at \SI{6497.0}{Hz}, $-3$\,dB band
+\SI{6294.8}{}--\SI{6693.1}{Hz}, $B=\SI{398.3}{Hz}$ ($\sigma/\pi=\SI{397.9}{Hz}$).
+Selected values: \SI{0.21}{dB} at \SI{1}{kHz}, \SI{-4.14}{dB} at \SI{10.5}{kHz},
+\SI{-18.55}{dB} at \SI{20}{kHz}, \SI{-47.4}{dB} at \SI{100}{kHz} (one decade
+above $f_0$ about $-40$\,dB plus the small offset of the asymptote); phase
+$-89.1^\circ$ at \SI{6.5}{kHz}, $-20.8^\circ$ at \SI{6}{kHz}, $-157.5^\circ$ at
+\SI{7}{kHz}.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Lambda sensor: delay and Pad\'e approximation}{\JSLinux}
+Program \codefile{jslinux/sheet07/lambda\_pade.c} compares the exact step
+response of $G(s)=\e^{-sT_d}/(1+sT)$ with three rational approximations of the
+delay: a first-order lag $1/(1+sT_d)$, Pad\'e(1,1) and Pad\'e(2,2)
+\[
+  \e^{-sT_d}\approx\frac{1-sT_d/2+s^2T_d^2/12}{1+sT_d/2+s^2T_d^2/12}.
+\]
+\begin{tasks}
+  \item Any strictly proper $G(s)=N(s)/D(s)$ can be simulated in
+    \emph{controllable canonical form}: $D(p)\,v=u$ and $y=N(p)\,v$,
+    where $p=\mathrm d/\mathrm dt$ and state $(v,\dot v,\dots)$. Implement
+    \texttt{ccf\_rhs()} and \texttt{ccf\_out()} (integration by RK4 is given).
+  \item Implement the exact system by a delay line (ring buffer of
+    $D=T_d/h$ samples) followed by the exact discretisation of the lag,
+    $y_{k+1}=a\,y_k+(1-a)\,u_{k-D}$, $a=\e^{-h/T}$, and the analytic step
+    response. Enter the Pad\'e coefficients. Compare minimum, time of
+    $y=0.5$, RMS and maximum error of the three approximations.
+  \item Compare the phase of the delay part. Up to which frequency is the
+    phase error of Pad\'e(1,1) and Pad\'e(2,2) below $5^\circ$?
+  \item Which approximation would you use (i) to design a lambda
+    controller, (ii) to predict the sensor signal in the time domain?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a)/b) Core of \codefile{solutions/jslinux/sheet07/lambda\_pade.c}:
+\inputcode[firstline=52,lastline=67]{solutions/jslinux/sheet07/lambda_pade.c}
+The delay line reproduces the analytic response to $5.6\cdot10^{-15}$. Results
+(\SI{0}{}--\SI{1}{s}, $h=\SI{0.1}{ms}$):
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+model & $\min y$ & $t_{\min}$ [ms] & $t_{50}$ [ms] & RMS error & max.\ error\\
+\midrule
+lag $1/(1+sT_d)$ & 0.000 & -- & 170.9 & 0.183 & 0.567\\
+Pad\'e(1,1) & $-0.436$ & 33.1 & 173.2 & 0.172 & 0.616\\
+Pad\'e(2,2) & $-0.272$ & 88.8 & 207.7 & 0.104 & 0.448\\
+exact & 0 & -- & 220.8 & -- & --\\
+\bottomrule
+\end{tabular}
+\end{center}
+Pad\'e(1,1) confirms the analytic minimum $-0.436$ at \SI{33.1}{ms} of
+Exercise~7.1. Pad\'e(2,2) (poles $-15\pm\jj8.66$, zeros $+15\pm\jj8.66$) has a
+smaller, oscillating undershoot and a better $t_{50}$. No rational
+approximation can produce an output that is exactly zero for $0<t<T_d$.
+
+c) Phase of the delay part in degrees:
+\begin{center}\small
+\begin{tabular}{rrrrr}
+\toprule
+$f$ [Hz] & exact & lag & Pad\'e(1,1) & Pad\'e(2,2)\\
+\midrule
+0.1 & $-7.2$ & $-7.2$ & $-7.2$ & $-7.2$\\
+0.5 & $-36.0$ & $-32.1$ & $-34.9$ & $-36.0$\\
+1.0 & $-72.0$ & $-51.5$ & $-64.3$ & $-71.8$\\
+2.0 & $-144.0$ & $-68.3$ & $-103.0$ & $-138.7$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Error $>5^\circ$ above \SI{0.85}{Hz} ($\omega T_d=1.07$) for Pad\'e(1,1) and above
+\SI{1.97}{Hz} ($\omega T_d=2.48$) for Pad\'e(2,2). The lag has the correct
+low-frequency phase slope but its phase is bounded by $-90^\circ$.
+
+d) (i) Controller design (stability margins, Sheet~2 limit cycle) needs the
+correct \emph{phase} near the crossover frequency; Pad\'e(2,2) (or (1,1) if the
+crossover is well below \SI{0.8}{Hz}) is appropriate. (ii) For time-domain
+prediction one should keep the delay exact (delay line, Smith predictor); every
+rational approximation produces a non-physical undershoot.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{From $s$ to $z$: discretisation of analog systems}{\JSLinux}
+A digital filter shall imitate $H_K(s)$ and $H_{RC}(s)$ at $f_s=\SI{40}{kHz}$,
+$T=1/f_s$. Three classical mappings are
+\begin{gather*}
+  \text{forward Euler: } s=\frac{z-1}{T},\qquad
+  \text{bilinear: } s=\frac2T\,\frac{z-1}{z+1},\\
+  \text{impulse invariance: } h[n]=T\,h(nT)\quad(\text{poles } z_k=\e^{p_kT}).
+\end{gather*}
+\begin{tasks}
+  \item \textbf{(paper)} Into which region of the $z$-plane is the left half
+    $s$-plane mapped by each method, and onto which curve the imaginary axis?
+    Which method can turn a stable analog system into an unstable digital one?
+    Show that the bilinear transform maps $\omega_a$ onto
+    $\Omega=2\arctan(\omega_aT/2)$ (\emph{frequency warping}).
+  \item Complete the three mapping functions of the program
+    \codefile{jslinux/sheet07/discretise.c}, i.e.\ \texttt{map\_euler},
+    \texttt{map\_bilin} and \texttt{impinv} (second-order section $H(s)=(b_0s^2+b_1s+b_2)/(a_0s^2+a_1s+a_2)$; impulse
+    invariance via partial fractions with the small complex struct provided).
+  \item \emph{Prewarping}: with $s=K\frac{z-1}{z+1}$,
+    $K=\omega_r/\tan(\omega_rT/2)$, the frequency $\omega_r$ is mapped exactly.
+    Use $\omega_r=\omega_0$ for the resonator and $\omega_r=\omega_c$ for the RC
+    filter.
+  \item Run the program and interpret the tables: pole radius and angle, peak
+    frequency, gain at DC and close to $f_s/2$. Which method would you choose
+    for the knock resonator, which for the anti-aliasing filter model?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Forward Euler: $z=1+sT$; the left half plane becomes the half plane
+$\operatorname{Re}z<1$, the $\jj\omega$ axis the vertical line
+$\operatorname{Re}z=1$. Stable poles outside the unit circle become unstable
+(exactly the stability condition of Exercise~7.2). Impulse invariance:
+$z=\e^{sT}$, LHP $\rightarrow$ interior of the unit circle (stable stays
+stable), but the map is not one-to-one: all $s+\jj k\,2\pi/T$ map to the same
+$z$ $\Rightarrow$ aliasing of the frequency response. Bilinear:
+$z=(1+sT/2)/(1-sT/2)$ maps the LHP one-to-one onto the unit disk and the
+$\jj\omega$ axis onto the unit circle; with $z=\e^{\jj\Omega}$:
+$\frac2T\frac{\e^{\jj\Omega}-1}{\e^{\jj\Omega}+1}=\jj\frac2T\tan\frac\Omega2=\jj\omega_a$,
+hence $\Omega=2\arctan(\omega_aT/2)$; the whole axis $0\le\omega_a<\infty$ is
+compressed into $0\le\Omega<\pi$.
+
+b) Key part of the solution:
+\inputcode[firstline=86,lastline=91]{solutions/jslinux/sheet07/discretise.c}
+\inputcode[firstline=108,lastline=113]{solutions/jslinux/sheet07/discretise.c}
+\inputcode[firstline=130,lastline=158]{solutions/jslinux/sheet07/discretise.c}
+
+c)/d) Program output, knock resonator (exact pole map: $|z|=\e^{-\sigma T}=0.96923$
+at \SI{6500}{Hz}):
+\begin{center}\small
+\begin{tabular}{lrrrrrr}
+\toprule
+method & $|p|$ & $\arg p$ [Hz] & peak [Hz] & $|H|$ at 0 & at \SI{6.5}{kHz} & at \SI{15}{kHz}\\
+\midrule
+analog & -- & -- & 6497 & \SI{0.00}{dB} & \SI{24.27}{dB} & \SI{-12.72}{dB}\\
+forward Euler & 1.4075 & 5167 & (4801) & 0.00 & 1.11 & $-11.90$\\
+impulse invariance & 0.9692 & 6500 & 6498 & $-0.80$ & 24.27 & $-9.02$\\
+bilinear & 0.9755 & 6011 & 6008 & 0.00 & 13.43 & $-26.59$\\
+bilinear, prewarped & 0.9742 & 6502 & 6498 & 0.00 & 24.27 & $-24.89$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Coefficients: impulse invariance $H(z)=0.844567\,z^{-1}/(1-1.012846z^{-1}+0.939413z^{-2})$,
+bilinear $H(z)=0.201889(1+z^{-1})^2/(1-1.144074z^{-1}+0.951630z^{-2})$.
+Forward Euler produces poles at $|z|=1.41$: \textbf{unstable} (its
+``frequency response'' is a formal evaluation without meaning). Impulse
+invariance keeps the resonance perfectly (pole angle exactly \SI{6500}{Hz},
+peak \SI{24.27}{dB}) but aliasing raises the response far from the peak
+(\SI{-0.8}{dB} at DC, \SI{-9.0}{dB} instead of \SI{-12.7}{dB} at \SI{15}{kHz}).
+The plain bilinear transform warps the resonance to
+$f_s/\pi\cdot\arctan(\pi f_0/f_s)=\SI{6.01}{kHz}$ -- \SI{500}{Hz} off, more than the
+bandwidth, so at \SI{6.5}{kHz} only \SI{13.4}{dB} instead of \SI{24.3}{dB}
+remain. Prewarping at $f_0$ moves the pole back to \SI{6502}{Hz}. The bilinear
+methods have a double zero at $z=-1$ ($|H|\rightarrow-\infty$ at $f_s/2$).
+
+RC low-pass ($f_c=\SI{15.9}{kHz}$, $\omega_cT=2.5$):
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+method & pole $z$ & $|H|$ at 0 & \SI{6.5}{kHz} & \SI{15.9}{kHz} & \SI{20}{kHz}\\
+\midrule
+analog & -- & \SI{0.00}{dB} & \SI{-0.67}{dB} & \SI{-3.01}{dB} & \SI{-4.11}{dB}\\
+forward Euler & $-1.50$ (unstable) & 0.00 & 1.13 & 8.68 & 13.98\\
+impulse invariance & 0.0821 & 8.70 & 8.32 & 7.40 & 7.27\\
+bilinear & $-0.111$ & 0.00 & $-0.79$ & $-8.32$ & $-80$\\
+bilinear, prewarped & $-0.501$ & 0.00 & $-0.15$ & $-3.01$ & $-73$\\
+\bottomrule
+\end{tabular}
+\end{center}
+For a filter whose response does not vanish below $f_s/2$, impulse invariance
+is useless: the DC gain is $\omega_cT/(1-\e^{-\omega_cT})=2.72$ (\SI{+8.7}{dB}),
+the sum of all aliased copies. Choice: for the knock resonator (narrow-band,
+$f_0\ll f_s/2$) impulse invariance or prewarped bilinear; for the RC model
+(and any low-/high-pass or band-stop) the prewarped bilinear transform. This
+is the standard IIR design route of Sheet~10.
+\end{solution}
+
+\begin{deliverables}
+Paper solution of 7.1 including the Bode sketch; the error table and the
+order estimate of 7.2 with the Euler stability limit; the step-response table
+of 7.3 and your recommendation 7.3\,d); the comparison tables of 7.4 with a
+short justification of your choice of discretisation method.
+\end{deliverables}

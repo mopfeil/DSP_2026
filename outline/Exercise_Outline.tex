@@ -1,0 +1,409 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\W}{\textsf{\textbf{[Wokwi]}}}
+\newcommand{\J}{\textsf{\textbf{[JSLinux]}}}
+\newcommand{\Pap}{\textsf{\textbf{[Paper]}}}
+\newcommand{\ecu}{\emph{The ECU does not see the engine. It sees only signals.}}
+
+\newtcolorbox{sheetinfo}{colback=gray!6,colframe=gray!50,boxrule=0.4pt,
+  left=4pt,right=4pt,top=3pt,bottom=3pt,fontupper=\small}
+
+% \exercise{id}{title}{platform}{description}
+\newcommand{\exercise}[4]{%
+  \par\smallskip\noindent\textbf{#1\quad #2}\hfill#3\par
+  \nopagebreak\begin{itemize}[leftmargin=1.2em]#4\end{itemize}}
+
+\title{Digital Signal Processing -- Exercise Outline\\
+\large Engine signals as the guiding example, run on Wokwi and JSLinux}
+\author{}
+\date{Draft, \today}
+
+\begin{document}
+\maketitle
+
+\section*{Concept}
+
+Every exercise sheet follows the leitmotif of the lecture: \ecu{}
+The exercises therefore build, chapter by chapter, a small \emph{virtual
+engine} (signal generators for crankshaft, camshaft, knock, ion current and
+lambda sensors) and a small \emph{virtual ECU} that extracts information
+from these signals. Sheet 12 (knock detection) assembles all parts.
+
+\subsection*{Platforms}
+\begin{description}[leftmargin=1.5em]
+  \item[\W] Browser-based microcontroller simulator
+    (\url{https://wokwi.com}). Targets: Arduino Uno (8-bit, no FPU, 10-bit
+    ADC -- for fixed-point and resource-limit exercises) and ESP32 (FPU,
+    12-bit ADC -- for floating-point real-time filtering). Inputs via
+    potentiometers, buttons and \emph{Wokwi custom chips} (C API) that act
+    as sensor signal generators; outputs via Serial Monitor (CSV), LEDs and
+    the logic analyzer (VCD export).
+  \item[\J] x86 Linux in the browser (\url{https://bellard.org/jslinux}).
+    Plain C99 with \texttt{libm} (\texttt{gcc} or \texttt{tcc}), offline
+    analysis of recorded or synthetic data, text/ASCII plots and CSV output.
+    Data transfer from Wokwi: copy the Serial Monitor CSV, upload into
+    JSLinux.
+  \item[\Pap] Pen-and-paper part (derivations, sketches, short answers),
+    used to prepare or check the programming part.
+\end{description}
+
+\subsection*{Course infrastructure (to be provided once)}
+\begin{itemize}
+  \item \texttt{engine\_signals.h/.c}: portable C models of all sensor
+    signals (60-2 crank wheel, cam, knock = damped resonances + noise,
+    ion current, switching lambda sensor), shared by Wokwi and JSLinux.
+  \item Wokwi custom chips \texttt{crank-60-2}, \texttt{knock-sensor}, \texttt{lambda-probe}
+    built from the same models, with RPM/load/knock-intensity controls.
+  \item \texttt{asciiplot.h}: dependency-free terminal plot for JSLinux
+    (time signal, spectrum, pole-zero map).
+  \item \texttt{csvio.h}: read/write of sample files; a set of
+    pre-recorded data files (crank, knock with/without knock, lambda).
+  \item Sheet 0 (\emph{Getting started}, 45\,min): blink + serial CSV on
+    Wokwi; compile/run/upload/download on JSLinux.
+\end{itemize}
+
+\subsection*{Sheet format}
+Each sheet: learning goals referencing the script, 1--2 paper exercises,
+2--3 lab exercises, deliverables (code, plot, short written answers),
+optional challenge. Solutions in the same \texttt{.tex} file, switched by
+\verb|\ifsolutions|. Expected workload per sheet: 90\,min tutorial
++ about 3\,h self-study.
+
+\subsection*{Overview}
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}clXcc@{}}
+\toprule
+\# & Chapter & Lab core & \W & \J\\
+\midrule
+1 & ECU and Signals & 60-2 crank signal, RPM from tooth timing, signal zoo & x & x\\
+2 & Systems & Black-box property tests, lambda loop with delay & x & x\\
+3 & LTI Systems & Convolution, impulse/step response, moving-average RPM & x & x\\
+4 & Sampling & ADC sampling, quantisation SNR, time vs.\ angle domain & x & x\\
+5 & Nyquist & Aliasing of knock frequencies, anti-aliasing filter & x & x\\
+6 & Fourier & Fourier series of crank signal, engine orders & & x\\
+7 & Laplace & Knock sensor as resonator, RC filter, step responses & & x\\
+8 & DFT/FFT & Own radix-2 FFT, windowing, leakage, cost & x & x\\
+9 & Z-Transform & Pole/zero, stability, digital resonator & x & x\\
+10 & Digital Filters & FIR/IIR knock band-pass, fixed point vs.\ float & x & x\\
+11 & Maximum Entropy & Burg/AR spectrum vs.\ FFT on short windows & & x\\
+12 & Knock Detection & Angle-synchronous real-time knock detector & x & x\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%=====================================================================
+\section{Sheet 1 -- The ECU Sees Only Signals}
+\begin{sheetinfo}
+Goals: describe sensor signals mathematically, classify them, extract a
+first piece of information (engine speed) from a raw signal.
+\end{sheetinfo}
+
+\exercise{1.1}{Signal classification}{\Pap}{
+  \item Classify the five engine signals (continuous/discrete,
+    deterministic/stochastic, periodic/aperiodic, analog/digital) and
+    justify each entry of Table~1.2; discuss borderline cases
+    (\emph{quasi-periodic} knock, crank signal during acceleration).
+  \item Relation crank angle vs.\ cam angle (720$^\circ$ vs.\ 360$^\circ$):
+    period of each signal at 3000\,rpm.}
+
+\exercise{1.2}{Signal zoo}{\J}{
+  \item Generate and plot all five sensor models with
+    \texttt{engine\_signals.h}; compute mean, RMS, min/max.
+  \item Determine numerically whether a signal is periodic (autocorrelation
+    peak) -- compare crank at constant speed vs.\ knock signal.}
+
+\exercise{1.3}{60-2 crank wheel and engine speed}{\W}{
+  \item Arduino Uno + \texttt{crank-60-2} chip: capture rising edges by
+    interrupt, store tooth periods, print CSV.
+  \item Detect the missing-tooth gap (period ratio $>$ 2), count teeth,
+    compute crank angle and RPM; light an LED at TDC.
+  \item Vary RPM with a potentiometer; observe jitter in the RPM estimate.}
+
+\exercise{1.4}{Cam/crank synchronisation (challenge)}{\W}{
+  \item Add the cam signal and determine the 720$^\circ$ cycle phase
+    (cylinder identification).}
+
+%=====================================================================
+\section{Sheet 2 -- Systems}
+\begin{sheetinfo}
+Goals: the operator view $y=S\{x\}$; static/dynamic, causal/non-causal,
+memoryless/with memory; first contact with linearity and time invariance.
+\end{sheetinfo}
+
+\exercise{2.1}{Properties by hand}{\Pap}{
+  \item For about 8 systems (e.g.\ $y=2x$, $y=x^2$, $y[n]=x[n+1]-x[n]$,
+    three-point moving average, $y(t)=x(t-T_d)$, rectifier, integrator,
+    $y[n]=n\,x[n]$) decide static/dynamic, causal, memory, linear,
+    time-invariant.}
+
+\exercise{2.2}{Black-box system identification}{\J}{
+  \item Provided object file with five unknown systems
+    \texttt{S1..S5(x, y, N)}. Students write test harnesses: superposition
+    test, shifted-input test, causality test (impulse at $n_0$), memory
+    test.
+  \item Report: property table with numerical evidence.}
+
+\exercise{2.3}{Engine as a dynamic system}{\J}{
+  \item Simulate crankshaft speed as first-order system (inertia) driven
+    by fuel quantity; step in fuel $\rightarrow$ gradual RPM change.
+  \item Lambda path: fuel $\rightarrow$ engine $\rightarrow$ transport
+    delay $\rightarrow$ switching lambda sensor (non-linear, static).}
+
+\exercise{2.4}{Closed lambda loop}{\W}{
+  \item ESP32 + \texttt{lambda-probe} chip: implement a two-point
+    (bang-bang) controller with integrator; observe the limit cycle of
+    Fig.~1.3 in the Serial Monitor; vary the transport delay and explain
+    the change of the oscillation period.}
+
+%=====================================================================
+\section{Sheet 3 -- LTI Systems}
+\begin{sheetinfo}
+Goals: impulse response, convolution, step response, difference
+equations; LTI systems as the workhorse of DSP.
+\end{sheetinfo}
+
+\exercise{3.1}{Convolution by hand}{\Pap}{
+  \item Graphical and tabular convolution of short sequences;
+    impulse/step response of moving average and of
+    $y[n]=a\,y[n-1]+(1-a)\,x[n]$.}
+
+\exercise{3.2}{Convolution engine}{\J}{
+  \item Implement \texttt{conv()} and verify commutativity, associativity
+    and distributivity numerically; compare with recursive implementation
+    of the exponential smoother.
+  \item Cascading: two moving averages = triangular impulse response.}
+
+\exercise{3.3}{Smoothing the RPM estimate}{\W}{
+  \item Extend Ex.~1.3: moving average over $N$ teeth vs.\ exponential
+    smoother; trade-off noise vs.\ delay during an RPM ramp; measure the
+    lag in teeth.
+  \item Why must the gap tooth be treated separately (violation of time
+    invariance in the tooth domain)?}
+
+%=====================================================================
+\section{Sheet 4 -- Sampling}
+\begin{sheetinfo}
+Goals: sampling and quantisation, ADC resolution, SNR, timing jitter,
+time-based vs.\ crank-angle-based sampling.
+\end{sheetinfo}
+
+\exercise{4.1}{Quantisation}{\Pap}{
+  \item Derive $\mathrm{SNR}\approx 6.02N+1.76$\,dB; required ADC bits for
+    the knock sensor dynamic range; LSB size for 10-/12-bit ADCs.}
+
+\exercise{4.2}{ADC in practice}{\W}{
+  \item Uno/ESP32: timer-driven sampling of a potentiometer and of the
+    \texttt{knock-sensor} chip; verify the sampling rate with the logic
+    analyzer (toggle pin per sample).
+  \item Note: Wokwi runs in simulated time; timing is measured in
+    simulated time, not wall-clock time.}
+
+\exercise{4.3}{Quantisation noise and jitter}{\J}{
+  \item Quantise a sine with $N=4\ldots16$ bits; measure SNR, compare with
+    the formula; add sampling jitter and observe the SNR drop vs.\
+    frequency.}
+
+\exercise{4.4}{Time domain vs.\ angle domain}{\J}{
+  \item Resample a time-sampled signal during an RPM ramp onto a
+    crank-angle grid (linear interpolation using crank edges); show that
+    crank-synchronous components become stationary in the angle domain.}
+
+%=====================================================================
+\section{Sheet 5 -- Nyquist}
+\begin{sheetinfo}
+Goals: sampling theorem, aliasing, reconstruction, anti-aliasing filters.
+\end{sheetinfo}
+
+\exercise{5.1}{Aliasing by hand}{\Pap}{
+  \item Alias frequency of knock components (6--15\,kHz) for several
+    sampling rates; minimum $f_s$; folding diagram.}
+
+\exercise{5.2}{Aliasing made visible}{\W}{
+  \item Uno ADC (max.\ about 9\,kHz achievable) samples the knock chip at
+    6, 8, 11\,kHz resonance: observe the apparent frequency in the CSV;
+    switch to ESP32 with higher $f_s$.}
+
+\exercise{5.3}{Reconstruction and anti-aliasing}{\J}{
+  \item Sinc interpolation vs.\ zero-order hold vs.\ linear interpolation;
+    reconstruction error.
+  \item Simulate an RC (and 2nd-order) anti-aliasing filter before
+    sampling; residual alias power vs.\ filter order.}
+
+%=====================================================================
+\section{Sheet 6 -- Fourier}
+\begin{sheetinfo}
+Goals: Fourier series, Fourier transform, DTFT; engine orders.
+\end{sheetinfo}
+
+\exercise{6.1}{Fourier series of engine signals}{\Pap}{
+  \item Fourier coefficients of a rectangular tooth signal; effect of the
+    missing teeth on the spectrum (once-per-revolution modulation).
+  \item Damped sinusoid (knock) $\rightarrow$ Lorentzian spectrum;
+    bandwidth vs.\ damping.}
+
+\exercise{6.2}{Numerical Fourier series and DTFT}{\J}{
+  \item Compute Fourier coefficients numerically; Gibbs phenomenon for
+    partial sums; DTFT evaluated on a fine grid (no FFT yet).}
+
+\exercise{6.3}{Engine orders}{\J}{
+  \item Signal with 2nd and 4th engine order and a fixed structural
+    resonance: spectra at 1500/3000/6000\,rpm; distinguish
+    speed-proportional orders from fixed resonances.}
+
+%=====================================================================
+\section{Sheet 7 -- Laplace}
+\begin{sheetinfo}
+Goals: transfer functions, poles and zeros, stability and step response
+of continuous-time systems; bridge to discretisation.
+\end{sheetinfo}
+
+\exercise{7.1}{Sensor models in the $s$-domain}{\Pap}{
+  \item Knock sensor as 2nd-order resonator $H(s)$ (resonance frequency,
+    damping, Q); RC low-pass; lambda sensor as first-order lag + delay
+    ($e^{-sT_d}$, Pad\'e approximation).
+  \item Poles, step response, Bode sketch.}
+
+\exercise{7.2}{Numerical verification}{\J}{
+  \item Simulate the ODEs (Euler, RK4) and compare with analytic step and
+    impulse responses; evaluate $|H(j\omega)|$ and phase on a grid.
+  \item Discretise by forward Euler, impulse invariance and bilinear
+    transform; compare frequency responses (preview of Sheets 9/10).}
+
+%=====================================================================
+\section{Sheet 8 -- DFT and FFT}
+\begin{sheetinfo}
+Goals: DFT as sampled DTFT, frequency resolution, leakage, windows,
+FFT algorithm and complexity.
+\end{sheetinfo}
+
+\exercise{8.1}{DFT properties}{\Pap}{
+  \item 4- and 8-point DFT by hand; resolution $\Delta f=f_s/N$; zero
+    padding vs.\ true resolution; window main lobe/side lobe.}
+
+\exercise{8.2}{Own FFT}{\J}{
+  \item Implement direct DFT and iterative radix-2 FFT; verify against each
+    other; measure runtime vs.\ $N$ and fit $N^2$ vs.\ $N\log N$.
+  \item Rectangular, Hann, Hamming, Blackman windows: leakage of a
+    non-bin-centred knock frequency.}
+
+\exercise{8.3}{FFT on the microcontroller}{\W}{
+  \item ESP32: 256-point FFT of the knock chip signal in a crank-angle
+    window, print the spectrum, identify the knock resonance.
+  \item Uno: memory limit -- largest feasible $N$; operation count instead
+    of execution time (Wokwi is not cycle-accurate).}
+
+%=====================================================================
+\section{Sheet 9 -- Z-Transform}
+\begin{sheetinfo}
+Goals: $z$-transform, ROC, transfer function $H(z)$, poles/zeros,
+stability, frequency response from the pole-zero map.
+\end{sheetinfo}
+
+\exercise{9.1}{Analytical}{\Pap}{
+  \item Transforms of standard sequences; inverse by partial fractions;
+    $H(z)$ of the exponential smoother and of the moving average;
+    stability criterion.}
+
+\exercise{9.2}{Pole-zero explorer}{\J}{
+  \item Program that reads $H(z)$ coefficients, computes poles/zeros
+    (quadratic formula/Durand--Kerner), ASCII pole-zero plot, magnitude
+    and phase response, impulse response.}
+
+\exercise{9.3}{Digital resonator for knock frequency}{\W}{
+  \item Two-pole resonator at the knock frequency; pole radius $r$
+    vs.\ bandwidth; Uno with float vs.\ Q15 fixed point: observe
+    instability/limit cycles for $r\to1$.}
+
+%=====================================================================
+\section{Sheet 10 -- Digital Filters}
+\begin{sheetinfo}
+Goals: FIR (window method) and IIR (bilinear transform) design,
+structures (direct form, biquad cascade), coefficient quantisation.
+\end{sheetinfo}
+
+\exercise{10.1}{Design by hand}{\Pap}{
+  \item Specification of a knock band-pass (e.g.\ 6--8\,kHz, $f_s=40$\,kHz);
+    FIR order estimate; 2nd-order IIR band-pass via bilinear transform
+    with pre-warping.}
+
+\exercise{10.2}{Filter design tool}{\J}{
+  \item Implement FIR window design and IIR biquad design; verify with the
+    Sheet 9 explorer; export coefficients as C header (float and Q15).
+  \item Coefficient quantisation: pole shift and response change for
+    8/12/16-bit coefficients.}
+
+\exercise{10.3}{Real-time filtering}{\W}{
+  \item ESP32: knock band-pass (FIR and biquad) on the knock chip signal,
+    sample-by-sample in the timer ISR; compare outputs.
+  \item Uno: Q15 biquad; overflow handling and scaling.}
+
+%=====================================================================
+\section{Sheet 11 -- Maximum Entropy}
+\begin{sheetinfo}
+Goals: autoregressive (AR) modelling, Yule--Walker, Levinson--Durbin,
+Burg method; high-resolution spectra from short records.
+\end{sheetinfo}
+
+\exercise{11.1}{AR models}{\Pap}{
+  \item Yule--Walker equations for AR(1), AR(2); relation of AR(2) poles to
+    a resonance; maximum-entropy principle.}
+
+\exercise{11.2}{MEM vs.\ FFT on short windows}{\J}{
+  \item Implement Levinson--Durbin and Burg; spectra of 32/64/128-sample
+    knock windows vs.\ windowed periodogram.
+  \item Model order selection (FPE/AIC); spurious peaks and line splitting
+    for too high orders.}
+
+\exercise{11.3}{Resolving two resonances}{\J}{
+  \item Two knock modes close in frequency: minimum record length for
+    resolution with FFT vs.\ Burg; influence of SNR.}
+
+%=====================================================================
+\section{Sheet 12 -- Knock Detection (capstone)}
+\begin{sheetinfo}
+Goals: combine all previous parts into a real-time, angle-synchronous
+knock detector; evaluate it statistically.
+\end{sheetinfo}
+
+\exercise{12.1}{Detector design}{\Pap}{
+  \item Signal chain: crank sync $\rightarrow$ measurement window
+    (e.g.\ 10--70$^\circ$ after TDC) $\rightarrow$ band-pass
+    $\rightarrow$ rectification/squaring $\rightarrow$ integration
+    $\rightarrow$ normalisation by background level $\rightarrow$
+    threshold. Justify each block with the respective chapter.}
+
+\exercise{12.2}{Offline evaluation}{\J}{
+  \item Run the detector on recorded data sets with known knock labels;
+    ROC curve, choice of threshold; compare energy-based, FFT-based and
+    MEM-based features.}
+
+\exercise{12.3}{Real-time knock detector}{\W}{
+  \item ESP32 + \texttt{crank-60-2} + \texttt{knock-sensor} chips: full
+    chain in real time, knock LED per cylinder, ignition retard as
+    output; vary RPM and knock intensity.
+  \item Optional: port to Uno in fixed point and report the limits.}
+
+%=====================================================================
+\section*{Open points}
+\begin{itemize}
+  \item Confirm the JSLinux image and toolchain to be used
+    (\texttt{gcc} vs.\ \texttt{tcc}; Python is not assumed).
+  \item Confirm which Wokwi features students may use (custom chips,
+    ESP32, project sharing) under the chosen account type.
+  \item Fix the numerical parameters (knock frequencies, sampling rates)
+    once Chapters 4, 5 and 12 of the script are available.
+  \item Language of the sheets (English, as the script).
+\end{itemize}
+
+\end{document}

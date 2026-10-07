@@ -1,0 +1,384 @@
+\sheet{6}{Fourier}{Chapter~6 (Fourier Series, Fourier Transform, DTFT)}
+
+\begin{goals}
+\begin{itemize}
+  \item Compute Fourier coefficients of engine signals analytically and
+    numerically; understand the line spectrum of the 60-2 crank signal and
+    the effect of the missing teeth.
+  \item Relate the decay time of a resonance to the width of its spectral
+    peak (Lorentzian line shape, bandwidth, quality factor).
+  \item Evaluate the DTFT by direct summation and use its properties
+    (periodicity, symmetry).
+  \item Use \emph{engine orders} to distinguish speed-proportional
+    components from fixed-frequency resonances; track orders during a
+    speed change.
+\end{itemize}
+\end{goals}
+
+\section*{Background}
+
+A signal with period $P$ has the Fourier series
+$x(\theta)=\sum_k c_k\,\e^{\jj2\pi k\theta/P}$,
+$c_k=\frac1P\int_0^P x(\theta)\e^{-\jj2\pi k\theta/P}\dd\theta$. For crank-angle
+signals we choose $P=\SI{360}{\degree}$: then $k$ counts oscillations per
+crankshaft revolution and is called the \emph{engine order}. At speed $n$
+(rpm) order $k$ has the frequency $f=k\,n/60$. Aperiodic signals have a
+Fourier transform $X(f)=\int x(t)\e^{-\jj2\pi ft}\dd t$; a sampled signal
+$x[n]=x(nT_s)$ has the DTFT
+\[
+X(\e^{\jj\Omega})=\sum_n x[n]\,\e^{-\jj\Omega n},\qquad \Omega=2\pi f/f_s ,
+\]
+which is $2\pi$-periodic in $\Omega$ ($f_s$-periodic in $f$) and conjugate
+symmetric for real $x[n]$. For a finite record of $N$ samples it can be
+evaluated at any frequency by direct summation; the FFT (Sheet~8) is only a
+fast way to do this on a regular grid. A sine of amplitude $A$ whose frequency
+fits an integer number of periods into the record has $|X|=AN/2$, so
+$A=2|X|/N$.
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Fourier series and transforms of engine signals}{\Paper}
+\begin{tasks}
+  \item A complete 60-tooth wheel gives a rectangular signal with period
+    \SI{6}{\degree} and duty cycle 50\,\%. Compute its Fourier coefficients
+    with respect to $P=\SI{360}{\degree}$. Which orders occur, what are
+    $c_0$, $|c_{60}|$, $|c_{120}|$, $|c_{180}|$? Which frequency does order 60
+    have at \SI{3000}{rpm}?
+  \item For the 60-2 wheel (tooth $m=0,\dots,57$ HIGH on
+    $[6m,6m+3)^\circ$) show that
+    \[
+    |c_k|=\frac{3}{360}\left|\operatorname{sinc}\frac{k}{120}\right|
+      \left|\frac{\sin(29\pi k/30)}{\sin(\pi k/60)}\right|
+    \quad(k\ne60m),\qquad
+    |c_{60m}|=\frac{58}{120}\left|\operatorname{sinc}\frac{m}{2}\right|,
+    \]
+    with $\operatorname{sinc}u=\sin(\pi u)/(\pi u)$. Evaluate $c_0$,
+    $|c_1|$, $|c_{59}|$, $|c_{60}|$, $|c_{61}|$ and explain the result as a
+    ``once-per-revolution modulation''. Hint: $x_{60-2}=x_{60}-x_\mathrm{gap}$.
+  \item Compute the Fourier transform of the knock model
+    $x(t)=\e^{-t/\tau}\sin(2\pi f_0t)$, $t\ge0$. Show that near $f_0$ the
+    magnitude is a Lorentzian curve, and derive the \SI{-3}{dB} bandwidth
+    $\Delta f$ and the quality factor $Q=f_0/\Delta f$. Evaluate for the knock
+    mode ($f_0=\SI{6.5}{kHz}$, $\tau=\SI{0.8}{ms}$) and the valve impact
+    (\SI{8}{kHz}, \SI{0.4}{ms}). What follows for the bandwidth of a knock
+    band-pass filter?
+  \item Engine orders: list the frequencies of order 2 (combustions of the
+    4-cylinder engine), order 60 (crank teeth) and order 0.5 (camshaft) at
+    1500, 3000 and \SI{6000}{rpm}, and the order at which the \SI{6.5}{kHz}
+    knock resonance appears at these speeds.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) The signal is periodic with \SI{6}{\degree}, so only orders $k=60m$ occur.
+For a rectangular pulse of width $w=\SI{3}{\degree}$ in the period
+$P_0=\SI{6}{\degree}$:
+$c_{60m}=\frac{w}{P_0}\operatorname{sinc}(m w/P_0)\,\e^{-\jj\pi mw/P_0}
+=\frac12\operatorname{sinc}\frac m2\,\e^{-\jj\pi m/2}$.
+$c_0=0.5$, $|c_{60}|=1/\pi=0.318$, $c_{120}=0$ (all even multiples vanish
+for 50\,\% duty), $|c_{180}|=1/(3\pi)=0.106$. At \SI{3000}{rpm} order 60 is
+$60\cdot\SI{50}{Hz}=\SI{3}{kHz}$.
+
+b) Each tooth contributes
+$\frac1{360}\int_{6m}^{6m+3}\e^{-\jj2\pi k\theta/360}\dd\theta
+=\frac{3}{360}\operatorname{sinc}\frac{k}{120}\,\e^{-\jj\pi k/120}\,\e^{-\jj2\pi km/60}$.
+The sum over $m=0,\dots,57$ is geometric:
+$\bigl|\sum_m\e^{-\jj2\pi km/60}\bigr|=|\sin(58\pi k/60)/\sin(\pi k/60)|$
+(and 58 for $k=60m$), which gives the formula. Values:
+$c_0=58\cdot3/360=0.4833$;
+$|c_1|=\frac{3}{360}\cdot0.99989\cdot\frac{\sin(\pi/30)}{\sin(\pi/60)}=0.008333\cdot0.99989\cdot1.9973=0.01664$;
+$|c_{59}|=0.01077$; $|c_{60}|=\frac{58}{120}\cdot\frac2\pi=0.3077$;
+$|c_{61}|=0.01042$.
+Interpretation: $x_{60-2}=x_{60}-x_\mathrm{gap}$, where $x_\mathrm{gap}$ are the
+two missing pulses (period \SI{360}{\degree}). $x_\mathrm{gap}$ has lines at
+\emph{all} orders, $|c_k|\approx2\cdot3/360=1/60$ at low orders. The gap
+modulates the tooth signal once per revolution: the tooth line at order 60
+loses $2/60$ of its amplitude ($0.3183\to0.3077$) and is surrounded by
+sidebands at $60\pm1,60\pm2,\dots$, like an amplitude-modulated carrier. The
+low orders ($k=1,2,\dots$) carry the reference-mark information.
+
+c) $x(t)=\frac{1}{2\jj}\bigl(\e^{(-1/\tau+\jj\omega_0)t}-\e^{(-1/\tau-\jj\omega_0)t}\bigr)$, $t\ge0$:
+\[
+X(f)=\frac{1}{2\jj}\left[\frac{1}{1/\tau+\jj2\pi(f-f_0)}-\frac{1}{1/\tau+\jj2\pi(f+f_0)}\right].
+\]
+For $f\approx f_0\gg1/\tau$ the second term is negligible:
+$|X(f)|\approx\dfrac{\tau/2}{\sqrt{1+(2\pi\tau(f-f_0))^2}}$ -- a Lorentzian
+with peak $\tau/2$. Half power at $2\pi\tau|f-f_0|=1$, so
+$\Delta f=1/(\pi\tau)$ and $Q=\pi f_0\tau$.
+Knock: $\Delta f=\SI{398}{Hz}$, $Q=16.3$; valve: $\Delta f=\SI{796}{Hz}$,
+$Q=10.1$. A knock band-pass much narrower than \SI{400}{Hz} would not capture
+more signal energy but would ring longer than the burst itself (its own
+impulse response lasts $\approx1/(\pi B)$); a bandwidth of
+\SIrange{0.5}{1}{kHz} matches the physics. The faster decay of the valve burst
+makes its peak twice as wide.
+
+d) $f=k\,n/60$:
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}\toprule
+ & \SI{1500}{rpm} & \SI{3000}{rpm} & \SI{6000}{rpm}\\\midrule
+order 0.5 (cam) & \SI{12.5}{Hz} & \SI{25}{Hz} & \SI{50}{Hz}\\
+order 2 (combustion) & \SI{50}{Hz} & \SI{100}{Hz} & \SI{200}{Hz}\\
+order 60 (teeth) & \SI{1.5}{kHz} & \SI{3}{kHz} & \SI{6}{kHz}\\
+\SI{6.5}{kHz} resonance & order 260 & order 130 & order 65\\\bottomrule
+\end{tabular}
+\end{center}
+Crank-synchronous components have fixed orders and frequencies proportional
+to speed; structural resonances have a fixed frequency and a
+speed-dependent order. At \SI{6000}{rpm} the tooth frequency even reaches the
+knock band.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Numerical Fourier series and DTFT}{\JSLinux}
+\begin{tasks}
+  \item The program \codefile{jslinux/sheet06/fourier\_series.c} samples
+    one revolution of the crank signal \texttt{es\_crank()} on a grid of
+    $M=36000$ points (\SI{0.01}{\degree}). Implement the direct summation
+    \[c_k\approx\frac1M\sum_{n=0}^{M-1} x[n]\,\e^{-\jj2\pi kn/M},\qquad k=0,\dots,1200\]
+    (use a rotating phasor instead of calling \texttt{cos} and \texttt{sin}
+    for every term) and compare with your results of 6.1\,b).
+  \item Implement the partial sum
+    $S_K(\theta)=c_0+\sum_{k=1}^K2\operatorname{Re}\{c_k\e^{\jj2\pi k\theta/360}\}$
+    and evaluate it around the gap for $K=60,180,600,1200$. Report maximum,
+    overshoot and rms error. Explain the Gibbs phenomenon: what converges
+    and what does not?
+  \item \codefile{jslinux/sheet06/dtft.c}: implement the DTFT by direct
+    summation. For a damped sinusoid ($f_0=\SI{6.5}{kHz}$,
+    $f_s=\SI{50}{kHz}$, $N=500$) and $\tau=0.4/0.8/\SI{1.6}{ms}$ the program
+    determines peak frequency, peak value and \SI{-3}{dB} bandwidth. Compare
+    with 6.1\,c) (note: $X_\mathrm{DTFT}\approx f_sX(f)$), and compare the
+    finite sum with the closed-form DTFT of $a^n\sin(\Omega_0n)u[n]$.
+  \item Check numerically: $|X|$ at $f$, $f+f_s$, $-f$ and $f_s-f$. Explain.
+  \item Apply the DTFT to a real knock burst of the virtual engine
+    (both modes, noise, combustion vibration). Identify all features of the
+    spectrum.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) \inputcode[firstline=68,lastline=77]{solutions/jslinux/sheet06/fourier_series.c}
+\begin{center}\small
+\begin{tabular}{@{}rccc@{}}\toprule
+$k$ & $|c_k|$ numeric & $|c_k|$ analytic & ratio\\\midrule
+0 & 0.483333 & 0.483333 & 1.0000\\
+1 & 0.016642 & 0.016642 & 1.0000\\
+2 & 0.016568 & 0.016568 & 1.0000\\
+30 & 0.000000 & 0 & --\\
+31 & 0.000780 & 0.000780 & 1.0000\\
+59 & 0.010772 & 0.010772 & 1.0000\\
+60 & 0.307701 & 0.307700 & 1.0000\\
+61 & 0.010419 & 0.010419 & 1.0000\\
+120 & 0.000000 & 0 & --\\
+180 & 0.102571 & 0.102567 & 1.0000\\\bottomrule
+\end{tabular}
+\end{center}
+The direct sum is a rectangle-rule integration; with \SI{0.01}{\degree} steps
+and tooth edges on the grid it is exact to 4--6 digits. The small deviation at
+$k=180$ is the aliasing of the sampled pulse train (orders $180\pm36000$).
+Order 30 vanishes because the 58 tooth phasors $(-1)^m$ cancel; order 120
+because of the 50\,\% duty cycle.
+
+b) \inputcode[firstline=42,lastline=49]{solutions/jslinux/sheet06/fourier_series.c}
+\begin{center}\small
+\begin{tabular}{@{}rcccc@{}}\toprule
+$K$ & $\max S_K$ & overshoot & $\min S_K$ & rms error\\\midrule
+60 & 1.1675 & 16.75\,\% & $-0.3257$ & 0.2346\\
+180 & 1.1356 & 13.56\,\% & $-0.1705$ & 0.1413\\
+600 & 1.0962 & 9.62\,\% & $-0.0905$ & 0.0833\\
+1200 & 1.0923 & 9.23\,\% & $-0.0893$ & 0.0599\\\bottomrule
+\end{tabular}
+\end{center}
+With $K=60$ only the fundamental of the tooth signal and the
+gap-sidebands are present: the teeth look like a sine. Increasing $K$ makes
+the ringing narrower (period $\approx360^\circ/K$) and the rms error falls
+($\propto1/\sqrt K$), but the overshoot next to every edge does not
+disappear; it tends to $0.0895$ of the jump (Gibbs constant; 9.2\,\% at
+$K=1200$, the neighbouring edges only \SI{3}{\degree} away still contribute).
+The Fourier series converges in the mean-square sense, not uniformly, at a
+discontinuity. Consequence: band-limiting a rectangular signal (e.g.\ an
+input filter) always produces overshoot -- relevant for threshold-based edge
+detection.
+
+c) \inputcode[firstline=33,lastline=43]{solutions/jslinux/sheet06/dtft.c}
+\begin{center}\small
+\begin{tabular}{@{}cccccccc@{}}\toprule
+$\tau$ [ms] & peak [Hz] & $|X|$ peak & $f_s\tau/2$ & $\Delta f_{-3\mathrm{dB}}$ [Hz] & $1/(\pi\tau)$ [Hz] & $Q$\\\midrule
+0.4 & 6490 & 10.00 & 10 & 798 & 796 & 8.1\\
+0.8 & 6500 & 20.00 & 20 & 398 & 398 & 16.3\\
+1.6 & 6500 & 39.92 & 40 & 199 & 199 & 32.7\\\bottomrule
+\end{tabular}
+\end{center}
+Bandwidth and peak agree with the Lorentzian of 6.1\,c) (peak of $X(f)$ is
+$\tau/2$, times $f_s$ for the DTFT). Doubling $\tau$ halves the bandwidth and
+doubles $Q$ (time--bandwidth product $\tau\Delta f=1/\pi$). Small effects: the
+peak at \SI{6490}{Hz} for $\tau=\SI{0.4}{ms}$ (the negative-frequency term
+pulls it slightly), and $39.92<40$ for \SI{1.6}{ms} because the record of
+\SI{10}{ms} cuts the burst after $6.25\tau$. Direct sum vs.\ closed form
+$X=a\sin\Omega_0\e^{-\jj\Omega}/(1-2a\cos\Omega_0\e^{-\jj\Omega}+a^2\e^{-2\jj\Omega})$,
+$a=\e^{-1/(f_s\tau)}$: maximum difference $7.5\cdot10^{-5}$, consistent with
+the truncated tail $a^N=3.7\cdot10^{-6}$.
+
+d) Output: $|X|=7.6224$ at \SI{6000}{Hz}, \SI{56000}{Hz}, \SI{-6000}{Hz} and
+\SI{44000}{Hz}; $X(6000)=7.1174-2.7283\jj$, $X(-6000)=7.1174+2.7283\jj$.
+Periodicity: $\e^{-\jj2\pi(f+f_s)n/f_s}=\e^{-\jj2\pi fn/f_s}$ for integer $n$ --
+this is aliasing seen from the frequency domain. Conjugate symmetry
+$X(-f)=X^*(f)$ holds for real $x[n]$; together: $|X(f_s-f)|=|X(f)|$, so
+$[0,f_s/2]$ contains all information.
+
+e) Knock burst of amplitude \SI{1.50}{V}: mode 1 peak at \SI{6470}{Hz},
+$|X|=28.5$ (expected $1.5\cdot20=30$), bandwidth \SI{410}{Hz}; mode 2 at
+\SI{10410}{Hz}, $|X|=13.9$ (expected $0.75\cdot20=15$), bandwidth \SI{380}{Hz}.
+In addition: a broad low-frequency hump (\SIrange{0}{500}{Hz}) from the
+combustion vibration and the noise floor of the white sensor noise. The
+deviations from the ideal values (peak positions $\pm\SI{90}{Hz}$, heights
+$-5\,\%$) are caused by the noise and the overlap of the two modes and the
+low-frequency part in a single, random burst.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Engine orders}{\JSLinux}
+\codefile{jslinux/sheet06/orders.c} records the knock-sensor signal of the
+virtual engine (knock probability 0.2) at constant 1500, 3000 and
+\SI{6000}{rpm}, each over exactly 8 engine cycles (16 revolutions,
+$f_s=\SI{50}{kHz}$), removes the mean and evaluates the amplitude spectrum
+$A(f)=2|X(f)|/N$ by direct summation on \SIrange{0}{1000}{Hz} (\SI{1}{Hz}
+steps) and \SIrange{4}{12}{kHz} (\SI{10}{Hz} steps).
+\begin{tasks}
+  \item Implement \texttt{amp\_spectrum()}. Why is the record chosen as an
+    integer number of revolutions?
+  \item The combustion vibration of the model is a half-sine
+    $0.2\,\text{V}\cdot\sin(\pi\varphi/60^\circ)$ for
+    $0\le\varphi<60^\circ$ after every TDC (period \SI{180}{\degree}).
+    Compute its Fourier series and the amplitudes of orders 2, 4, 6, 8;
+    enter your formula in \texttt{halfsine\_order\_amp()}.
+  \item Run the program. Compare the low-frequency lines (frequency and
+    amplitude) at the three speeds with b). For the high band, the program
+    smooths $|X|^2$ over $\pm\SI{150}{Hz}$ and reports the peak in three
+    bands -- tabulate frequency and order of the peaks.
+  \item Explain the fine structure of the high-frequency spectrum: why does
+    the valve resonance appear as a comb of lines with a spacing of order 2
+    under a Lorentzian envelope, while knock gives a smooth hump?
+  \item An ECU wants to monitor a crank-synchronous vibration and the knock
+    resonance with fixed band-pass filters. Which of the two filters must be
+    adapted to the engine speed?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) \inputcode[firstline=32,lastline=45]{solutions/jslinux/sheet06/orders.c}
+With 16 revolutions every order $k$ has $16k$ complete periods in the
+record: the components are ``bin-centred'' and $2|X|/N$ is their exact
+amplitude without leakage into neighbouring frequencies (Sheet~8). The mean is
+removed because the half-sines have a DC value of \SI{42}{mV} whose spectral
+main lobe would otherwise dominate the lowest frequencies.
+
+b) With $w=\SI{60}{\degree}$, $P=\SI{180}{\degree}$, $A=\SI{0.2}{V}$ and
+$\beta=2\pi m/P$:
+$\int_0^w\sin(\pi\varphi/w)\e^{-\jj\beta\varphi}\dd\varphi
+=\frac{\pi/w\,(1+\e^{-\jj\beta w})}{(\pi/w)^2-\beta^2}$, hence with
+$r=2mw/P=2m/3$
+\[
+|c_m|=\frac{Aw}{P}\,\frac{2}{\pi}\,\frac{|\cos(\pi r/2)|}{|1-r^2|},
+\qquad A_{2m}=2|c_m| .
+\]
+Harmonic $m$ of the \SI{180}{\degree} period is engine order $2m$:
+$A_2=\SI{76.4}{mV}$, $A_4=\SI{54.6}{mV}$, $A_6=\SI{28.3}{mV}$,
+$A_8=\SI{6.9}{mV}$ ($c_0=Aw/P\cdot2/\pi=\SI{42.4}{mV}$).
+
+c) Low-frequency lines (amplitudes in mV):
+\begin{center}\small
+\begin{tabular}{@{}lcccc@{}}\toprule
+ & order 2 & order 4 & order 6 & order 8\\\midrule
+theory & 76.4 & 54.6 & 28.3 & 6.9\\
+\SI{1500}{rpm} (50/100/150/200 Hz) & 76.6 & 54.4 & 28.5 & 6.6\\
+\SI{3000}{rpm} (100/200/300/400 Hz) & 76.3 & 53.7 & 28.4 & 6.3\\
+\SI{6000}{rpm} (200/400/600/800 Hz) & 76.0 & 53.0 & 29.4 & 5.6\\\bottomrule
+\end{tabular}
+\end{center}
+The strongest line is always order 2 (50, 100, \SI{200}{Hz}); the amplitudes
+are speed-independent and agree with b) within a few percent (deviations:
+1\,\% speed ripple, random knock bursts and noise). High band (peak of the
+smoothed $|X|^2$):
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}\toprule
+band & \SI{1500}{rpm} & \SI{3000}{rpm} & \SI{6000}{rpm}\\\midrule
+\SIrange{5.5}{7.5}{kHz} (knock 1) & \SI{6450}{Hz} / order 258 & \SI{6460}{Hz} / 129 & \SI{6440}{Hz} / 64\\
+\SIrange{7.5}{8.5}{kHz} (valve) & \SI{8050}{Hz} / 322 & \SI{7950}{Hz} / 159 & \SI{7860}{Hz} / 79\\
+\SIrange{9.5}{11.5}{kHz} (knock 2) & \SI{10520}{Hz} / 421 & \SI{10480}{Hz} / 210 & \SI{10580}{Hz} / 106\\\bottomrule
+\end{tabular}
+\end{center}
+The resonances stay at their frequencies (within the $\pm\SI{150}{Hz}$
+smoothing and the random variation of the few knock events) while their
+order halves with every doubling of the speed; the low-frequency lines keep
+their order and double their frequency.
+
+d) The valve impact excites the same damped \SI{8}{kHz} oscillation with the
+same phase every \SI{180}{\degree}: a periodic repetition of one burst.
+Periodic repetition with period $T_{180}$ samples the burst spectrum
+(Lorentzian, \SI{796}{Hz} wide) at multiples of $1/T_{180}$ = order 2 (50, 100
+or \SI{200}{Hz} spacing) -- a line spectrum under a fixed envelope. The knock
+bursts occur randomly (probability 0.2) with random amplitude and phase: no
+periodicity, hence no lines but a continuous Lorentzian hump at
+\SI{6.5}{kHz}/\SI{10.5}{kHz}. (At \SI{6000}{rpm} the valve envelope is sampled
+by only a few lines \SI{200}{Hz} apart, which together with the knock skirt
+shifts the smoothed maximum to \SI{7.86}{kHz}.)
+
+e) The filter for the crank-synchronous vibration must follow the speed
+(order tracking, or processing in the angle domain); the knock band-pass is
+fixed in frequency (but its measuring window is defined in crank angle).
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Order tracking during a run-up}{\Challenge}
+\codefile{jslinux/sheet06/order\_track.c}: the engine accelerates from
+\SI{1500}{rpm} to \SI{6000}{rpm} within \SI{1}{s}; the knock-sensor signal
+(no knock) is sampled at \SI{50}{kHz}, crank edges are time-stamped as in
+Exercise~4.4.
+\begin{tasks}
+  \item The program computes the amplitude spectrum of the time signal on
+    \SIrange{0}{500}{Hz}. Describe it. Why can no order amplitude be read
+    from it?
+  \item Resample the signal onto a \SI{0.5}{\degree} grid (code of 4.4) and
+    compute the ``order spectrum'' $A(O)=2|\sum_m x_a[m]\e^{-\jj2\pi O m\Delta\theta/360^\circ}|/N_a$
+    for $O=0\dots10$ over an integer number of revolutions. Compare the
+    order amplitudes with Exercise~6.3.
+  \item The angle grid has a ``sampling rate'' of $360^\circ/\Delta\theta=720$
+    samples per revolution. Which orders can be represented, and which
+    signal components alias in the angle domain at \SI{1500}{rpm}? Why does
+    this not disturb the low orders here?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) The 2nd order sweeps from 50 to \SI{200}{Hz}, the 4th from 100 to
+\SI{400}{Hz}, \dots: the spectrum is a broad smeared plateau with a maximum
+of only \SI{11.9}{mV} (instead of \SI{76}{mV}); overlapping sweeps add up
+between 100 and \SI{200}{Hz}. The energy of each order is distributed over the
+whole frequency range it passes; the DTFT assumes stationarity.
+
+b) \inputcode[firstline=94,lastline=116]{solutions/jslinux/sheet06/order_track.c}
+Result: 61 revolutions, 43920 angle samples; order amplitudes
+$A_2=\SI{75.5}{mV}$, $A_4=\SI{53.7}{mV}$, $A_6=\SI{29.6}{mV}$, $A_8=\SI{5.6}{mV}$ --
+sharp lines with the same amplitudes as at constant speed (6.3\,c), although
+the speed quadrupled. Angle-domain resampling turns the non-stationary time
+signal into a stationary angle signal (\emph{computed order tracking}).
+
+c) Orders up to $O<360$ are represented. The time signal contains components
+up to $f_s/2=\SI{25}{kHz}$, i.e.\ up to order $25000/25=1000$ at
+\SI{1500}{rpm}: the valve resonance lies at order 320 (still below 360), but a
+knock mode at \SI{10.5}{kHz} would appear at order 420 and alias to
+$720-420=300$, and the broadband sensor noise above order 360 folds back into
+$[0,360]$. Aliasing in the angle domain only matters if strong content lies
+near $720k\pm O$ for the orders $O$ of interest; for $O=2\dots8$ this is
+only white noise, which is spread thinly over all orders (the linear
+interpolation additionally acts as a weak low-pass). For a clean order
+analysis the time signal must be low-pass filtered (or the grid refined)
+before resampling -- the anti-aliasing rule of Sheet~5 in the angle domain.
+\end{solution}
+
+\begin{deliverables}
+6.1: derivations, coefficient values, Lorentzian bandwidths, order table.
+6.2: completed programs, coefficient table, Gibbs table with explanation,
+DTFT table and the checks d)/e). 6.3: completed program, order amplitudes
+(theory vs.\ measurement) and resonance table with interpretation.
+6.4 (optional): order spectrum vs.\ time spectrum of the run-up.
+\end{deliverables}

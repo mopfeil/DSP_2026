@@ -1,0 +1,515 @@
+\sheet{10}{Digital Filters}{Chapter~10 (FIR and IIR filter design, filter structures)}
+
+\begin{goals}
+\begin{itemize}
+  \item Turn a verbal requirement (``extract the knock resonance'') into a
+    quantitative filter specification and estimate the necessary order.
+  \item Design linear-phase FIR filters with the window method and IIR filters
+    with the bilinear transform (including pre-warping); realise IIR filters as
+    biquad cascades.
+  \item Judge the effects of finite word length: coefficient quantisation,
+    scaling, overflow, saturation; Q15 arithmetic on an 8-bit controller.
+  \item Run the knock band-pass sample by sample in real time on the ESP32
+    (float) and on the Arduino Uno (fixed point) and compare FIR and IIR
+    in terms of cost and delay.
+\end{itemize}
+\end{goals}
+
+\section*{Background and conventions}
+
+The knock sensor signal of the virtual engine contains the knock resonance
+at $f_1=\SI{6.5}{kHz}$ (plus a weaker mode at \SI{10.5}{kHz}), valve impacts
+at \SI{8}{kHz}, a low-frequency combustion vibration and broadband noise.
+The first block of every knock detector is a band-pass filter around $f_1$.
+On this sheet we use
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+sampling rate & $f_s = \SI{25}{kHz}$ ($T_s=\SI{40}{\micro s}$)\\
+pass band & \SIrange{6.0}{7.0}{kHz}, loss at most $A_p=\SI{1}{dB}$\\
+stop bands & $f\le\SI{5.0}{kHz}$ and $f\ge\SI{8.0}{kHz}$, attenuation at least $A_s=\SI{40}{dB}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+A biquad (second-order section) is written
+\[
+  H_k(z)=\frac{b_0+b_1z^{-1}+b_2z^{-2}}{1+a_1z^{-1}+a_2z^{-2}},
+\]
+a cascade is $H(z)=\prod_k H_k(z)$. Two structures are used:
+\emph{direct form I} (DF\,I, states $x[n-1],x[n-2],y[n-1],y[n-2]$, one
+accumulator -- preferred in fixed point) and the \emph{transposed direct
+form II} (TDF\,II, two states $s_1,s_2$ -- preferred in floating point):
+\[
+  y = b_0x+s_1,\qquad s_1\leftarrow b_1x-a_1y+s_2,\qquad s_2\leftarrow b_2x-a_2y .
+\]
+\emph{Q15} denotes a 16-bit two's complement number $v=q/2^{15}\in[-1,1)$,
+\emph{Q2.14} a 16-bit number $v=q/2^{14}\in[-2,2)$.
+
+\begin{center}
+\begin{tikzpicture}[>=Stealth,font=\small,
+  blk/.style={draw,minimum width=9mm,minimum height=6mm},
+  sum/.style={draw,circle,inner sep=1.2pt}]
+  \node (x) at (0,0) {$x[n]$};
+  \node[sum] (s0) at (3,0) {$+$};
+  \node (y) at (5.6,0) {$y[n]$};
+  \node[blk] (d1) at (3,-1.1) {$z^{-1}$};
+  \node[sum] (s1) at (3,-2.2) {$+$};
+  \node[blk] (d2) at (3,-3.3) {$z^{-1}$};
+  \node[sum] (s2) at (3,-4.4) {$+$};
+  \draw[->] (x) -- node[above,pos=0.55] {$b_0$} (s0);
+  \draw[->] (s0) -- (y);
+  \draw[->] (d1) -- (s0);
+  \draw[->] (s1) -- (d1);
+  \draw[->] (d2) -- (s1);
+  \draw[->] (s2) -- (d2);
+  \draw[->] (1,0) |- node[above,pos=0.75] {$b_1$} (s1);
+  \draw[->] (1,0) |- node[above,pos=0.75] {$b_2$} (s2);
+  \draw[->] (4.6,0) |- node[above,pos=0.75] {$-a_1$} (s1);
+  \draw[->] (4.6,0) |- node[above,pos=0.75] {$-a_2$} (s2);
+  \fill (1,0) circle (1.2pt) (4.6,0) circle (1.2pt);
+  \node[right] at (3.2,-1.65) {$s_1$};
+  \node[right] at (3.2,-3.85) {$s_2$};
+\end{tikzpicture}\\[2pt]
+{\small Biquad in transposed direct form II.}
+\end{center}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Design by hand}{\Paper}
+\begin{tasks}
+  \item \emph{Sampling rate.} The engine-sim chip updates its analog outputs
+    every \SI{20}{\micro s} (\SI{50}{kHz}, zero-order hold). Explain why the
+    ESP32 samples the knock signal at $f_s=\SI{25}{kHz}$ and not, e.g., at
+    \SI{40}{kHz}. Estimate the worst-case phase error of the \SI{6.5}{kHz}
+    component caused by the timing mismatch at \SI{40}{kHz}. Is
+    \SI{25}{kHz} sufficient for both knock modes and for the valve
+    disturbance? What happens to the white noise of the chip (generated at
+    \SI{50}{kHz}) when only every second value is sampled?
+  \item \emph{FIR order.} Normalise the specification ($\Delta F=\Delta f/f_s$).
+    Estimate the length $N$ of a window-design FIR filter for a Hamming window
+    ($N\approx 3.3/\Delta F$) and with Kaiser's formula
+    $N-1\approx (A_s-8)/(2.285\,\Delta\omega)$, $\beta=0.5842(A_s-21)^{0.4}+0.07886(A_s-21)$.
+    Where do you put the cut-off frequencies of the ideal band-pass?
+  \item Derive the impulse response $h_d[m]$ of the ideal (zero-phase)
+    band-pass with cut-offs $\omega_{c1}<\omega_{c2}$, and state how the
+    causal FIR filter $h[n]$, $n=0,\dots,N-1$, is obtained from it.
+    What is its group delay in samples, in ms, and in degrees crank angle at
+    \SI{3000}{rpm} and \SI{6000}{rpm}? Why does this matter for a knock
+    measurement window of $10^\circ$--$70^\circ$ after TDC?
+  \item \emph{IIR order.} Pre-warp the band edges,
+    $\Omega=2f_s\tan(\pi f/f_s)$, and compute the stop-band frequency
+    $\lambda_s=\min |\Omega_s^2-\Omega_0^2|/(B\,\Omega_s)$ of the normalised
+    low-pass prototype ($\Omega_0^2=\Omega_{p1}\Omega_{p2}$,
+    $B=\Omega_{p2}-\Omega_{p1}$). Which Butterworth prototype order $n$ is
+    needed, how many biquads does the band-pass have, and how many
+    multiplications per sample does it cost compared with the FIR filter?
+  \item \emph{Second-order band-pass.} The knock burst decays with
+    $\tau=\SI{0.8}{ms}$. Show that its spectrum has a \SI{-3}{dB} bandwidth of
+    $B_k=1/(\pi\tau)$ and argue why a band-pass with about this bandwidth is
+    a good compromise (matched filter).
+    Design $H(s)=B s/(s^2+Bs+\Omega_0^2)$ with centre $f_0=\SI{6.5}{kHz}$ and
+    digital bandwidth \SI{400}{Hz} via the bilinear transform
+    $s=2f_s\,(1-z^{-1})/(1+z^{-1})$ with pre-warping
+    (use $B\approx 2\pi\cdot\SI{400}{Hz}/\cos^2(\pi f_0/f_s)$).
+    Compute $b_0,b_1,b_2,a_1,a_2$, the pole radius $r$ and the decay time
+    of the filter's impulse response.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) The chip output is a staircase on a \SI{20}{\micro s} grid. With
+$f_s=\SI{25}{kHz}=\SI{50}{kHz}/2$ every ADC sample sees a fresh chip value,
+always at the same position within the \SI{20}{\micro s} step; the sequence is
+exactly the model signal sampled uniformly at \SI{25}{kHz}. At \SI{40}{kHz}
+the sampling instants slide over the grid: some chip values are read twice,
+others never, and the value read is up to \SI{20}{\micro s} old. This is a
+non-uniform sampling with a timing error of up to $\Delta t=\SI{20}{\micro s}$,
+i.e.\ a phase error of up to $2\pi\cdot\SI{6.5}{kHz}\cdot\SI{20}{\micro s}
+=\SI{0.82}{rad}=47^\circ$ -- a strong, deterministic distortion (spurious
+spectral lines). The Nyquist frequency at \SI{25}{kHz} is \SI{12.5}{kHz}, above
+both knock modes (6.5, 10.5\,kHz) and the valve frequency (8\,kHz), so no
+aliasing of signal components occurs. The chip noise is white with variance
+$\sigma^2$ at \SI{50}{kHz}; decimation by 2 folds the band 12.5--25\,kHz onto
+0--12.5\,kHz. White noise stays white with the same variance $\sigma^2$, only its
+PSD per Hz doubles -- nothing is lost that a band-pass could have rejected
+anyway. (A real ECU would use an analog anti-aliasing filter, Sheet~5.)
+
+b) Transition width $\Delta f=\SI{1}{kHz}$, $\Delta F=0.04$, $\Delta\omega=0.2513$.
+Hamming: $N\approx3.3/0.04=82.5\Rightarrow N=83$ (odd, so that the delay is
+an integer and the filter is of type~I). Kaiser: $\beta=0.5842\cdot19^{0.4}
++0.07886\cdot19=3.395$, $N-1\approx 32/(2.285\cdot0.2513)=55.7$, $N=57$.
+The ideal cut-offs lie in the middle of the transition bands:
+$f_{c1}=\SI{5.5}{kHz}$, $f_{c2}=\SI{7.5}{kHz}$, because the window smears the
+ideal edge symmetrically over the transition band.
+
+c) The ideal band-pass is the difference of two ideal low-passes:
+\[
+  h_d[m]=\frac{1}{2\pi}\int_{\omega_{c1}\le|\omega|\le\omega_{c2}}\e^{\jj\omega m}\dd\omega
+        =\frac{\sin(\omega_{c2}m)-\sin(\omega_{c1}m)}{\pi m},\qquad
+  h_d[0]=\frac{\omega_{c2}-\omega_{c1}}{\pi}.
+\]
+It is infinitely long and non-causal; we truncate it to $|m|\le (N-1)/2$, multiply
+with the window and shift by $(N-1)/2$: $h[n]=h_d[n-\tfrac{N-1}{2}]\,w[n]$.
+$h[n]$ is symmetric, hence linear phase with a constant group delay of
+$(N-1)/2=41$ samples $=\SI{1.64}{ms}$. At \SI{3000}{rpm} ($18000^\circ/$s) this
+is $29.5^\circ$, at \SI{6000}{rpm} $59^\circ$ crank angle! The filter output
+belonging to a $10^\circ$--$70^\circ$ ATDC window appears up to $59^\circ$ later;
+the evaluation window must be shifted by the (rpm dependent) filter delay,
+otherwise most of the knock energy is missed (see 10.3).
+
+d) Pre-warped edges (rad/s): $\Omega(\SI{5}{kHz})=36327$, $\Omega(\SI{6}{kHz})=46953$,
+$\Omega(\SI{7}{kHz})=60440$, $\Omega(\SI{8}{kHz})=78787$;
+$\Omega_0=\sqrt{46953\cdot60440}=53271$ (maps back to \SI{6.502}{kHz}),
+$B=13486$. $\lambda(\SI{5}{kHz})=3.099$, $\lambda(\SI{8}{kHz})=3.171$,
+so $\lambda_s=3.099$. Butterworth:
+\[
+  n\ge\frac{\log_{10}\bigl[(10^{A_s/10}-1)/(10^{A_p/10}-1)\bigr]}{2\log_{10}\lambda_s}
+   =\frac{\log_{10}(9999/0.2589)}{2\log_{10}3.099}=\frac{4.587}{0.983}=4.67
+   \;\Rightarrow\; n=5 .
+\]
+The band-pass has order $2n=10$, i.e.\ 5 biquads. Cost: 5 biquads with
+$b_1=0$ need $5\cdot4=20$ (general: 25) multiplications per sample versus
+83 for the FIR filter (or 41 if the symmetry $h[n]=h[N-1-n]$ is exploited).
+
+e) The burst $A\e^{-t/\tau}\sin(2\pi f_1t)$, $t\ge0$, has the spectrum magnitude
+$|X(f)|\approx \tfrac{A}{2}\big/\sqrt{(1/\tau)^2+(2\pi(f-f_1))^2}$ near $f_1$;
+$|X|^2$ drops by \SI{3}{dB} where $2\pi|f-f_1|=1/\tau$, so the full
+\SI{-3}{dB} width is $B_k=1/(\pi\tau)=\SI{398}{Hz}$. A filter matched to the
+burst has the same shape: a narrower band-pass rejects more noise but rings
+longer than the burst and starts late, a wider one passes more noise. A
+second-order band-pass with $B=\SI{400}{Hz}$ has exactly the decay time of the
+knock burst.
+
+Pre-warping: $\Omega_0=2f_s\tan(\pi\cdot 0.26)=53245$\,rad/s, $c=2f_s=50000$,
+$B\approx 2\pi\cdot400/\cos^2(0.8168)=5363$\,rad/s. Inserting
+$s=c(1-z^{-1})/(1+z^{-1})$ and multiplying by $(1+z^{-1})^2$:
+\[
+  H(z)=\frac{Bc\,(1-z^{-2})}{(c^2+Bc+\Omega_0^2)+2(\Omega_0^2-c^2)z^{-1}+(c^2-Bc+\Omega_0^2)z^{-2}} .
+\]
+With $d=c^2+Bc+\Omega_0^2$: $b_0=Bc/d=0.04786$, $b_1=0$, $b_2=-b_0$,
+$a_1=2(\Omega_0^2-c^2)/d=0.11957$, $a_2=(c^2-Bc+\Omega_0^2)/d=0.90428$.
+(The tool of 10.2, which places the edges exactly, gives
+$b_0=0.047898$, $a_1=0.119566$, $a_2=0.904204$.)
+Poles: $r=\sqrt{a_2}=0.9509$, angle $\arccos(-a_1/2r)=93.6^\circ\;\hat{=}\;\SI{6.5}{kHz}$.
+Decay time of $h[n]\propto r^n$: $\tau_f=-T_s/\ln r=\SI{0.80}{ms}$ --
+the filter ``rings'' exactly like the knock burst. Note that at $f_s=\SI{25}{kHz}$
+the knock poles lie close to $\pm\jj$, so $|a_1|$ is small.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Filter design tool}{\JSLinux}
+\sloppy
+Files in \codefile{jslinux/sheet10/}: \texttt{filtdesign.h} (design library),
+\texttt{filterdesign.c} (design, check, export), \texttt{coefquant.c}
+(word-length study), \texttt{filtertest.c} (test on the virtual engine).
+\begin{lstlisting}[style=shell]
+gcc -O2 -o filterdesign filterdesign.c -lm && ./filterdesign    # writes knock_filter.h
+gcc -O2 -o coefquant coefquant.c -lm && ./coefquant && ./coefquant 200000
+gcc -O2 -o filtertest filtertest.c -lm && ./filtertest
+\end{lstlisting}
+\begin{tasks}
+  \item \emph{FIR window method.} Complete \texttt{fd\_window()} (Hann, Hamming,
+    Blackman, Kaiser) and \texttt{fd\_fir\_bandpass()}. \texttt{filterdesign}
+    prints, for $N=83$ and every window, the worst pass-band loss and stop-band
+    gain, and the smallest odd $N$ that meets the specification. Explain the
+    ranking of the windows. Is the Kaiser estimate of 10.1\,b) met?
+  \item \emph{IIR Butterworth band-pass.} Complete \texttt{fd\_prewarp()} and the
+    pole transformation in \texttt{fd\_butter\_bandpass()}: every prototype pole
+    $p$ gives the band-pass poles $s=\tfrac12\bigl(pB\pm\sqrt{p^2B^2-4\Omega_0^2}\bigr)$,
+    which are mapped with $z=(2f_s+s)/(2f_s-s)$. Check the specification, list the
+    pole radii and frequencies of the sections, and compare the group delay at
+    \SI{6.5}{kHz} with the FIR filter. What goes wrong without pre-warping?
+  \item Complete \texttt{fd\_bp2()} and compare with your hand calculation of
+    10.1\,e). Report the attenuation of the 400-Hz and a 1000-Hz version at
+    \SI{8}{kHz} and \SI{10.5}{kHz}.
+  \item \emph{Export.} Complete the Q15/Q2.14 conversion (rounding, saturation)
+    and generate \texttt{knock\_filter.h}. Why are the biquad coefficients
+    exported in Q2.14 rather than in Q15? Why are the sections scaled to a
+    peak gain of 1 ($L_\infty$ scaling) and ordered by pole radius?
+  \item \emph{Coefficient quantisation.} Complete \texttt{quant\_vec()} and the
+    quantisation of $a_1,a_2$ in \texttt{coefquant.c}. The program realises the
+    filter (1) as a biquad cascade and (2) as one 10th-order direct-form
+    polynomial, quantises the coefficients to $B=8\dots32$ bits and reports the
+    pole displacement, the largest pole radius, the pass-band deviation and the
+    stop-band gain. Interpret the results for $f_s=\SI{25}{kHz}$ and for the
+    same analog specification at $f_s=\SI{200}{kHz}$. Which word length do you
+    need for the cascade, which for the direct form?
+  \item \emph{Test on the engine signal.} Complete \texttt{sos\_step()} (TDF\,II,
+    float) and \texttt{sosq\_step()} (DF\,I, Q15 data, Q2.14 coefficients, 32-bit
+    accumulator, rounding, saturation) in \texttt{filtertest.c}. Compare the
+    window energies with and without knock for FIR and IIR, the delay of the
+    filtered burst, and the error of the Q15 implementation.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Core of the FIR design (\codefile{solutions/jslinux/sheet10/filtdesign.h}):
+\inputcode[firstline=164,lastline=177]{solutions/jslinux/sheet10/filtdesign.h}
+Output of \texttt{filterdesign} (cut-offs 5.5/7.5\,kHz):
+\begin{center}
+\small
+\begin{tabular}{@{}lrrrc@{}}
+\toprule
+window ($N=83$) & pass min [dB] & pass max [dB] & stop max [dB] & min.\ $N$ meeting spec\\
+\midrule
+rectangular & $-0.798$ & 0.004 & $-25.0$ & $>201$\\
+Hann        & 0.000 & 0.076 & $-44.0$ & 77\\
+Hamming     & $-0.026$ & 0.016 & $-52.9$ & 77\\
+Blackman    & $-0.301$ & 0.001 & $-29.3$ & 103\\
+Kaiser ($\beta=3.395$) & $-0.154$ & 0.016 & $-41.2$ & 63\\
+\bottomrule
+\end{tabular}
+\end{center}
+The rectangular window has the narrowest main lobe but side lobes of only
+$\approx\SI{-21}{dB}$ (Gibbs), it never reaches \SI{40}{dB}. Hann and Hamming
+have a main lobe twice as wide and side lobes of $-31$/\SI{-41}{dB}; their
+stop-band attenuation ($\approx 44$/\SI{53}{dB}) is sufficient. Blackman has
+\SI{-58}{dB} side lobes but the widest main lobe ($\approx5.5/N$): at $N=83$ the
+transition band is too wide and the stop-band edge is violated (\SI{-29}{dB}
+at \SI{5}{kHz}); it needs $N=103$. The Kaiser window trades main-lobe width
+against side-lobe level by $\beta$ and reaches the specification with the
+shortest filter, $N=63$; the empirical formula ($N=57$) is slightly optimistic
+because it ignores the pass-band ripple and the grid evaluation. We keep
+the Hamming design with $N=83$ (comfortable margin).
+
+b) Pole transformation (\codefile{solutions/jslinux/sheet10/filtdesign.h}):
+\inputcode[firstline=244,lastline=259]{solutions/jslinux/sheet10/filtdesign.h}
+Result ($\lambda_s=3.099$, $n=5$, 5 biquads, each $b=[b_0,0,-b_0]$):
+\begin{center}
+\small
+\begin{tabular}{@{}crrrrr@{}}
+\toprule
+section & $b_0$ & $a_1$ & $a_2$ & $|p|$ & $f_p$ [Hz]\\
+\midrule
+0 & 0.12634 & 0.11059 & 0.74733 & 0.8645 & 6505\\
+1 & 0.10456 & $-0.03989$ & 0.79089 & 0.8893 & 6161\\
+2 & 0.10355 & 0.26523 & 0.79290 & 0.8905 & 6845\\
+3 & 0.04236 & $-0.14173$ & 0.91528 & 0.9567 & 5955\\
+4 & 0.68429 & 0.37993 & 0.91667 & 0.9574 & 7045\\
+\bottomrule
+\end{tabular}
+\end{center}
+Check: pass band $-1.000\dots0$\,dB, stop band $\le\SI{-43.3}{dB}$ -- specification
+met. Attenuation at \SI{8}{kHz}: FIR \SI{52.9}{dB}, IIR \SI{44.3}{dB}; at
+\SI{10.5}{kHz}: FIR \SI{69.5}{dB}, IIR \SI{106.7}{dB} (the IIR filter has
+5-fold zeros at $z=-1$). Group delay at \SI{6.5}{kHz}: IIR 22.4 samples
+(\SI{0.90}{ms}), FIR 41 samples (\SI{1.64}{ms}). The IIR filter is faster and
+needs 20 instead of 83 multiplications, but its phase is non-linear (group
+delay largest near the band edges) -- irrelevant for an energy detector.
+Without pre-warping the analog edges $2\pi f$ are mapped by the bilinear
+transform to $f'=\tfrac{f_s}{\pi}\arctan(\pi f/f_s)$: \SI{6}{kHz}\,$\to$\,\SI{5.09}{kHz},
+\SI{7}{kHz}\,$\to$\,\SI{5.69}{kHz}. The band would be shifted and compressed by
+about \SI{1}{kHz}, i.e.\ the knock frequency would lie outside the pass band.
+
+c) \texttt{fd\_bp2}: $B=\SI{400}{Hz}$: $b_0=0.047898$, $a_1=0.119566$,
+$a_2=0.904204$, $|p|=0.95090$, peak at \SI{6500}{Hz}, attenuation
+\SI{18.1}{dB} at \SI{8}{kHz}, \SI{30.5}{dB} at \SI{10.5}{kHz}, \SI{38.3}{dB}
+at \SI{1}{kHz}, group delay 19.9 samples. $B=\SI{1000}{Hz}$: $b_0=0.112160$,
+$a_1=0.111496$, $a_2=0.775680$, $|p|=0.8807$; only \SI{10.4}{dB} at \SI{8}{kHz}
+and \SI{22.5}{dB} at \SI{10.5}{kHz}, group delay 7.9 samples. A single biquad
+cannot meet the \SI{40}{dB} specification; it is the cheap option for the Uno.
+
+d) Q15 covers $[-1,1)$ only, but biquad coefficients satisfy $|a_1|<2$
+($a_1=-2r\cos\theta$) and, after gain scaling, $b_0$ may exceed 1 as well.
+Q2.14 (one more integer bit) covers $[-2,2)$ for all stable biquads. With Q15
+data the product is Q29; shifting the 32-bit accumulator by 14 gives Q15.
+(For our filter at $f_s=\SI{25}{kHz}$ all coefficients happen to be $<1$
+because the poles lie near $\pm\jj$, but the header format must work for any
+design.) $L_\infty$ scaling: every section has peak gain 1, so for sinusoidal
+inputs no intermediate signal exceeds the input amplitude -- the condition for
+overflow-free fixed-point processing. Ordering by pole radius puts the most
+resonant sections (largest gain peaks, longest ringing, most sensitive to
+rounding noise) at the end, where the signal is already band-limited.
+
+e) Output of \texttt{coefquant} for $f_s=\SI{25}{kHz}$ (max $|a_k|$ of the
+direct form: 7.03):
+\begin{center}
+\small
+\begin{tabular}{@{}r|rrrr|rrrr@{}}
+\toprule
+ & \multicolumn{4}{c|}{biquad cascade, Q2.$(B-2)$} & \multicolumn{4}{c}{direct form, order 10}\\
+$B$ & $\max|\Delta p|$ & $\max|p|$ & pass dev & stop & $\max|\Delta p|$ & $\max|p|$ & pass dev & stop\\
+\midrule
+ 8 & 4.8e-3 & 0.9601 & 0.68 & $-44.3$ & 0.29 & 1.172 & \multicolumn{2}{c}{unstable}\\
+10 & 1.1e-3 & 0.9581 & 0.38 & $-43.0$ & 0.17 & 1.080 & \multicolumn{2}{c}{unstable}\\
+12 & 2.0e-4 & 0.9576 & 0.06 & $-43.2$ & 0.16 & 1.058 & \multicolumn{2}{c}{unstable}\\
+14 & 7.8e-5 & 0.9575 & 0.01 & $-43.2$ & 0.091 & 1.000 & \multicolumn{2}{c}{unstable}\\
+16 & 1.6e-5 & 0.9574 & 0.00 & $-43.3$ & 0.050 & 0.9623 & 1.99 & $-43.4$\\
+20 & 1.0e-6 & 0.9574 & 0.00 & $-43.3$ & 3.5e-3 & 0.9579 & 0.10 & $-43.2$\\
+24 & 6.6e-8 & 0.9574 & 0.00 & $-43.3$ & 7.1e-5 & 0.9574 & 0.00 & $-43.3$\\
+\bottomrule
+\end{tabular}
+\end{center}
+(pass dev = worst deviation in dB from the exact response in the pass band;
+stop = worst stop-band gain in dB.)
+The pole displacement of the cascade scales like the quantisation step
+$2^{-(B-2)}$; already 10--12 bits are enough, 16 bits (Q2.14) are exact for
+all practical purposes. The direct form is unstable up to 14 bits and still
+shows \SI{2}{dB} error at 16 bits: the roots of a high-order polynomial with
+clustered roots are extremely sensitive to its coefficients
+($\partial p_i/\partial a_k = p_i^{N-k}/\prod_{j\ne i}(p_i-p_j)$, and the poles of
+a narrow band-pass are close to each other). At $f_s=\SI{200}{kHz}$
+(the same analog filter, now $n=6$, 12th order) the poles crowd near $z=1$
+(angle $10.7^\circ$, radius 0.9958): the cascade needs about 14 bits for
+\SI{0.3}{dB} accuracy (12 bits: \SI{1.8}{dB}, 8 bits: \SI{25}{dB} error), and the
+direct form ($\max|a_k|=806$) is unstable at \emph{every} tested word length,
+even with 32 bits (and even in double precision its frequency response cannot be
+evaluated accurately). Lessons: always use second-order sections, and do not
+oversample a narrow-band IIR filter unnecessarily.
+For the single biquad ($B=\SI{400}{Hz}$, $f_s=\SI{25}{kHz}$) 8 bits already give
+$r=0.95197$ instead of 0.95090 and a shift of \SI{11}{Hz}; at
+$f_s=\SI{200}{kHz}$ 8 bits move the peak to \SI{5651}{Hz}, 6 bits put the pole on the
+unit circle.
+
+f) TDF\,II (float) and DF\,I (Q15) in
+\codefile{solutions/jslinux/sheet10/filtertest.c}:
+\inputcode[firstline=51,lastline=86]{solutions/jslinux/sheet10/filtertest.c}
+Output (\SI{3000}{rpm}, knock amplitude \SI{0.3}{V}, onset $15^\circ$ ATDC,
+noise \SI{0.05}{V}):
+\begin{center}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+window energy $10^\circ$--$70^\circ$ ATDC [V$^2$] & knock & no knock & ratio\\
+\midrule
+FIR (float, $N=83$) & 0.379 & 0.0199 & 19.0\\
+IIR biquads (float, 5 sections) & 0.327 & 0.0116 & 28.1\\
+IIR biquads (Q15/Q2.14) & 0.327 & 0.0116 & 28.2\\
+\bottomrule
+\end{tabular}
+\end{center}
+The IIR filter separates knock and noise better: its pass band is narrower
+(noise bandwidth \SI{1.16}{kHz} versus $\approx\SI{2}{kHz}$ for the FIR
+filter whose \SI{-6}{dB} points are 5.5/7.5\,kHz) and its delay is smaller, so
+more of the burst falls into the window. Peak of the filtered burst after the
+knock onset: FIR \SI{1.92}{ms}, IIR \SI{1.44}{ms} (group delay plus build-up).
+The Q15 implementation deviates from the float filter by $5.6\cdot10^{-3}$
+(\SI{-45}{dB}) relative rms error; no saturation occurred. The error is dominated by
+the rounding noise of the last, most resonant sections.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Real-time filtering on the microcontroller}{\Wokwi}
+\sloppy
+\begin{tasks}
+  \item \emph{ESP32, float.} Open \codefile{wokwi/sheet10\_esp32\_filter/} and
+    replace the placeholder \texttt{knock\_filter.h} by your generated header.
+    The sketch samples the KNOCK pin at \SI{25}{kHz} (deadline loop) and
+    records 300 samples after each TDC of cylinder~1 (TDC pulse while CAM is
+    HIGH). Complete \texttt{fir\_step()} (circular buffer stored twice, so the
+    newest $N$ samples are always contiguous) and \texttt{iir\_step()} (TDF\,II).
+    \begin{tasks}
+      \item Run at \SI{3000}{rpm} with knock probability 100\,\% and 0\,\%.
+        Copy one record into JSLinux and plot $x$, $y_\text{FIR}$, $y_\text{IIR}$
+        and the KNK flag. Compare the window energies printed in the
+        \texttt{\# rec} lines.
+      \item Repeat at \SI{6000}{rpm}. Explain the drastic change of the FIR
+        window energy and propose a fix.
+      \item Why does the sketch use \texttt{float} and not \texttt{double}
+        on the ESP32? Compare the indicative benchmark of FIR and IIR with the
+        operation counts.
+    \end{tasks}
+  \item \emph{Uno, Q15.} Open \codefile{wokwi/sheet10\_uno\_q15/}. Timer1
+    interrupts at \SI{25}{kHz}; the ISR reads the ADC, starts the next
+    conversion and filters with the single biquad \texttt{kf\_bp2\_q14}.
+    \begin{tasks}
+      \item Complete \texttt{biquad\_q15()}: DF\,I, 32-bit accumulator (Q29),
+        rounding, conversion to Q15, overflow detection, saturation or
+        wrap-around (\texttt{SATURATE}). Verify it in \texttt{MODE 0}, where a
+        recorded block is filtered with float and with Q15 arithmetic.
+      \item Cycle budget: how many CPU cycles are available per sample? Measure
+        the ISR duration (column \texttt{isr\_cycles}, Timer1 count at the end of
+        the ISR, or the pulse width on D8 with the logic analyzer). How many
+        biquads, how many FIR taps would fit? Could the 10th-order cascade of
+        10.2 run on the Uno at \SI{25}{kHz}?
+      \item Scaling: the input is mapped by $x=(\text{adc}-512)\cdot2^{\texttt{SHIFT}}$.
+        Which \texttt{SHIFT} uses the full Q15 range? Show that the band-pass
+        output can still overflow when the \emph{input} clips (hint: a clipped
+        sine approaches a square wave). Run \texttt{MODE 1} with knock amplitude
+        \SI{3}{V} and \texttt{SHIFT} = 6, 8, 10 and compare saturation with
+        wrap-around.
+      \item Complete the window energy \texttt{energy += y*y >> 8}. Show that the
+        32-bit accumulator cannot overflow down to \SI{600}{rpm}. Why is
+        $y^2\gg 8$ much cheaper on the AVR than $y^2\gg 12$?
+    \end{tasks}
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) FIR with doubled circular buffer and cascade in TDF\,II
+(\codefile{solutions/wokwi/sheet10\_esp32\_filter/sketch.ino}):
+\inputcode[firstline=44,lastline=68]{solutions/wokwi/sheet10_esp32_filter/sketch.ino}
+i.\ The following values were obtained by running the sketch against the
+chip model in a PC test harness; Wokwi gives different random realisations but
+the same picture. \SI{3000}{rpm}, knock probability 100\,\%, knock amplitude
+\SI{0.5}{V}: window $10^\circ$--$70^\circ$ = samples 13--97,
+$E_\text{FIR}=0.45\dots1.86$, $E_\text{IIR}=0.43\dots1.79$\,V$^2$. Without knock:
+$E_\text{FIR}=0.024\dots0.040$, $E_\text{IIR}=0.015\dots0.027$\,V$^2$. In the plot
+the IIR output rises about \SI{0.5}{ms} earlier than the FIR output; the KNK flag
+is HIGH for $3\tau=\SI{2.4}{ms}$ from the knock onset.
+
+ii.\ \SI{6000}{rpm}, knock amplitude \SI{1}{V}: window = samples 6--48
+(\SI{1.67}{ms}); $E_\text{FIR}=0.02\dots0.51$, $E_\text{IIR}=0.81\dots5.2$\,V$^2$.
+The FIR delay of 41 samples equals $59^\circ$ at \SI{6000}{rpm}: the filtered burst
+leaves the window before it has fully arrived. Fix: shift the window by the group
+delay, i.e.\ evaluate samples $[n_{10}+41,\;n_{70}+41)$ of the FIR output
+(equivalently $[10^\circ+\Delta\theta,70^\circ+\Delta\theta)$ with
+$\Delta\theta=\tau_g\omega$), or use the IIR filter with half the delay -- and
+shift its window by $\approx 22$ samples as well.
+
+iii.\ The ESP32 FPU supports single precision only; \texttt{double} is emulated
+in software and is roughly an order of magnitude slower. For a 16-bit-class signal
+(12-bit ADC) float (24-bit mantissa) is more than sufficient. Per sample the FIR
+needs 83 multiply-adds, the cascade 25 multiplications (20 non-zero); the
+benchmark should show roughly this ratio (Wokwi timing is only indicative).
+At \SI{240}{MHz} even the FIR uses only a few percent of the \SI{40}{\micro s}
+sampling period.
+
+b) i.\ Q15 biquad (\codefile{solutions/wokwi/sheet10\_uno\_q15/sketch.ino}):
+\inputcode[firstline=41,lastline=61]{solutions/wokwi/sheet10_uno_q15/sketch.ino}
+Since $b_1=0$ only 4 multiplications are needed. Block test (\texttt{MODE 0},
+400 samples with knock): maximum deviation from the float filter 1.8 LSB
+(Q15), rms 0.58 LSB -- the rounding noise of the output, slightly amplified by
+the recursive part.
+
+ii.\ $\SI{16}{MHz}/\SI{25}{kHz}=640$ cycles per sample, shared by the ISR, the
+serial interrupt and \texttt{loop()}. From the disassembly the ISR has about
+180 instructions (of which $\approx100$ cycles are register save/restore) plus
+5 calls of the $16\times16\to32$ multiplication helper of $\approx40$ cycles each --
+an estimate of 450--500 cycles, i.e.\ about 75\,\% CPU load; measure it with
+\texttt{isr\_cycles} or the D8 pulse. Each additional biquad costs
+$\approx 4\cdot40+50\approx\SI{200}{cycles}$, each FIR tap $\approx\SI{45}{cycles}$:
+at most one biquad or $\approx 3$--4 FIR taps fit. The 5-section cascade
+($\approx1000$ cycles) or the 83-tap FIR ($\approx3700$ cycles) are impossible at
+\SI{25}{kHz} -- one reason why the Uno is limited to the single matched biquad
+(and why production ECUs use DSP cores with single-cycle MAC).
+
+iii.\ $|\text{adc}-512|\le512=2^9$; $\texttt{SHIFT}=6$ maps the ADC range onto
+the full Q15 range. The band-pass has peak gain 1, so for any \emph{sinusoidal}
+input with $|x|<1$ its output stays below 1. With a larger shift the input
+saturates; a strongly clipped sine approaches a square wave whose fundamental
+has the amplitude $\tfrac4\pi\approx1.27$ -- the narrow band-pass extracts this
+fundamental and overflows. In the test (knock slider \SI{3}{V}, 12 combustions,
+knock in 8 of them): $\texttt{SHIFT}=6$ and 8: no overflow (the decaying burst
+is too short for the filter to build up to the square-wave fundamental);
+$\texttt{SHIFT}=10$: 2 overflow events. With saturation the affected combustion has the energy
+$9.13\cdot10^7$, with wrap-around $6.28\cdot10^7$: a wrapped sample jumps from $+1$ to $-1$,
+which adds a large broadband error and falsifies the result, whereas saturation
+only clips. Saturation is therefore mandatory; the shift should be chosen such
+that the largest expected signal does not clip ($\texttt{SHIFT}=6$ here, the
+small signals are still resolved with $2^6$ Q15 units per ADC LSB).
+
+iv.\ $|y|\le2^{15}$, so $y^2\gg8\le2^{22}$. At \SI{600}{rpm} $180^\circ$ take
+\SI{50}{ms} = 1250 samples, the window ($60^\circ$) 417 samples:
+$417\cdot2^{22}=1.75\cdot10^9<2^{32}$. A shift by 8 (or 16) bits is a byte move
+on the 8-bit AVR; a shift by 12 is compiled as a loop of 12 four-byte shifts
+($\approx 80$ cycles).
+\end{solution}
+
+\begin{deliverables}
+10.1 on paper. \texttt{knock\_filter.h} and the output of \texttt{filterdesign}
+and \texttt{coefquant} (both sampling rates); plot of one ESP32 record ($x$,
+$y_\text{FIR}$, $y_\text{IIR}$, KNK) at 3000 and 6000\,rpm; Uno: block-test error,
+measured ISR cycles, table of overflow events for the three shifts with a short
+discussion.
+\end{deliverables}

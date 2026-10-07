@@ -1,0 +1,8 @@
+% Wrapper for one exercise sheet; used by the Makefile:
+%   pdflatex -jobname=Sheet01 "\def\sheetfile{sheets/sheet01}\input{sheet}"
+%   pdflatex -jobname=Sheet01_solutions "\def\withsolutions{}\def\sheetfile{sheets/sheet01}\input{sheet}"
+\documentclass[11pt,a4paper]{article}
+\usepackage{dspex}
+\begin{document}
+\input{\sheetfile}
+\end{document}

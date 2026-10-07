@@ -1,0 +1,410 @@
+\sheet{8}{DFT and FFT}{Chapter~8 (discrete Fourier transform, FFT algorithms)}
+
+\begin{goals}
+\begin{itemize}
+  \item Compute small DFTs by hand and use the DFT properties (periodicity,
+    symmetry for real signals, Parseval).
+  \item Distinguish frequency resolution $\Delta f=f_s/N$ (record length) from
+    the bin spacing obtained by zero padding.
+  \item Explain leakage and choose a window by main-lobe width, side-lobe
+    level, scalloping loss and equivalent noise bandwidth.
+  \item Implement an iterative radix-2 FFT and verify its $\mathcal O(N\log N)$
+    complexity against the $\mathcal O(N^2)$ direct DFT.
+  \item Compute a crank-angle-triggered knock spectrum on the ESP32 and judge
+    the memory and operation budget of an 8-bit Uno.
+\end{itemize}
+\end{goals}
+
+\section*{Background}
+
+The $N$-point DFT of $x[n]$, $n=0,\dots,N-1$, and its inverse are
+\[
+  X[k]=\sum_{n=0}^{N-1}x[n]\,W_N^{kn},\qquad
+  x[n]=\frac1N\sum_{k=0}^{N-1}X[k]\,W_N^{-kn},\qquad
+  W_N=\e^{-\jj2\pi/N}.
+\]
+$X[k]$ samples the DTFT of the \emph{finite record} at
+$f_k=k\,f_s/N$. Multiplying by a window $w[n]$ before the DFT convolves the
+spectrum with the window transform: a sinusoid between two bins leaks into all
+bins (\emph{leakage}). The radix-2 decimation-in-time FFT splits an $N$-point
+DFT into two $N/2$-point DFTs of the even and odd samples,
+\[
+  X[k]=G[k]+W_N^kH[k],\qquad X[k+N/2]=G[k]-W_N^kH[k],
+\]
+recursively, giving $\log_2N$ stages of $N/2$ \emph{butterflies}.
+
+The FFT written on this sheet is used again on Sheets~11 and~12. Its interface
+is fixed (file \texttt{fft.h}):
+\begin{lstlisting}
+void fft(double *re, double *im, int n, int inverse);
+/* in place, n = power of two; inverse = 1 includes the factor 1/n */
+\end{lstlisting}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{DFT properties}{\Paper}
+\begin{tasks}
+  \item Write down the $4\times4$ DFT matrix and compute the DFT of
+    $x=\{1,2,0,-1\}$. Check Parseval's relation
+    $\sum|x[n]|^2=\frac1N\sum|X[k]|^2$.
+  \item Compute the 8-point DFT of $x=\{1,1,1,1,0,0,0,0\}$ in closed form
+    (geometric series) and give $|X[k]|$. Which symmetry do you observe and
+    why must it hold?
+  \item \textbf{Resolution.} The knock measurement window extends from
+    $10^\circ$ to $70^\circ$ after TDC, $f_s=\SI{40}{kHz}$. How many samples
+    does it contain at \SI{3000}{rpm} and at \SI{6000}{rpm}, and what is the
+    frequency resolution $\Delta f$? Can a knock component at \SI{6.5}{kHz} be
+    separated from the valve impact at \SI{8}{kHz} (with a Hann window)?
+    Compare $\Delta f$ with the natural line width $B=1/(\pi\tau)$ of the knock
+    burst (Sheet~7).
+  \item The window of c) at \SI{3000}{rpm} is zero padded to $N=256$. What
+    changes in the spectrum, what does not? What \emph{does} improve the
+    resolution?
+  \item \textbf{Windows.} Give main-lobe width (null to null, in bins) and
+    highest side lobe for the rectangular, Hann, Hamming and Blackman windows.
+    The knock component at \SI{6.5}{kHz} is \SI{60}{dB} stronger than a valve
+    component at \SI{8}{kHz} (\SI{9.6}{bins} away for $N=256$). Which windows
+    can reveal the weak component?
+  \item \textbf{Complexity.} Count complex multiplications of the direct DFT
+    and of the radix-2 FFT for $N=256$. At \SI{6000}{rpm}, how many 256-point
+    FFTs per second does an angle-synchronous knock detection for a
+    4-cylinder engine need, and how many real multiplications per second is
+    that?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) $W_4=-\jj$:
+\[
+\begin{pmatrix}X_0\\X_1\\X_2\\X_3\end{pmatrix}=
+\begin{pmatrix}1&1&1&1\\1&-\jj&-1&\jj\\1&-1&1&-1\\1&\jj&-1&-\jj\end{pmatrix}
+\begin{pmatrix}1\\2\\0\\-1\end{pmatrix}=
+\begin{pmatrix}2\\1-3\jj\\0\\1+3\jj\end{pmatrix}.
+\]
+Parseval: $1+4+0+1=6$ and $(4+10+0+10)/4=6$.
+
+b) $X[k]=\sum_{n=0}^{3}W_8^{kn}=\frac{1-W_8^{4k}}{1-W_8^k}
+=\e^{-\jj3\pi k/8}\,\frac{\sin(\pi k/2)}{\sin(\pi k/8)}$ ($k\neq0$), $X[0]=4$.
+$X=\{4,\ 1-2.414\jj,\ 0,\ 1-0.414\jj,\ 0,\ 1+0.414\jj,\ 0,\ 1+2.414\jj\}$,
+$|X|=\{4,2.613,0,1.082,0,1.082,0,2.613\}$ (confirmed by \texttt{fft\_test}).
+For real $x$: $X[N-k]=X^*[k]$ (conjugate symmetry), $|X|$ is even around
+$N/2$; $X[0]$ and $X[N/2]$ are real. Only $N/2+1$ bins carry information.
+
+c) At \SI{3000}{rpm}: $\SI{18000}{\degree/s}$, $60^\circ\hat=\SI{3.33}{ms}$,
+$N=133$ samples, $\Delta f=1/T_w=\SI{300}{Hz}$. At \SI{6000}{rpm}: \SI{1.67}{ms},
+$N=67$, $\Delta f=\SI{600}{Hz}$. The distance \SI{1.5}{kHz} is 5 bins
+(\SI{3000}{rpm}) resp.\ 2.5 bins (\SI{6000}{rpm}); with the Hann main lobe
+(half width 2 bins) both are separable at \SI{3000}{rpm}, only marginally at
+\SI{6000}{rpm}. The natural line width of the burst is $\SI{398}{Hz}$, i.e.\
+at \SI{3000}{rpm} the window already resolves the physical line; at high speed
+the window, not the physics, limits the resolution.
+
+d) Zero padding to 256 samples evaluates the same DTFT of the 133-sample record
+on a finer grid ($\SI{156}{Hz}$ spacing): peaks are located more accurately and
+look smoother, but two lines closer than $\approx2\Delta f$ remain unresolved and
+the main lobe keeps its width. Only a longer record (more crank angle, lower
+speed) or a parametric method (Sheet~11) improves the resolution.
+
+e)
+\begin{center}\small
+\begin{tabular}{lcc}
+\toprule
+window & main lobe (null--null) & highest side lobe\\
+\midrule
+rectangular & 2 bins & \SI{-13.3}{dB}\\
+Hann & 4 bins & \SI{-31.5}{dB}\\
+Hamming & 4 bins & \SI{-42.7}{dB}\\
+Blackman & 6 bins & \SI{-58.1}{dB}\\
+\bottomrule
+\end{tabular}
+\end{center}
+At 9.6 bins distance the leakage of the strong line must stay below
+$\approx\SI{-60}{dB}$. Rectangular ($\approx\SI{-31}{dB}$ there) and Hamming
+(side lobes nearly flat at $-43\dots-50$\,dB) fail; Hann (side lobes decay
+with \SI{18}{dB/octave}) and Blackman succeed. Exercise~8.3 confirms this
+numerically.
+
+f) DFT: $N^2=65536$ complex multiplications; FFT: $\frac N2\log_2N=1024$
+butterflies with one complex multiplication each (64 times fewer; many are
+trivial, $W^0=1$). \SI{6000}{rpm}: 50 cycles/s $\times$ 4 cylinders $=200$
+windows/s, i.e.\ $200\cdot1024\cdot4\approx8.2\cdot10^5$ real multiplications
+per second (plus $1.2\cdot10^6$ additions) -- easy for an ESP32, impossible
+with a direct DFT on a small ECU ($5.2\cdot10^7$ mult/s).
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Own FFT}{\JSLinux}
+Files: \codefile{jslinux/sheet08/fft.h} (template of the FFT header)\\
+\phantom{Files: }\codefile{jslinux/sheet08/fft\_test.c} (test program)
+\begin{tasks}
+  \item Implement the direct DFT \texttt{dft()} in \texttt{fft\_test.c}.
+    Avoid $N^2$ calls of \texttt{sin}/\texttt{cos}: tabulate $W_N^m$,
+    $m=0..N-1$, and use the index $m=(kn)\bmod N$.
+  \item Implement \texttt{fft()} in \texttt{fft.h}: bit-reversal permutation,
+    $\log_2N$ butterfly stages, $1/N$ scaling for the inverse. Compute the
+    twiddle factors of a stage by the recursion
+    $W_L^{k+1}=W_L^k\,W_L$ (one \texttt{sin}/\texttt{cos} pair per stage).
+    The program compares FFT and DFT for random complex data, checks
+    $\mathrm{IFFT}(\mathrm{FFT}\,x)=x$, Parseval, and conjugate symmetry. Also
+    check your results of Exercise~8.1\,a) and b).
+  \item Implement \texttt{fit\_exponent()} (least squares in log--log
+    coordinates). Measure the runtime of DFT and FFT versus $N$ and determine
+    the exponents. Plot $t_\mathrm{FFT}/(N\log_2N)$ -- is it constant? Explain
+    deviations for small and for large $N$.
+  \item How does the round-off error of the FFT grow with $N$? Why does the
+    twiddle recursion increase it slightly, and how could one avoid that?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+b) The reference implementation
+(\codefile{solutions/jslinux/sheet08/fft.h}):
+\inputcode[firstline=36,lastline=80]{solutions/jslinux/sheet08/fft.h}
+Output: \texttt{fft} reproduces $X=\{2,1-3\jj,0,1+3\jj\}$ and the 8-point
+result of 8.1\,b). Comparison with the DFT (random complex input):
+\begin{center}\small
+\begin{tabular}{rccc}
+\toprule
+$N$ & $\max|X_\mathrm{FFT}-X_\mathrm{DFT}|$ & $\max|\mathrm{IFFT}(\mathrm{FFT}x)-x|$ & Parseval rel.\ error\\
+\midrule
+8 & $9.9\cdot10^{-16}$ & $2.5\cdot10^{-16}$ & $2.0\cdot10^{-16}$\\
+128 & $2.2\cdot10^{-14}$ & $2.8\cdot10^{-15}$ & $1.0\cdot10^{-15}$\\
+2048 & $1.5\cdot10^{-12}$ & $3.6\cdot10^{-14}$ & $4.5\cdot10^{-15}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Real input ($N=64$): $\max|X[k]-X^*[N-k]|=7.3\cdot10^{-15}$,
+$\operatorname{Im}X[0]=\operatorname{Im}X[N/2]=0$.
+
+c) Measured on the reference PC (\texttt{gcc -O2}; JSLinux is about 50 times slower):
+\begin{center}\small
+\begin{tabular}{rrrrr}
+\toprule
+$N$ & DFT [ms] & FFT [ms] & speed-up & $t_\mathrm{FFT}/(N\log_2N)$ [ns]\\
+\midrule
+16 & 0.0003 & 0.00016 & 2.0 & 2.46\\
+128 & 0.0210 & 0.00132 & 15.9 & 1.47\\
+1024 & 1.413 & 0.0149 & 94.6 & 1.46\\
+2048 & 6.339 & 0.0307 & 206.5 & 1.36\\
+8192 & -- & 0.178 & -- & 1.67\\
+32768 & -- & 0.863 & -- & 1.76\\
+\bottomrule
+\end{tabular}
+\end{center}
+Fitted exponents: DFT $t\propto N^{2.02}$, FFT $t\propto N^{1.16}$ (a power-law fit
+to $N\log_2N$ over $N=64\dots32768$ gives an exponent slightly above 1, since
+$\mathrm d\ln(N\log N)/\mathrm d\ln N=1+1/\ln N$). $t/(N\log_2N)$ is almost
+constant (\SI{1.4}{}--\SI{1.8}{ns}): for small $N$ the fixed overhead (call,
+bit reversal, \texttt{sin}/\texttt{cos} per stage) dominates; for
+$N\ge8192$ the data (\SI{16}{B} per complex sample, \SI{128}{kB}) no longer fit
+into the L1/L2 cache and memory access becomes the bottleneck. Absolute
+times differ between machines, the exponents do not.
+
+d) The error grows only slowly (roughly $\propto\log N$ per output for an ideal
+FFT, compared with $\propto N$ for the naive DFT summation). With the twiddle
+recursion each $W_L^k$ accumulates $k$ rounding errors, so the error rises to
+$1.5\cdot10^{-12}$ at $N=2048$ (with exact \texttt{sin}/\texttt{cos} per $k$:
+$3.3\cdot10^{-13}$, measured with a first version of the code). Remedies: a
+precomputed twiddle table (best for repeated FFTs of the same size, as on the
+ESP32), or re-computing the twiddles exactly every few steps. In single
+precision (AVR, Exercise~8.4) the recursion error $\approx k\cdot6\cdot10^{-8}$ is
+still negligible for $N\le128$ (inverse round trip error $5.5\cdot10^{-6}$).
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Windows, leakage and the knock spectrum}{\JSLinux}
+Program \codefile{jslinux/sheet08/windows.c} uses your \texttt{fft.h}.
+Spectra are scaled as amplitude spectra, $A_k=2|X[k]|/\sum w[n]$, so that a
+bin-centred sinusoid of amplitude $A$ appears at $20\log_{10}A$ dB.
+\begin{tasks}
+  \item Implement the periodic Hann, Hamming and Blackman windows. The program
+    computes coherent gain $\sum w/N$, equivalent noise bandwidth
+    $\mathrm{ENBW}=N\sum w^2/(\sum w)^2$, scalloping loss (tone exactly
+    between two bins) and the highest side lobe. Compare with 8.1\,e).
+  \item Leakage: $x[n]=\sin(2\pi\,6500\,n/f_s)+10^{-3}\sin(2\pi\,8000\,n/f_s)$,
+    $N=256$, $f_s=\SI{40}{kHz}$. Which windows reveal the weak component?
+    Explain the peak levels with the scalloping loss.
+  \item Zero padding: two equally strong tones at \SI{6500}{Hz} and
+    \SI{6900}{Hz}, records of $N=64$, 128, 256 samples, each zero padded to 4096
+    points (Hann). Implement the parabolic interpolation of the peak position
+    $\delta=\frac12\frac{A_{k-1}-A_{k+1}}{A_{k-1}-2A_k+A_{k+1}}$ (dB values).
+    For which record length are the two tones resolved?
+  \item Knock spectrum: record $N=256$ samples of \texttt{es\_knock()} at
+    \SI{40}{kHz} starting at the TDC of a knocking cylinder (3000\,rpm,
+    \texttt{knock\_prob = 1}), i.e.\ $0^\circ$--$115^\circ$ ATDC, and the window
+    $10^\circ$--$68^\circ$ ATDC (128 samples). Identify the peaks. Why is the
+    knock peak higher in the shorter window although it contains less signal
+    energy? Where is the valve impact (\SI{8}{kHz}, $90^\circ$ ATDC)?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Program output ($N=256$):
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+window & coherent gain & ENBW [bins] & scalloping [dB] & highest side lobe [dB]\\
+\midrule
+rectangular & 1.000 & 1.000 & $-3.89$ & $-13.3$\\
+Hann & 0.500 & 1.500 & $-1.42$ & $-31.5$\\
+Hamming & 0.540 & 1.363 & $-1.75$ & $-42.7$\\
+Blackman & 0.420 & 1.727 & $-1.10$ & $-58.1$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Low side lobes are paid for by a wider main lobe and a larger ENBW (more noise
+per bin, i.e.\ lower SNR of a single bin).
+
+b) $\Delta f=\SI{156.25}{Hz}$; \SI{6500}{Hz} lies at bin 41.6, \SI{8000}{Hz} at bin
+51.2. Levels in dB:
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+window & peak & bin of \SI{8}{kHz} & at \SI{9.5}{kHz} & at \SI{15}{kHz}\\
+\midrule
+rectangular & $-2.47$ & $-31.0$ & $-38.2$ & $-50.7$\\
+Hann & $-0.91$ & $-58.8$ & $-87.6$ & $-114.4$\\
+Hamming & $-1.12$ & $-48.4$ & $-55.0$ & $-67.3$\\
+Blackman & $-0.70$ & $-59.7$ & $-95.1$ & $-121.8$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The weak tone ($-60$\,dB) is visible only with Hann and Blackman (the bins
+around \SI{9.5}{kHz} are far lower, so the \SI{-59}{dB} at \SI{8}{kHz} is the
+tone, not leakage). Rectangular and Hamming bury it under leakage of the strong
+tone. The peak levels are below \SI{0}{dB} because the tone is 0.4 bins off the
+bin centre (scalloping; maximum at 0.5 bins as in a)).
+
+c) Hann, zero padded to 4096:
+$N=64$ ($\Delta f=\SI{625}{Hz}$): two maxima at \SI{6112}{Hz} and \SI{7288}{Hz} --
+\emph{wrong}: they are the merged main lobe with its interference pattern, not
+the two lines. $N=128$ ($\Delta f=\SI{312.5}{Hz}$): a single peak at
+\SI{6700}{Hz} (unresolved). $N=256$ ($\Delta f=\SI{156}{Hz}$, separation 2.56
+bins): \SI{6504.3}{Hz} and \SI{6895.7}{Hz}, both \SI{0.2}{dB} -- resolved and
+accurately located. Zero padding gave a smooth curve in all cases but never
+created resolution. Key code:
+\inputcode[firstline=67,lastline=85]{solutions/jslinux/sheet08/windows.c}
+
+d) Seed 7, first knocking cylinder (cyl.~1, onset $15.8^\circ$ ATDC), peaks within
+\SI{15}{dB} of the maximum (Hann):
+$0^\circ$--$115^\circ$, $N=256$: \SI{6508}{Hz}/\SI{-19.6}{dB}, \SI{10563}{Hz}/\SI{-24.4}{dB}
+(and a noise peak at \SI{7349}{Hz}/\SI{-32.3}{dB});
+$10^\circ$--$68^\circ$, $N=128$: \SI{6513}{Hz}/\SI{-12.9}{dB}, \SI{10479}{Hz}/\SI{-17.8}{dB}.
+Second cylinder (cyl.~3, onset $19.3^\circ$): \SI{6489}{Hz}/\SI{10491}{Hz} resp.\
+\SI{6497}{Hz}/\SI{10520}{Hz}. The amplitude scaling divides by $\sum w\propto N$:
+a burst that lasts only $\approx3\tau=\SI{2.4}{ms}$ appears with its \emph{average}
+amplitude over the window, so a window matched to the burst gives a higher level
+(and a better SNR, since the noise outside the burst is excluded). The valve
+burst starts at $90^\circ$ ATDC $=\SI{5.0}{ms}$, i.e.\ in the last 22\,\% of the long
+window, where the Hann window is small: only a weak \SI{8}{kHz} contribution
+(about \SI{-34}{dB}) remains; the short window excludes it completely --
+another reason for the $10^\circ$--$70^\circ$ measurement window.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{FFT on the microcontroller}{\Wokwi}
+Project \codefile{wokwi/sheet08\_knockfft/} (ESP32 + \texttt{engine-sim} chip):
+\texttt{KNOCK} $\rightarrow$ D34 (ADC1), \texttt{TDC} $\rightarrow$ D18,
+\texttt{KNK} (ground truth) $\rightarrow$ D19. Add your \texttt{fft.h} of
+Exercise~8.2 to the project.
+\begin{tasks}
+  \item The sketch waits for the rising edge of the \texttt{TDC} pulse and then
+    records $N=256$ samples at $f_s=\SI{40}{kHz}$. Which crank-angle range does
+    the record cover at 1500, 3000 and \SI{6000}{rpm}? Why is the analysis
+    synchronised to the crank angle and not to time?
+  \item Implement the capture with a deadline loop (\texttt{micros()}, period
+    \SI{25}{\micro s}); count missed deadlines in \texttt{late} and record
+    whether \texttt{KNK} was high during the window.
+  \item Implement the Hann window, the search for the largest bin above
+    \SI{3}{kHz} and the parabolic peak interpolation. Why must the search
+    exclude the low-frequency range? Set the knock probability to 50\,\% and
+    collect about 20 windows: compare peak frequency, peak level and the
+    knock-band energy \texttt{e\_knock} (6--\SI{7}{kHz}) for windows with and
+    without knock (\texttt{knk}). Plot one spectrum in JSLinux from the CSV
+    output.
+  \item \textbf{Uno.} Open \codefile{wokwi/sheet08\_unofft/} (synthetic test
+    signal, same \texttt{fft.h}; on the AVR \texttt{double} is a 32-bit float).
+    Compile for $N=64$, 128, 256 and read the memory report. What is the
+    largest feasible $N$ and why? Add the operation count (butterflies, real
+    multiplications and additions). Estimate the execution time from the
+    operation count, assuming roughly 100--150 clock cycles per soft-float
+    operation at \SI{16}{MHz}, and compare with the time between two TDCs at
+    \SI{3000}{rpm}. Suggest two ways to fit a 256-point spectrum into the Uno.
+\end{tasks}
+\begin{hint}
+\hinttext Wokwi is not cycle-accurate: \texttt{micros()} differences
+(\texttt{tcap}, \texttt{tfft}) are simulated times and only indicative. The
+Serial output of one window (130 lines) takes about \SI{0.25}{s} at 115200 baud;
+TDC events during printing are simply skipped.
+\end{hint}
+\end{exercise}
+
+\begin{solution}
+a) $256/f_s=\SI{6.4}{ms}$, i.e.\ $6\cdot n\cdot\SI{6.4}{ms}$ degrees:
+$57.6^\circ$ at \SI{1500}{rpm}, $115.2^\circ$ at \SI{3000}{rpm}, $230.4^\circ$ at
+\SI{6000}{rpm} (longer than the $180^\circ$ between two TDCs -- the next
+combustion leaks in; a real system uses an angle-dependent $N$ or $f_s$).
+Knock can only occur in a known angle range after TDC; triggering on TDC
+makes the windows of all combustions comparable and excludes disturbances at
+known angles (valve closing).
+
+b)/c) Key part of \codefile{solutions/wokwi/sheet08\_knockfft/sketch.ino}:
+\inputcode[firstline=54,lastline=97]{solutions/wokwi/sheet08_knockfft/sketch.ino}
+The global maximum is the combustion vibration (half sine over $60^\circ$,
+\SI{0.2}{V}): after the mean removal it still produces a peak near \SI{200}{Hz} of
+about \SI{-19}{dB}, as high as the knock peak; hence the search starts at
+\SI{3}{kHz}. Expected results (PC emulation of the sketch with the same engine
+model, 50\,\% knock probability, 12-bit quantisation; Wokwi gives other random
+values but the same picture):
+\begin{center}\small
+\begin{tabular}{lccc}
+\toprule
+ & peak frequency & peak level & \texttt{e\_knock}\\
+\midrule
+knocking (\texttt{knk=1}, 8 windows) & \SI{6470}{}--\SI{6531}{Hz} & $-23.9$ to $-15.5$\,dB & $-19.7$ to $-11.0$\,dB\\
+no knock (8 windows) & random, 7.8--\SI{19.8}{kHz} & $-36$ to $-33$\,dB & $-40.1$ to $-32.8$\,dB\\
+\bottomrule
+\end{tabular}
+\end{center}
+The knock band energy separates the two classes by more than \SI{10}{dB} -- the
+idea of the detector of Sheet~12. The second mode (\SI{10.5}{kHz}) appears
+about \SI{4}{}--\SI{10}{dB} below the first. \texttt{late} should be 0; if not, the
+simulated \texttt{analogRead} is slower than \SI{25}{\micro s} (the ESP32 ADC
+needs about \SI{10}{}--\SI{20}{\micro s} in reality; a real application uses the
+I2S/DMA ADC mode).
+
+d) arduino-cli memory report (global variables of \SI{2048}{B}):
+\begin{center}\small
+\begin{tabular}{rrrl}
+\toprule
+$N$ & arrays $2\cdot4N$ & global RAM & result\\
+\midrule
+64 & \SI{512}{B} & \SI{716}{B} (34\,\%) & OK\\
+128 & \SI{1024}{B} & \SI{1228}{B} (59\,\%) & OK, \SI{820}{B} left for stack\\
+256 & \SI{2048}{B} & \SI{2252}{B} (109\,\%) & \emph{data section exceeds available space}\\
+\bottomrule
+\end{tabular}
+\end{center}
+Largest $N=128$ (about \SI{200}{B} are taken by the Serial buffers and the core,
+the stack needs the rest). Operation count for $N=128$: $\frac N2\log_2N=448$
+butterflies, $4\cdot448=1792$ real multiplications, $6\cdot448=2688$ additions
+(plus the twiddle recursion, 4 mult.\ per butterfly group). With
+$\approx120$ cycles per float operation: $\approx4500\cdot120\approx5.4\cdot10^5$
+cycles $\approx\SI{34}{ms}$ -- more than three times the \SI{10}{ms} between two
+TDCs at \SI{3000}{rpm}. Expected strong bins of the test signal
+($\Delta f=\SI{312.5}{Hz}$): bin 21 (\SI{6562.5}{Hz}, 0.92) and its neighbours
+for \SI{6.5}{kHz}, bins 33/34 (0.25/0.38) for \SI{10.5}{kHz} (leakage, no window).
+Ways out: (1) a real-input FFT (an $N$-point real FFT via an $N/2$-point complex
+FFT) halves the memory; (2) 16-bit fixed point (Q15) instead of float:
+\SI{4}{B} per complex sample, $N=256$ needs \SI{1}{kB} and integer
+multiplications are much faster than soft-float; (3) do not compute a full
+spectrum at all -- a Goertzel filter or a band-pass (Sheets~9/10) computes the
+knock-band energy with a few bytes of state.
+\end{solution}
+
+\begin{deliverables}
+DFT computations of 8.1; your \texttt{fft.h} (it is reused on Sheets~11 and
+12!) with the error and runtime tables of 8.2; the window tables and the
+resolution experiment of 8.3; for 8.4 a CSV spectrum of one knocking and one
+non-knocking window with your knock/no-knock statistics, and the Uno memory
+table with the operation-count estimate.
+\end{deliverables}

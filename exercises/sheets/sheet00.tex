@@ -1,0 +1,177 @@
+\sheet{0}{Getting Started: Wokwi and JSLinux}{Preface, Chapter~1.1}
+
+\begin{goals}
+\begin{itemize}
+  \item Run, modify and share an Arduino project in the Wokwi simulator.
+  \item Transfer measured data from Wokwi (Serial Monitor) to JSLinux.
+  \item Compile and run C programs in JSLinux and plot results in the terminal.
+  \item Get to know the course library \codefile{common/engine\_signals.h}, the
+    \emph{virtual engine} used on all following sheets.
+\end{itemize}
+\end{goals}
+
+\section*{The virtual engine}
+
+Throughout the exercises we cannot measure on a real engine. Instead, a
+\emph{virtual engine} generates the sensor signals introduced in Chapter~1 of
+the script. Exactly the same C model is used in three places:
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Where & How \\
+\midrule
+JSLinux & \verb|#include "engine_signals.h"| in your C program \\
+Wokwi (sketch) & add \texttt{engine\_signals.h} as an extra file to the project \\
+Wokwi (custom chip) & part \texttt{chip-engine-sim}: outputs CRANK, CAM, KNOCK, ION, and
+  the ground-truth signals TDC and KNK \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The conventions of the model are fixed for all sheets:
+\begin{itemize}
+  \item 4-cylinder 4-stroke engine, crank angle $\theta\in[0^\circ,720^\circ)$,
+    firing order 1--3--4--2, combustion TDC at $120^\circ$, $300^\circ$,
+    $480^\circ$, $660^\circ$.
+  \item 60-2 trigger wheel: tooth $k=0,\dots,57$ is HIGH for
+    $\theta \bmod 360^\circ\in[6k^\circ,6k^\circ+3^\circ)$; teeth 58 and 59 are missing.
+  \item Camshaft signal HIGH for $0^\circ\le\theta<180^\circ$.
+  \item Knock: damped oscillation with modes at \SI{6.5}{kHz} and
+    \SI{10.5}{kHz}, decay time \SI{0.8}{ms}, onset 5--25$^\circ$ after TDC.
+  \item Disturbances: broadband noise, valve impacts (\SI{8}{kHz},
+    $90^\circ$ after TDC), low-frequency combustion vibration, a
+    1\,\% speed ripple at twice crankshaft frequency.
+\end{itemize}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{First steps in Wokwi}{\Wokwi}
+Open \url{https://wokwi.com}, create a new \emph{Arduino Uno} project and replace
+\texttt{sketch.ino} and \texttt{diagram.json} by the files in
+\codefile{wokwi/sheet00\_hello/}.
+\begin{tasks}
+  \item Start the simulation, turn the potentiometer and watch the Serial
+    Monitor. Which ADC value corresponds to \SI{2.5}{V}? What is the
+    voltage resolution (1 LSB) of the 10-bit ADC?
+  \item The sketch toggles pin 13 at every sample. Stop the simulation after
+    about one second, download the logic analyzer recording (\texttt{.vcd})
+    and determine the sampling period. Does it match \texttt{TS\_US}?
+  \item Change the sampling rate to \SI{1}{kHz}. Explain why the printed
+    \texttt{t\_us} values still show regular increments although the
+    \texttt{Serial.print} calls take time.
+  \item Wokwi runs in \emph{simulated time}. Compare the simulated time in the
+    status bar with the time on your wall clock. Why is this important when
+    we later measure execution times?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) $V = \text{adc}\cdot 5/1023$, so \SI{2.5}{V} $\approx$ 511/512.
+1 LSB $= 5/1023\,\text{V} \approx \SI{4.9}{mV}$.
+
+b) Pin 13 toggles at every sample, i.e.\ the period of the rectangular signal on D0
+is $2T_s = \SI{20}{ms}$; consecutive edges are $T_s=\SI{10}{ms}$ apart.
+
+c) The loop waits for an absolute deadline \texttt{t\_next} that is incremented by
+\texttt{TS\_US}. The time spent in printing only shortens the waiting time, it does
+not shift the next deadline (no drift), as long as one loop iteration takes less
+than $T_s$. At \SI{1}{kHz} and 115200 baud a line of about 20 characters takes
+$\approx\SI{1.7}{ms}$ -- longer than $T_s$! Then the deadlines are missed and
+the samples come out late; the \texttt{t\_us} increments become irregular. Remedy:
+fewer characters, higher baud rate, or buffer samples and print blocks.
+
+d) The simulator may run faster or slower than real time. \texttt{micros()} and
+the logic analyzer use simulated time, so timing \emph{inside} the simulation is
+consistent. Wokwi is not cycle-accurate for all peripherals, therefore measured
+execution times are only indicative; we count operations instead.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{First steps in JSLinux}{\JSLinux}
+Open \url{https://bellard.org/jslinux} and start the \emph{x86 Alpine Linux}
+(console) virtual machine.
+\begin{tasks}
+  \item Check the toolchain: \texttt{gcc --version} (or \texttt{tcc -v}). Upload
+    \texttt{engine\_signals.h}, \texttt{asciiplot.h}, \texttt{csvio.h}
+    (\codefile{common/}) and \codefile{jslinux/sheet00/hello\_signals.c} with
+    the upload button below the terminal.
+\begin{lstlisting}[style=shell]
+gcc -O2 -o hello_signals hello_signals.c -lm
+./hello_signals
+\end{lstlisting}
+  \item Explain the plot of the knock signal: where does the burst start, how
+    long does it last, and what is visible before the burst?
+  \item Modify the program such that it plots one full engine cycle
+    ($720^\circ$) at \SI{3000}{rpm} with \texttt{knock\_prob = 0}. How many
+    samples are needed at $f_s=\SI{50}{kHz}$? Identify the valve impacts and
+    the combustion vibration in the plot.
+  \item Copy 2--3 seconds of the Wokwi Serial Monitor output from
+    Exercise~0.1 into a file \texttt{pot.csv} in JSLinux
+    (\texttt{cat > pot.csv}, paste, \texttt{Ctrl-D}). Write a short program
+    that reads it with \texttt{csv\_read()} and plots the voltage column.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+b) The program starts the record at $\theta=125^\circ$, i.e.\ $5^\circ$ after
+TDC of cylinder 1. The knock onset lies between $5^\circ$ and $25^\circ$ ATDC;
+at \SI{3000}{rpm} ($\SI{18000}{\degree/s}$) $1^\circ$ corresponds to
+\SI{55.6}{\micro s}, so the burst appears within the first \SI{1.1}{ms}.
+It decays with $\tau=\SI{0.8}{ms}$ and is practically gone after
+$3\tau\approx\SI{2.4}{ms}$. Before the burst only noise and the slow
+combustion vibration (a half-sine over $60^\circ$) are visible.
+
+c) One cycle lasts $2\cdot 60/3000\,\text{s} = \SI{40}{ms}$, i.e.\ 2000 samples.
+Valve impacts appear $90^\circ$ after each TDC (\SI{8}{kHz} bursts at
+$\theta = 210^\circ, 390^\circ, 570^\circ, 30^\circ$), the combustion vibration as
+broad positive humps directly after each TDC.
+
+d) Example:
+\begin{lstlisting}
+csv_t d;
+if (csv_read("pot.csv", &d) == 0) {
+    double *v = csv_col(&d, 3);         /* column "volt" */
+    ap_plot(v, d.rows, "potentiometer voltage");
+    free(v); csv_free(&d);
+}
+\end{lstlisting}
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{The engine simulator chip}{\Wokwi}
+Every Wokwi project of the following sheets contains the custom chip
+\texttt{engine-sim}. Add the files \texttt{engine-sim.chip.c} and
+\texttt{engine-sim.chip.json} from \codefile{wokwi/chips/} to the Uno project of
+Exercise~0.1 and add the part
+\verb|{ "type": "chip-engine-sim", "id": "eng", "attrs": { "vmax": "5", "offset": "2.5" } }|
+to \texttt{diagram.json}.
+\begin{tasks}
+  \item Connect \texttt{eng:CRANK} to logic analyzer D1, \texttt{eng:CAM} to D2
+    and \texttt{eng:TDC} to D3 (and \texttt{eng:GND} to ground). Record
+    \SI{100}{ms} at \SI{3000}{rpm} and view the \texttt{.vcd} file (e.g.\ in
+    PulseView or GTKWave). Identify the missing-tooth gap and verify the
+    tooth period.
+  \item How many crank teeth lie between the gap and the first TDC pulse?
+    Compare with the conventions above.
+  \item Change the engine speed with the slider of the chip and repeat the
+    tooth-period measurement at \SI{6000}{rpm}.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) At \SI{3000}{rpm} one revolution takes \SI{20}{ms}; the tooth period
+(rising to rising edge) is $\SI{20}{ms}/60=\SI{333}{\micro s}$, across the gap
+$3\cdot\SI{333}{\micro s}=\SI{1}{ms}$.
+
+b) The reference edge (first tooth after the gap) is at $\theta=0^\circ$, TDC of
+cylinder 1 at $120^\circ$, i.e.\ 20 teeth after the reference edge.
+
+c) At \SI{6000}{rpm}: \SI{167}{\micro s} per tooth, \SI{500}{\micro s} across
+the gap.
+\end{solution}
+
+\begin{deliverables}
+Screenshot of the Wokwi logic analyzer view (or VCD plot) with the gap marked;
+terminal output of \texttt{hello\_signals}; the CSV-plot program of 0.2\,d).
+\end{deliverables}

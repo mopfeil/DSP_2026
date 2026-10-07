@@ -1,0 +1,356 @@
+\sheet{5}{Nyquist}{Chapter~5 (Sampling Theorem, Aliasing, Reconstruction)}
+
+\begin{goals}
+\begin{itemize}
+  \item Predict alias frequencies with the folding rule and the folding
+    diagram; determine minimum sampling rates, including band-pass
+    (under-)sampling.
+  \item Observe aliasing of the knock resonances on real (simulated)
+    microcontrollers and verify the predictions quantitatively.
+  \item Compare zero-order hold, linear and sinc reconstruction.
+  \item Design an anti-aliasing filter: trade-off between filter order,
+    sampling rate and passband loss.
+\end{itemize}
+\end{goals}
+
+\section*{Background}
+
+Sampling with $f_s=1/T_s$ makes all frequencies $f+kf_s$, $k\in\mathbb{Z}$,
+indistinguishable. A real tone of frequency $f$ therefore appears at the
+\emph{alias frequency}
+\[
+f_a=\bigl|\,f-k f_s\bigr|,\qquad k=\operatorname{round}(f/f_s),
+\qquad 0\le f_a\le f_s/2 .
+\]
+A band-limited signal ($X(f)=0$ for $|f|\ge B$) is uniquely determined by its
+samples if $f_s>2B$ and can be reconstructed by sinc interpolation
+$x(t)=\sum_n x[n]\,\operatorname{sinc}\bigl((t-nT_s)/T_s\bigr)$,
+$\operatorname{sinc}(u)=\sin(\pi u)/(\pi u)$. Everything above $f_s/2$ has to be
+removed \emph{before} sampling by an analog anti-aliasing (AA) filter.
+
+In our virtual engine the knock sensor has resonances at \SI{6.5}{kHz} and
+\SI{10.5}{kHz} ($\tau=\SI{0.8}{ms}$) and valve impacts at \SI{8}{kHz}
+($\tau=\SI{0.4}{ms}$). The \texttt{engine-sim} chip updates its analog outputs
+every \SI{20}{\micro s} (attribute \texttt{fs\_khz = 50}) and holds the value in
+between: the chip itself is a sampled system with zero-order hold.
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Aliasing by hand}{\Paper}
+\begin{tasks}
+  \item Compute the alias frequencies of the components \SI{6.5}{kHz},
+    \SI{8}{kHz}, \SI{10.5}{kHz} and of a (hypothetical) third knock mode at
+    \SI{15}{kHz} for $f_s=5$, $8.33$, $16.67$, $25$ and \SI{50}{kHz}.
+    (\SI{8.33}{kHz} is close to the maximum rate of the Uno ADC.)
+  \item Draw the folding diagram ($f_a$ over $f$, \SIrange{0}{16}{kHz}) for
+    $f_s=\SI{8.33}{kHz}$ and mark the four components. Which two components
+    can no longer be separated after sampling?
+  \item What is the minimum sampling rate for a knock signal with components
+    up to \SI{15}{kHz}? A 4th-order Butterworth AA filter with
+    $f_c=\SI{15}{kHz}$ ($|H|=1/\sqrt{1+(f/f_c)^8}$) is used. Which $f_s$ is
+    needed so that every frequency that folds into \SIrange{0}{15}{kHz} is
+    attenuated by at least \SI{40}{dB}?
+  \item Band-pass sampling: an analog band-pass passes only the first knock
+    mode, \SIrange{6}{7}{kHz}. Which sampling rates are allowed
+    ($2f_H/k\le f_s\le 2f_L/(k-1)$, $k=1,2,\dots$)? Show that the Uno at
+    \SI{5}{kHz} could legally capture this band. Where does the band appear,
+    and is it spectrally inverted?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Alias frequencies in kHz ($k$ in brackets):
+\begin{center}\small
+\begin{tabular}{@{}lccccc@{}}\toprule
+$f$ & $f_s=5$ & $8.33$ & $16.67$ & $25$ & $50$\\\midrule
+6.5 (knock 1)  & 1.5 (1) & 1.833 (1) & 6.5 (0) & 6.5 & 6.5\\
+8.0 (valve)    & 2.0 (2) & 0.333 (1) & 8.0 (0) & 8.0 & 8.0\\
+10.5 (knock 2) & 0.5 (2) & 2.167 (1) & 6.167 (1) & 10.5 & 10.5\\
+15.0 (knock 3) & 0 (3)   & 1.667 (2) & 1.667 (1) & 10.0 (1) & 15.0\\\bottomrule
+\end{tabular}
+\end{center}
+Notable cases: at \SI{5}{kHz} the \SI{15}{kHz} mode becomes DC; at
+\SI{16.67}{kHz} the second knock mode lands at \SI{6.17}{kHz}, right next to
+the first mode -- a \SI{6.5}{kHz} band-pass would see it; at \SI{25}{kHz} a
+\SI{15}{kHz} mode would mimic \SI{10}{kHz}.
+
+b) Folding diagram for $f_s=\SI{8.33}{kHz}$ (zig-zag with corners at
+multiples of $f_s/2$):
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=4.6cm,xmin=0,xmax=16.5,ymin=0,ymax=4.6,
+  xlabel={$f$ [kHz]},ylabel={$f_a$ [kHz]},xtick={0,4.17,8.33,12.5,16.67},
+  xticklabels={0,$\frac{f_s}{2}$,$f_s$,$\frac{3f_s}{2}$,$2f_s$},
+  ytick={0,1,2,3,4.17},yticklabels={0,1,2,3,$\frac{f_s}{2}$},
+  grid=major,grid style={gray!25},font=\small]
+\addplot[thick,dspblue] coordinates {(0,0) (4.1667,4.1667) (8.3333,0) (12.5,4.1667) (16.6667,0)};
+\addplot[only marks,mark=*,red!70!black] coordinates {(6.5,1.8333) (8,0.3333) (10.5,2.1667) (15,1.6667)};
+\node[font=\scriptsize,anchor=south east] at (axis cs:6.5,1.9) {6.5};
+\node[font=\scriptsize,anchor=west] at (axis cs:8.1,0.35) {8.0};
+\node[font=\scriptsize,anchor=south east] at (axis cs:10.5,2.2) {10.5};
+\node[font=\scriptsize,anchor=south west] at (axis cs:15,1.7) {15};
+\end{axis}
+\end{tikzpicture}
+\end{center}
+The two knock modes end up at \SI{1.83}{kHz} and \SI{2.17}{kHz}: only
+\SI{333}{Hz} apart, which is less than the frequency resolution of a knock
+burst of a few ms (Sheet~8). Mode 3 (\SI{1.67}{kHz}) falls into the same
+region; the valve impact becomes an almost-DC transient.
+
+c) Nyquist: $f_s>\SI{30}{kHz}$. With an AA filter, a frequency $f$ folds into
+$[0,15]$\,kHz if $f\ge f_s-\SI{15}{kHz}$; the weakest attenuation occurs at
+$f=f_s-15$. $40$\,dB requires $(f/f_c)^8\ge10^4$, i.e.\
+$f\ge f_c\cdot10^{0.5}=\SI{47.4}{kHz}$, so $f_s\ge\SI{62.4}{kHz}$ (in
+practice \SI{64}{kHz}). The theoretical minimum of \SI{30}{kHz} would need an
+ideal brick-wall filter.
+
+d) $f_L=6$, $f_H=7$, $B=1$\,kHz, $k\le\lfloor f_H/B\rfloor=7$:
+\begin{center}\small
+\begin{tabular}{@{}cccccccc@{}}\toprule
+$k$ & 1 & 2 & 3 & 4 & 5 & 6 & 7\\\midrule
+$f_s$ [kHz] & $\ge14$ & 7--12 & 4.67--6 & 3.5--4 & 2.8--3 & 2.33--2.4 & 2\\\bottomrule
+\end{tabular}
+\end{center}
+$f_s=\SI{5}{kHz}$ lies in the $k=3$ zone. The band lies in the third Nyquist
+zone $[5,7.5]$\,kHz (odd zone, not inverted) and appears at $f-f_s$, i.e.\ at
+\SIrange{1}{2}{kHz}. Condition: the analog band-pass must suppress the valve
+(\SI{8}{kHz}$\to$\SI{2}{kHz}) and mode 2 (\SI{10.5}{kHz}$\to$\SI{0.5}{kHz}),
+which fold into the same \SIrange{0}{2.5}{kHz} range. Band-pass sampling
+replaces a high $f_s$ by a demanding analog filter.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Aliasing made visible}{\Wokwi}
+Two projects record the \texttt{KNOCK} output of the engine-sim chip (knock
+probability \SI{100}{\%}, \SI{3000}{rpm}) together with the ground-truth
+outputs \texttt{KNK} (HIGH during a knock burst) and \texttt{TDC}, and print
+blocks of CSV lines \texttt{n,adc,knk,tdc}:
+\codefile{wokwi/sheet05\_alias\_uno/} (Uno, Timer1 ISR, 512 samples per
+block) and \codefile{wokwi/sheet05\_alias\_esp32/} (ESP32, deadline loop,
+2500 samples per block). The JSLinux program
+\codefile{jslinux/sheet05/alias\_scan.c} cuts out every knock burst (from the
+rising KNK edge, $4\tau$) and every valve burst (TDC $+90^\circ$, $5\tau$),
+averages the spectra $|X(f)|^2$ of the segments and lists the peaks.
+\begin{tasks}
+  \item Uno: the sampling period is \texttt{TS\_US = DIV}$\times$\SI{20}{\micro
+    s} (default \texttt{DIV = 10}, \SI{5}{kHz}). Compute \texttt{OCR1A}
+    (prescaler 8) and complete the ISR (store KNK in bit 14, TDC in bit 15).
+    Why does the sketch disable the Timer0 interrupt during acquisition?
+  \item Copy at least three blocks from the Serial Monitor into
+    \texttt{uno.csv}, implement \texttt{alias\_freq()} and the start index
+    of the valve burst in \texttt{alias\_scan.c} and run
+    \texttt{./alias\_scan uno.csv 5000 10}. Compare the spectral peaks with
+    Exercise~5.1. Look at one knock burst in the CSV: how many oscillation
+    periods do you see, and of which frequency? Repeat with \texttt{DIV = 6}
+    (\SI{8.33}{kHz}). Check with the logic analyzer that the sample marker
+    (D0) is still regular.
+  \item ESP32: complete the deadline loop (\texttt{TS\_US = 40}, \SI{25}{kHz})
+    and verify that no sample is late. Analyse with
+    \texttt{./alias\_scan esp.csv 25000 12}. Then set \texttt{TS\_US = 60}
+    (\SI{16.67}{kHz}). Why is this particularly dangerous for a knock
+    detector that integrates the energy in a band around \SI{6.5}{kHz}?
+  \item Why must the sampling period be a multiple of \SI{20}{\micro s}?
+    Consider the Uno at exactly \SI{8}{kHz} (\SI{125}{\micro s}): determine
+    the sequence of time offsets between the ADC instants and the last chip
+    update, its effect on the SNR (Exercise~4.1\,e) and a value of the chip
+    attribute \texttt{fs\_khz} in \texttt{diagram.json} that fixes the
+    problem.
+  \item \texttt{./alias\_scan sim 5000 10} simulates the chip and the ADC
+    (``virtual Wokwi'', also writes \texttt{alias\_sim.csv}). Compare its
+    peaks with your Wokwi measurement.
+\end{tasks}
+\begin{hint}
+The UART transmits about 11.5 characters per ms: printing a CSV line per
+sample is impossible at kHz rates, therefore samples are buffered in RAM
+(Uno: 512 samples = \SI{1}{KB} of its \SI{2}{KB}). Wokwi is not
+cycle-accurate for the ESP32 -- if \texttt{late} is not 0, increase
+\texttt{TS\_US} to the next multiple of 20.
+\end{hint}
+\end{exercise}
+
+\begin{solution}
+a) $\texttt{OCR1A}=2\cdot\texttt{TS\_US}-1=399$ (\SI{2}{MHz} timer clock).
+\inputcode[firstline=32,lastline=53]{solutions/wokwi/sheet05_alias_uno/sketch.ino}
+The Timer0 overflow ISR (\texttt{millis()}, every \SI{1.024}{ms}, a few
+\si{\micro s} long) can delay the Timer1 ISR, i.e.\ cause sampling jitter
+(Sheet~4); the Timer1 ISR itself starts with a constant latency.
+
+b) Results of the virtual Wokwi (\texttt{sim}, 400\,ms, 39 knock and 38 valve
+bursts); your Wokwi recording should agree within the resolution:
+\begin{center}\small
+\begin{tabular}{@{}lcccc@{}}\toprule
+ & \multicolumn{2}{c}{predicted (5.1)} & \multicolumn{2}{c}{measured peaks}\\
+$f_s$ [kHz] & knock modes & valve & knock bursts & valve bursts\\\midrule
+5 (Uno)       & 1.5 / 0.5      & 2.0   & 1.51, 0.255 (34\,\%)  & 1.78, 0.98 (83\,\%)\\
+8.33 (Uno)    & 1.833 / 2.167  & 0.333 & 1.85                  & 0.367\\
+25 (ESP32)    & 6.5 / 10.5     & 8.0   & 6.50, 10.525 (24\,\%) & 8.025\\
+16.67 (ESP32) & 6.5 / 6.167    & 8.0   & 6.483                 & 8.183\\\bottomrule
+\end{tabular}
+\end{center}
+(all values in kHz; percentages: power relative to the largest peak). At \SI{5}{kHz} the
+\SI{6.5}{kHz} knock appears at \SI{1.5}{kHz}: a burst of $4\tau=\SI{3.2}{ms}$
+(16 samples) shows about 5 periods of \SI{1.5}{kHz}, i.e.\ the ``wrong''
+frequency is clearly visible in the time signal. The second peak (alias of
+\SI{10.5}{kHz} at \SI{0.5}{kHz}) is shifted to \SI{255}{Hz} because the
+segment of only \SI{3.2}{ms} resolves no better than $\approx1/\SI{3.2}{ms}\approx\SI{300}{Hz}$
+and the combustion vibration adds low-frequency content. The valve burst
+segments (\SI{2}{ms}, 10 samples) have $\approx\SI{500}{Hz}$ resolution; the
+peak at \SI{1.78}{kHz} instead of \SI{2.0}{kHz} and the side peak result from
+the overlap with the mirrored component at $f_s-\SI{2}{kHz}=\SI{3}{kHz}$. At
+\SI{8.33}{kHz} the two knock aliases (\SI{333}{Hz} apart) merge into one peak
+at \SI{1.85}{kHz}, and the \SI{8}{kHz} valve burst looks like a slow
+\SI{0.33}{kHz} transient. The Uno at \SI{8.33}{kHz} works only because the
+CPU does nothing but sampling during the block ($\approx\SI{112}{\micro s}$ of
+every \SI{120}{\micro s}); D0 must show regular \SI{120}{\micro s} steps.
+
+c) Deadline loop:
+\inputcode[firstline=45,lastline=55]{solutions/wokwi/sheet05_alias_esp32/sketch.ino}
+At \SI{25}{kHz} all components lie below $f_s/2=\SI{12.5}{kHz}$ and appear at
+their true frequencies (\SI{6500}{Hz}, \SI{10525}{Hz} with power ratio
+$0.24\approx0.5^2$ as in the model, valve \SI{8025}{Hz}). At \SI{16.67}{kHz}
+mode 2 aliases to \SI{6.17}{kHz} and merges with mode 1 into a single peak at
+\SI{6.48}{kHz}. A band-pass detector at \SI{6.5}{kHz} integrates the energy of
+both modes, and every disturbance between \SI{10}{kHz} and \SI{11}{kHz}
+(e.g.\ ignition or injector noise) would be counted as knock -- aliasing
+produces false knock detections that no digital filter can remove afterwards.
+
+d) Sampling a held (staircase) signal with a period that is a multiple of
+\SI{20}{\micro s} is equivalent to exact decimation of the chip's
+\SI{50}{kHz} sequence. With \SI{125}{\micro s} the offset between ADC instant
+and last chip update cycles through $125n \bmod 20 = 0, 5, 10, 15, 0,\dots$
+\si{\micro s}. The mean (\SI{7.5}{\micro s}) is a harmless delay, the varying
+part has $\sigma=\SI{5.6}{\micro s}$, i.e.\
+$\mathrm{SNR}=-20\log_{10}(2\pi\cdot6500\cdot5.6\cdot10^{-6})\approx\SI{12.8}{dB}$
+for mode 1 (\SI{8.7}{dB} for mode 2), concentrated in spurious lines at
+$\pm f_s/4$ around each component because the offset is periodic. Fix:
+\texttt{"fs\_khz": "40"} (update every \SI{25}{\micro s}, $125=5\cdot25$; the
+chip's own Nyquist limit \SI{20}{kHz} is still above \SI{10.5}{kHz}) or
+\texttt{"200"} (\SI{5}{\micro s}, more simulation load).
+
+e) The simulation produces the peaks of the table in b); the Wokwi
+recordings differ only by the random knock amplitudes/phases (the chip uses
+its own random sequence) and the number of bursts.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Reconstruction and anti-aliasing}{\JSLinux}
+\textbf{Reconstruction.} \codefile{jslinux/sheet05/recon.c} represents a
+``continuous'' sine on a grid of $M=40$ points per sampling interval
+($f_s=\SI{25}{kHz}$, \num{600} samples) and computes the normalised error
+$\mathrm{NMSE}=\sum e^2/\sum x^2$ of a reconstruction on this grid.
+\begin{tasks}
+  \item Implement zero-order hold, linear interpolation and sinc
+    interpolation with $\pm K=16$ terms, once plain (truncated) and once with
+    a Hann taper $w(u)=\tfrac12+\tfrac12\cos(\pi u/(K+1))$. Show analytically
+    that the ZOH of a sine has
+    $\mathrm{NMSE}=2\bigl(1-\sin(\omega T_s)/(\omega T_s)\bigr)$ and compare.
+    Discuss the table (method vs.\ $f/f_s$).
+  \item A \SI{15}{kHz} tone is sampled at \SI{25}{kHz} and sinc-reconstructed.
+    What comes out? Predict frequency \emph{and} phase.
+\end{tasks}
+\textbf{Anti-aliasing.} \codefile{jslinux/sheet05/antialias.c} simulates the
+analog world on a \SI{1}{MHz} grid; the AA filter (cut-off $f_c=\SI{12}{kHz}$)
+is simulated on this grid, the ADC takes every $(\SI{1}{MHz}/f_s)$-th value.
+Test signals: knock tones \SI{6.5}{kHz}/\SI{10.5}{kHz}; a disturbance at
+$f_d=f_s-\SI{6.5}{kHz}$ that aliases exactly onto the knock frequency; white
+noise (bandwidth \SI{500}{kHz}).
+\begin{tasks}[resume]
+  \item Implement the RC low-pass (exact update for an input held constant
+    over $\Delta t$), the 4th-order Butterworth as a cascade of two
+    2nd-order sections ($Q_k=1/(2\sin\frac{(2k-1)\pi}{2n})$, given biquad
+    simulator) and the amplitude measurement at a given frequency in the
+    sampled signal. Run the program for $f_s=25$ and \SI{50}{kHz} and filter
+    orders 0, 1, 2, 4. Compare the alias amplitudes with $|H(f_d)|$.
+  \item Which Butterworth order would be required for \SI{40}{dB} alias
+    suppression in the band \SIrange{0}{10.5}{kHz} with $f_c=\SI{12}{kHz}$ at
+    $f_s=\SI{25}{kHz}$ and at \SI{50}{kHz}? Formulate a design
+    recommendation for the knock ADC.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Implementations:
+\inputcode[firstline=38,lastline=72]{solutions/jslinux/sheet05/recon.c}
+ZOH error of $x=\sin(\omega t+\varphi)$ at $t=nT_s+u$:
+$e=\sin(\alpha+\omega u)-\sin\alpha$; averaged over the phase
+$\alpha$: $\overline{e^2}=\tfrac12|\e^{\jj\omega u}-1|^2=1-\cos\omega u$;
+averaged over $u\in[0,T_s)$: $1-\sin(\omega T_s)/(\omega T_s)$; division by the
+signal power $1/2$ gives the formula. Program output (NMSE in dB):
+\begin{center}\small
+\begin{tabular}{@{}rrrrrrr@{}}\toprule
+$f$ [Hz] & $f/f_s$ & ZOH & ZOH theory & linear & sinc & Hann-sinc\\\midrule
+500   & 0.02 & $-22.98$ & $-22.79$ & $-56.83$ & $-42.94$ & $-97.22$\\
+1000  & 0.04 & $-16.94$ & $-16.78$ & $-44.79$ & $-44.98$ & $-99.46$\\
+2500  & 0.10 & $-9.06$  & $-8.89$  & $-28.94$ & $-47.59$ & $-101.24$\\
+5000  & 0.20 & $-3.28$  & $-3.13$  & $-17.12$ & $-37.44$ & $-84.43$\\
+8000  & 0.32 & $0.27$   & $0.41$   & $-9.43$  & $-32.66$ & $-70.23$\\
+10500 & 0.42 & $2.02$   & $2.13$   & $-5.28$  & $-30.83$ & $-57.78$\\
+12000 & 0.48 & $2.76$   & $2.83$   & $-3.38$  & $-27.58$ & $-11.36$\\\bottomrule
+\end{tabular}
+\end{center}
+The ZOH agrees with the theory within \SI{0.2}{dB} (the fine grid contains
+$u=0$ with zero error, hence slightly smaller values). The ZOH is a poor
+reconstruction: even at $f=f_s/25$ the error is only \SI{17}{dB} below the
+signal -- mainly due to the delay $T_s/2$ and the staircase; above
+$f\approx f_s/3.5$ the error is larger than the signal. Linear interpolation
+gains about \SI{12}{dB} per octave (error $\propto(\omega T_s)^4$) but is
+useless near $f_s/2$. The truncated sinc has a frequency-independent floor of
+about \SI{-30}{}\dots\SI{-48}{dB} caused by cutting the slowly decaying ($1/u$) kernel;
+at low frequencies it is even worse than linear interpolation. The Hann taper
+removes this floor ($-97$ to \SI{-101}{dB}), but its transition band costs
+accuracy close to $f_s/2$ ($-11$\,dB at $0.48f_s$): the closer a signal
+gets to Nyquist, the longer the interpolation kernel has to be.
+
+b) $\sin(2\pi\,15000\,nT_s+0.7)=\sin(2\pi(15000-25000)nT_s+0.7)
+=\sin(-2\pi\,10000\,nT_s+0.7)$: the samples are those of a \SI{10}{kHz} sine
+with inverted phase, $-\sin(2\pi\,10\,\text{kHz}\,t-0.7)$. The program finds
+a zero-crossing frequency of \SI{10000}{Hz} and NMSE $=\SI{3.00}{dB}$ against
+the \SI{15}{kHz} original, but $\SI{-59.7}{dB}$ against this alias. The
+reconstruction is perfect -- of the wrong signal.
+
+c) Key code:
+\inputcode[firstline=49,lastline=57]{solutions/jslinux/sheet05/antialias.c}
+\inputcode[firstline=91,lastline=94]{solutions/jslinux/sheet05/antialias.c}
+\inputcode[firstline=104,lastline=109]{solutions/jslinux/sheet05/antialias.c}
+Results ($f_c=\SI{12}{kHz}$; ``noise'' = noise PSD in \SIrange{5}{11}{kHz}
+after sampling relative to the unaliased analog noise PSD):
+\begin{center}\small
+\begin{tabular}{@{}cc|cc|cc|c@{}}\toprule
+$f_s$ & order & gain 6.5k & gain 10.5k & alias of $f_d$ & $|H(f_d)|$ & noise\\\midrule
+25 kHz & 0 & 0.00 & 0.00 & 0.0 dB & 0.0 dB & $+15.7$ dB\\
+($f_d=18.5$ kHz) & 1 & $-1.12$ & $-2.47$ & $-5.3$ dB & $-5.3$ dB & $+2.0$ dB\\
+ & 2 & $-0.36$ & $-2.01$ & $-8.2$ dB & $-8.2$ dB & $0.0$ dB\\
+ & 4 & $-0.03$ & $-1.29$ & $-15.2$ dB & $-15.2$ dB & $0.0$ dB\\\midrule
+50 kHz & 0 & 0.00 & 0.00 & 0.0 dB & 0.0 dB & $+12.7$ dB\\
+($f_d=43.5$ kHz) & 1 & $-1.12$ & $-2.47$ & $-11.5$ dB & $-11.5$ dB & $-0.3$ dB\\
+ & 2 & $-0.36$ & $-2.01$ & $-22.4$ dB & $-22.4$ dB & $-1.0$ dB\\
+ & 4 & $-0.03$ & $-1.29$ & $-44.8$ dB & $-44.7$ dB & $-0.2$ dB\\\bottomrule
+\end{tabular}
+\end{center}
+(gains in dB.) The sampled alias amplitude equals $|H(f_d)|$ exactly: the
+filter acts before sampling, the sampler only moves the attenuated component
+to \SI{6.5}{kHz}. Without filter, all noise of the \SI{500}{kHz} band folds
+into $[0,f_s/2]$: the in-band noise rises by $10\log_{10}(500/12.5)=\SI{16}{dB}$
+(measured \SI{15.7}{dB}) at \SI{25}{kHz} and by \SI{13}{dB} at \SI{50}{kHz}.
+Already a first-order filter removes most of this broadband penalty, but at
+$f_s=\SI{25}{kHz}$ even the 4th-order filter suppresses the disturbance by only
+\SI{15}{dB} while it costs \SI{1.3}{dB} at \SI{10.5}{kHz}.
+
+d) The first frequency that folds into \SIrange{0}{10.5}{kHz} is
+$f_s-\SI{10.5}{kHz}$. Requirement $(f/f_c)^{2n}\ge10^4$:
+$f_s=\SI{25}{kHz}$: $f/f_c=14.5/12=1.21$, $n\ge 2/\log_{10}1.21=24.3$, i.e.\
+order 25 -- impossible. $f_s=\SI{50}{kHz}$: $f/f_c=39.5/12=3.29$,
+$n\ge2/\log_{10}3.29=3.9$, i.e.\ order 4 (the table confirms
+\SI{44.8}{dB} at \SI{43.5}{kHz}). Recommendation: oversample (e.g.\
+\SIrange{50}{100}{kHz}), use a simple 2nd--4th-order analog AA filter
+(Sallen-Key), and reduce the rate digitally afterwards (digital low-pass +
+decimation, Sheet~10), where steep filters are cheap and exactly
+reproducible.
+\end{solution}
+
+\begin{deliverables}
+5.1: alias table, folding diagram, AA and band-pass sampling calculation.
+5.2: completed sketches, CSV files of the Uno (two rates) and the ESP32 (two
+rates), output of \texttt{alias\_scan} with comparison to 5.1, answers to c)
+and d). 5.3: completed programs, both tables with discussion, filter-order
+recommendation.
+\end{deliverables}

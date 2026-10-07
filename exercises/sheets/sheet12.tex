@@ -1,0 +1,436 @@
+\sheet{12}{Knock Detection}{Chapter~12 (capstone: angle-synchronous knock detection)}
+
+\begin{goals}
+\begin{itemize}
+  \item Assemble the methods of the previous sheets into a complete,
+    angle-synchronous knock detector and justify every block quantitatively.
+  \item Evaluate a detector statistically on thousands of labelled combustions:
+    ROC curve, area under the curve, detection rate at a fixed false-alarm rate,
+    choice of the threshold.
+  \item Compare energy-, FFT- and MEM-based knock features and quantify the
+    contribution of band-pass, angle window and background normalisation.
+  \item Run the detector in real time on the ESP32 with crank synchronisation,
+    per-cylinder knock indication and ignition retard; optionally port it to the
+    8-bit Uno in fixed point.
+\end{itemize}
+\end{goals}
+
+\section*{The signal chain}
+
+\ecuquote{} The ECU never sees the knock -- only a vibration signal that also
+contains noise, the combustion vibration and valve impacts. The standard knock
+detector of a production ECU is the chain below; every block is one of the
+previous sheets.
+
+\begin{center}
+\begin{tikzpicture}[>=Stealth,font=\footnotesize,node distance=3mm,
+  blk/.style={draw,rounded corners=1pt,align=center,minimum height=9mm,inner sep=2pt,fill=dspblue!6}]
+  \node[blk] (adc) {ADC\\$f_s$=25\,kHz};
+  \node[blk,right=of adc] (bp) {band-pass\\6--7\,kHz};
+  \node[blk,right=of bp] (sq) {$(\cdot)^2$};
+  \node[blk,right=of sq] (win) {window\\$10^\circ$--$70^\circ$};
+  \node[blk,right=of win] (int) {$\sum$};
+  \node[blk,right=of int] (nrm) {$\div B_c$};
+  \node[blk,right=of nrm] (thr) {$>K$?};
+  \node[blk,below=6mm of win] (sync) {crank sync\\(60-2, CAM)};
+  \node[blk,right=of thr] (act) {retard\\LED};
+  \node[blk,below=7mm of nrm,xshift=8mm] (bg) {background\\$B_c$ (EWMA)};
+  \draw[->] (adc) -- (bp); \draw[->] (bp) -- (sq); \draw[->] (sq) -- (win);
+  \draw[->] (win) -- (int); \draw[->] (int) -- (nrm); \draw[->] (nrm) -- (thr);
+  \draw[->] (thr) -- (act); \draw[->] (sync) -- (win);
+  \draw[->] (int.south) |- (bg.west); \draw[->] (bg) -- (nrm);
+\end{tikzpicture}
+\end{center}
+
+Conventions: $f_s=\SI{25}{kHz}$ (Sheet~10), band-pass = the 10th-order Butterworth
+biquad cascade of \texttt{knock\_filter.h} (Sheet~10; group delay 22 samples at
+\SI{6.5}{kHz}) or the single biquad \texttt{kf\_bp2} ($B=\SI{400}{Hz}$, 20 samples),
+window $10^\circ$--$70^\circ$ after the TDC of the firing cylinder, feature
+$E_c=\sum_{\text{window}}y^2[n]$ for cylinder $c$, normalised
+$R_c=E_c/B_c$, knock if $R_c>K$. Ground truth: \texttt{e.knock\_flag[c]} in the
+C model, the KNK pin of the engine-sim chip in Wokwi. Code:
+\codefile{jslinux/sheet12/} (\texttt{knockeval.c} plus \texttt{knock\_filter.h},
+\texttt{ar.h}, \texttt{fft.h} -- use your own versions from Sheets 8, 10, 11 if you
+like) and \codefile{wokwi/sheet12\_knock\_esp32/}, \codefile{wokwi/sheet12\_knock\_uno/}.
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Detector design}{\Paper}
+\begin{tasks}
+  \item Justify every block of the chain with the respective chapter: why
+    sampling at \SI{25}{kHz} (and what about anti-aliasing), why an angle
+    window and why exactly $10^\circ$--$70^\circ$ ATDC, why a band-pass,
+    why squaring (instead of a linear operation), why summation, why a
+    normalisation and why a threshold. Which blocks are LTI, which are not?
+  \item Compute the window length in samples at 1500, 3000 and \SI{6000}{rpm}.
+    By how many degrees must the window be shifted to compensate the group delay
+    of the band-pass (22 samples)? Why is a fixed sample shift correct although the
+    window is defined in degrees?
+  \item Energy budget. Show that a knock burst $A\e^{-t/\tau}\sin(2\pi f_1t)$ that lies
+    completely in the window and is passed with gain 1 contributes
+    $E_k\approx f_sA^2\tau/4$ (in V$^2$, sum over samples). White noise with standard
+    deviation $\sigma$ contributes on average $E_n=N_w\sigma^2\cdot2B_n/f_s$, where
+    $N_w$ is the window length and $B_n$ the noise bandwidth of the band-pass
+    ($B_n=\int_0^{f_s/2}|H(f)|^2\dd f=\SI{1161}{Hz}$ for the cascade). Evaluate $E_k$ for
+    $A=\SI{0.2}{V}$ and $E_n$ for $\sigma=0.05$ and \SI{0.15}{V} at the three speeds.
+    What do you expect for the detection performance?
+  \item Without knock, $E_c$ is approximately $E_n\cdot\chi^2_\nu/\nu$ distributed
+    with $\nu\approx2B_nT_w$ degrees of freedom ($T_w$ = window duration). Compute
+    $\nu$ for the three speeds and, using the 99\,\% quantiles
+    $\chi^2_{\nu,0.99}/\nu\approx 2.0$ ($\nu=15.5$), $2.6$ ($\nu=7.7$),
+    $3.4$ ($\nu=3.9$), the threshold for 1\,\% false alarms in units of the mean noise
+    energy. Why does a fixed threshold $K$ give an rpm-dependent false-alarm rate?
+  \item Background normalisation: propose an update rule for $B_c$ that follows slow
+    changes (sensor ageing, rpm, load) but is not pulled up by knocking combustions.
+    Why one background per cylinder?
+  \item Control action: on a detected knock the ignition of that cylinder is retarded by
+    $\Delta_r$, without knock it is advanced again by $\Delta_a\ll\Delta_r$ per
+    combustion. Explain the asymmetry and what a false alarm costs.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) \emph{Sampling} (Ch.~4/5): the knock modes (6.5/10.5\,kHz) need $f_s>\SI{21}{kHz}$;
+\SI{25}{kHz} fits the \SI{50}{kHz} update of the chip (Sheet~10). A real ECU needs an
+analog anti-aliasing low-pass below \SI{12.5}{kHz}, otherwise broadband vibration above
+$f_s/2$ folds into the knock band.
+\emph{Crank sync and angle window} (Ch.~1, 4): knock can only occur after the spark,
+during the combustion of one cylinder, typically 5--30$^\circ$ ATDC, and decays within
+a few ms; the window excludes the noise of the rest of the cycle and the valve impacts
+at $90^\circ$ ATDC (and, in a real engine, injector and piston-slap noise). Since the
+events are fixed in \emph{angle}, the window must be angle based (time-based windows
+would move with rpm). $10^\circ$ start: the combustion vibration and spark noise before;
+$70^\circ$ end: before the valve impact.
+\emph{Band-pass} (Ch.~10): selects the knock resonance and rejects the low-frequency
+combustion vibration (\SI{0.2}{V}, much larger than light knock) and most of the
+broadband noise (gain in SNR $\approx (f_s/2)/B_n\approx 11$, i.e.\ \SI{10}{dB}).
+\emph{Squaring} (Ch.~2, nonlinear memoryless system): the knock oscillation has
+random phase, its linear average is zero; the energy (or the rectified amplitude) is
+phase independent. \emph{Summation} (Ch.~3, LTI, moving sum): averages the fluctuations
+of $y^2$ over the window (matched to the burst duration).
+\emph{Normalisation}: the absolute energy depends on rpm (window length), sensor
+sensitivity, mounting position, engine load and ageing; the ratio to the background is
+dimensionless and comparable. \emph{Threshold}: a binary decision (Ch.~1: from signal to
+information) with a trade-off between misses and false alarms.
+LTI: band-pass, summation (with a fixed window). Not LTI: windowing (time-variant,
+angle-synchronous), squaring (nonlinear), normalisation and threshold (nonlinear,
+adaptive).
+
+b) $f_s=\SI{25}{kHz}$, $60^\circ$ take $60/(6\cdot\text{rpm})$\,s:
+\SI{6.67}{ms} = 167 samples at 1500, \SI{3.33}{ms} = 83 at 3000, \SI{1.67}{ms} = 42 at
+\SI{6000}{rpm}. The delay of $22T_s=\SI{0.88}{ms}$ corresponds to
+$7.9^\circ$, $15.8^\circ$, $31.7^\circ$. The filter delays the signal by a fixed
+\emph{time}: the output sample $y[n]$ belongs to the input at $n-22$; hence the window
+decision for $y[n]$ must use the crank angle of sample $n-22$ (in code: a ring buffer of
+the last angles). Expressed in degrees the shift grows with rpm.
+
+c) $\sum_n y^2[n]\approx f_s\int_0^\infty A^2\e^{-2t/\tau}\sin^2(2\pi f_1t)\dd t
+=f_sA^2\cdot\tfrac{\tau}{2}\cdot\tfrac12=f_sA^2\tau/4=5A^2$ (V$^2$) $\Rightarrow$
+$E_k=\SI{0.20}{V^2}$ for $A=\SI{0.2}{V}$ (the knock amplitude of the model varies
+between 0.5 and 1.5 times this value, i.e.\ $E_k=0.05\dots0.45$, and part of a late
+burst falls outside the window). Noise: $E_n=N_w\sigma^2\cdot2\cdot1161/25000$:
+\begin{center}
+\small
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+rpm & $N_w$ & $E_n$, $\sigma=\SI{0.05}{V}$ & $E_n$, $\sigma=\SI{0.15}{V}$\\
+\midrule
+1500 & 167 & 0.039 & 0.348\\
+3000 & 83 & 0.019 & 0.174\\
+6000 & 42 & 0.010 & 0.087\\
+\bottomrule
+\end{tabular}
+\end{center}
+At $\sigma=\SI{0.05}{V}$ the knock energy is 5--20 times the mean noise energy: good
+detection, better at high rpm (shorter window, less noise). At $\sigma=\SI{0.15}{V}$
+the ratio is only 0.6--2.3: weak knocks are buried in the noise, the detection rate at
+low false-alarm rates will be poor, especially at low rpm.
+
+d) $\nu=2B_nT_w=15.5$, 7.7, 3.9 at 1500, 3000, \SI{6000}{rpm}; threshold for 1\,\% false
+alarms $\approx2.0$, 2.6, $3.4\times$ the mean noise energy. With few degrees of freedom
+(short window) the noise energy fluctuates more, the $\chi^2$ distribution has a heavier
+tail, and a higher threshold is needed for the same false-alarm rate. A fixed $K$ is
+therefore conservative at low rpm and produces more false alarms at high rpm; production
+ECUs use rpm-dependent thresholds (maps). Note that normalisation removes the
+\emph{mean} dependence on rpm but not the \emph{shape} of the distribution.
+
+e) Exponentially weighted moving average with clipping:
+$B_c\leftarrow B_c+\lambda\bigl(\min(E_c,\,3B_c)-B_c\bigr)$, $\lambda\approx0.05$ (time
+constant $\approx20$ combustions of that cylinder, i.e.\ about 1.6\,s at
+\SI{3000}{rpm}), larger $\lambda$ during the start (warm-up). The clipping limits the
+influence of a knocking combustion (alternative: update only with combustions classified
+as non-knocking -- but then a wrong decision can lock the background). One background per
+cylinder because the transfer path from each cylinder to the sensor differs (distance,
+block structure): the same knock intensity gives different sensor amplitudes.
+
+f) Knock can damage the engine within few cycles -- fast reaction ($\Delta_r\approx
+1.5^\circ$ per event). Retard costs efficiency and torque, so the ignition is advanced
+again slowly ($\Delta_a\approx0.05^\circ$ per combustion) towards the knock limit; the
+controller then oscillates closely below the limit. A false alarm costs efficiency
+($\Delta_r$ that is recovered only after $\Delta_r/\Delta_a=30$ combustions of that
+cylinder); a miss risks damage. Hence the threshold is chosen for a low but non-zero
+false-alarm rate (e.g.\ 1\,\%).
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Offline evaluation with ground truth}{\JSLinux}
+\sloppy
+\texttt{knockeval.c} runs the virtual engine at 1500, 3000 and \SI{6000}{rpm} with sensor
+noise $\sigma=0.05$ and \SI{0.15}{V} (6 scenarios, 1000 evaluated combustions each, knock
+probability 0.2, knock amplitude \SI{0.2}{V}$\times(0.5\dots1.5)$, light knock) and computes
+for every combustion eight features, each normalised by its own per-cylinder background:
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+WB-seg / WB-win & wide-band energy $\sum x^2$ over the whole $180^\circ$ segment / in the window\\
+BP-seg / BP-win & band-pass (cascade) energy over the segment / in the delay-compensated window\\
+BP2-win & as BP-win with the single biquad ($B=\SI{400}{Hz}$)\\
+FFT / FFT-rect & power 6--7\,kHz of the zero-padded FFT of the raw window samples, Hann / no window\\
+MEM & power 6--7\,kHz of the Burg AR(8) spectrum of the raw window samples\\
+\bottomrule
+\end{tabularx}
+\end{center}
+\begin{lstlisting}[style=shell]
+gcc -O2 -o knockeval knockeval.c -lm && ./knockeval [knock_amp] [ncomb]
+\end{lstlisting}
+\begin{tasks}
+  \item Complete the window logic: integrate $x^2$ in the window $10^\circ$--$70^\circ$
+    ATDC and $y^2$ (cascade, single biquad) while the \emph{delayed} angle is in the
+    window.
+  \item Complete the background update (clipped EWMA, faster during the first 16
+    combustions of each cylinder).
+  \item Complete the ROC computation in \texttt{roc()}: the combustions are sorted by
+    decreasing feature value; every threshold between two values gives a point
+    (FPR, TPR). Compute the AUC (trapezoidal rule) and the detection rate at
+    $\le1\,\%$ false alarms.
+  \item Complete the FFT and MEM features (\texttt{fft.h}, \texttt{ar.h}).
+  \item Run the program and interpret the AUC and detection tables: what is the
+    contribution of the band-pass, of the angle window, of the delay compensation, of
+    the normalisation (compare the pooled ROC with and without)? Plot \texttt{roc.csv}.
+  \item Choose a threshold $K$ for 1\,\% false alarms over all scenarios and compare the
+    per-scenario thresholds with your prediction from 12.1\,d).
+  \item Compare the energy, FFT and MEM features. Why is the Hann-windowed FFT so much
+    worse at \SI{1500}{rpm} than the rectangular one? Which feature would you implement
+    on the microcontroller, and why?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a)--d) Window logic and background update
+(\codefile{solutions/jslinux/sheet12/knockeval.c}):
+\inputcode[firstline=163,lastline=189]{solutions/jslinux/sheet12/knockeval.c}
+ROC (after sorting by decreasing value; ties are merged):
+\inputcode[firstline=220,lastline=230]{solutions/jslinux/sheet12/knockeval.c}
+
+e) Output (6000 combustions, 1210 with knock = 20.2\,\%):
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}rr|rrrrrrrr@{}}
+\toprule
+\multicolumn{2}{c|}{AUC} & WB-seg & WB-win & BP-seg & BP-win & BP2-win & FFT & FFT-rect & MEM\\
+\midrule
+1500 & 0.05 & 0.799 & 0.788 & 0.957 & \textbf{0.981} & 0.978 & 0.804 & 0.973 & 0.974\\
+1500 & 0.15 & 0.600 & 0.619 & 0.738 & \textbf{0.789} & 0.784 & 0.620 & 0.764 & 0.761\\
+3000 & 0.05 & 0.811 & 0.819 & 0.985 & \textbf{0.998} & 0.996 & 0.955 & 0.997 & 0.997\\
+3000 & 0.15 & 0.606 & 0.652 & 0.747 & \textbf{0.828} & 0.818 & 0.717 & 0.824 & 0.818\\
+6000 & 0.05 & 0.912 & 0.922 & 0.988 & \textbf{0.999} & 0.998 & 0.997 & 0.999 & 0.999\\
+6000 & 0.15 & 0.698 & 0.726 & 0.822 & \textbf{0.886} & 0.864 & 0.826 & 0.878 & 0.858\\
+\multicolumn{2}{r|}{pooled} & 0.740 & 0.752 & 0.897 & \textbf{0.934} & 0.927 & 0.846 & 0.927 & 0.924\\
+\midrule
+\multicolumn{2}{c|}{det.\ @1\,\% FA} &&&&&&&&\\
+1500 & 0.05 & 20.7 & 26.4 & 77.7 & 82.9 & 82.4 & 34.2 & 80.3 & 80.8\\
+1500 & 0.15 & 3.5 & 2.0 & 7.0 & 20.4 & 14.4 & 5.5 & 15.4 & 18.9\\
+3000 & 0.05 & 29.7 & 28.2 & 80.9 & 95.7 & 90.0 & 66.5 & 92.8 & 91.9\\
+3000 & 0.15 & 2.1 & 3.7 & 16.8 & 30.9 & 24.6 & 14.1 & 27.7 & 24.6\\
+6000 & 0.05 & 52.6 & 56.5 & 87.1 & 96.2 & 94.3 & 93.3 & 97.1 & 96.7\\
+6000 & 0.15 & 4.3 & 8.7 & 29.0 & 37.2 & 34.8 & 24.6 & 31.9 & 24.6\\
+\multicolumn{2}{r|}{pooled} & 11.8 & 9.3 & 44.5 & 59.1 & 55.9 & 40.3 & 57.1 & 56.4\\
+\bottomrule
+\end{tabular}
+\end{center}
+\emph{Band-pass:} the decisive block. Without it (WB) the combustion vibration and the
+noise of all frequencies dominate; AUC 0.74--0.75 pooled, only 9--12\,\% detection at
+1\,\% false alarms. With it (BP-seg) the AUC rises to 0.90.
+\emph{Angle window:} BP-win vs.\ BP-seg: AUC 0.897 $\to$ 0.934, detection 44.5\,\%
+$\to$ 59.1\,\%; integrating over $180^\circ$ collects three times more noise energy
+(and the valve burst, which however is strongly attenuated by the cascade, \SI{-44}{dB}
+at \SI{8}{kHz}). For the wide-band features the window helps little because the
+low-frequency combustion vibration lies inside the window.
+\emph{Delay compensation:} included in BP-win; without it, at \SI{6000}{rpm} a
+$32^\circ$ portion of the burst would be lost (cf.\ Sheet~10, 10.3).
+\emph{Normalisation:} pooled over all scenarios the raw BP-win energy reaches only
+AUC 0.812 and 9.8\,\% detection at 1\,\% false alarms, the normalised ratio 0.934 and
+59.1\,\%: the mean noise energy differs by a factor of 36 between the scenarios
+(Table in 12.1\,c), so no single absolute threshold fits.
+\emph{Noise:} at $\sigma=\SI{0.15}{V}$ even the best feature detects only 20--37\,\% of
+the (light) knocks at 1\,\% false alarms -- consistent with the energy budget of 12.1\,c).
+The ROC curves (\texttt{roc.csv}) of BP-win lie far above those of WB-win; at FPR = 5\,\%
+the pooled TPR of BP-win is 74\,\% (WB-win: 28\,\%).
+
+f) Pooled threshold for 1\,\% false alarms: $R>2.00$ (detection 59.1\,\%) -- this is the
+value $K=2$ used in 12.3. Per scenario: $R>1.57$, 1.54, 2.02 ($\sigma=\SI{0.05}{V}$;
+1500/3000/\SI{6000}{rpm}) and 1.79, 2.04, 2.49 ($\sigma=\SI{0.15}{V}$). The mean ratio of the
+non-knocking combustions is below 1 (0.54--0.91), because the background contains
+(clipped) knock energy; in units of the mean noise energy the thresholds are 2.3/2.0
+(1500), 2.7/2.4 (3000) and 3.7/3.2 (\SI{6000}{rpm}) -- in good agreement with the
+$\chi^2$ prediction 2.0, 2.6, 3.4 of 12.1\,d): the shorter the window, the higher the
+threshold must be for the same false-alarm rate.
+
+g) The band-pass energy (cascade) is the best and cheapest feature; the single biquad
+(BP2) is almost as good (AUC 0.927 vs.\ 0.934): the matched 400-Hz band-pass rejects
+noise as well as the steep cascade -- the Uno version is therefore not much worse.
+FFT-rect and MEM are comparable to BP-win at $\sigma=\SI{0.05}{V}$ and slightly worse at
+high noise; they cost much more (FFT of 256 points, or Burg + spectrum evaluation, per
+combustion) and give no extra information here, since there is only one knock mode in
+the band. The Hann-windowed FFT is poor at \SI{1500}{rpm} (AUC 0.80 vs.\ 0.97): the
+window is \SI{6.7}{ms} long, but the burst starts at the beginning of the window
+(onset $5^\circ$--$25^\circ$ ATDC) and has decayed after $\approx\SI{2}{ms}$ -- exactly
+where the Hann window is close to zero. At \SI{6000}{rpm} (window \SI{1.7}{ms}) the burst
+fills the window and the difference vanishes. Spectral features become interesting if
+several knock modes must be weighted, if the knock frequency varies, or to distinguish
+knock from disturbances at nearby frequencies with very short windows (MEM, Sheet~11).
+Recommendation for the microcontroller: band-pass energy in the delay-compensated angle
+window, normalised per cylinder.
+
+\emph{Limitation of the model:} the valve impacts and the combustion vibration of the
+virtual engine are deterministic (same amplitude every cycle); a constant disturbance
+only shifts the feature and is largely removed by the normalisation. In a real engine
+these disturbances vary from cycle to cycle and the angle window becomes even more
+important.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Real-time knock detector}{\Wokwi}
+\sloppy
+Open \codefile{wokwi/sheet12\_knock\_esp32/} (ESP32 + engine-sim chip, 4 knock LEDs,
+retard LED, logic analyzer). Pins: KNOCK $\to$ GPIO34, CRANK $\to$ 18, CAM $\to$ 19,
+TDC $\to$ 21 (only to check the synchronisation), KNK $\to$ 22 (ground truth, only for the
+evaluation); LEDs cylinder 1--4 on 25, 26, 27, 14; retard PWM on 13. The sketch samples at
+\SI{25}{kHz} (deadline loop), filters with \texttt{kf\_sos} and prints one line
+\texttt{cyl,rpm,R,knock,truth,retard} per combustion and every 200 combustions the
+confusion counts.
+\begin{tasks}
+  \item \emph{Crank sync.} Complete the 60-2 decoder in the CRANK interrupt (gap
+    detection: a tooth period more than twice the previous one; revolution from the CAM
+    level at tooth 10) and the angle interpolation \texttt{crank\_angle()}. The sketch
+    compares the decoded angle at every TDC pulse with 120/300/480/660$^\circ$ and prints
+    the mean error. What limits the accuracy?
+  \item \emph{Window.} Complete the integration of $y^2$ while the delayed angle (ring
+    buffer \texttt{th\_hist}, \texttt{KF\_DELAY} = 22 samples) is in the window.
+  \item \emph{Decision and action.} Complete \texttt{finish\_combustion()}:
+    $R=E/B_c$, knock if $R>K$ ($K=2$ from 12.2), background update, ignition retard
+    ($+1.5^\circ$ per knock, $-0.05^\circ$ per knock-free combustion, max.\ $9^\circ$).
+  \item Run the detector at 1500, 3000, \SI{6000}{rpm} with knock amplitude 1.0 and
+    \SI{0.2}{V} and noise 50 and \SI{150}{mV} (knock probability 20\,\%). Report detection
+    and false-alarm rates and compare them with 12.2. Watch the LEDs and the retard
+    output.
+  \item Estimate the processing time per sample on the ESP32 and the UART load at
+    \SI{6000}{rpm}. Why must the sketch not print the samples?
+  \item The engine-sim chip has no spark input: the retard does not influence the knock
+    probability. Describe how a closed knock control loop would behave and how you would
+    test it.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Decoder (\codefile{solutions/wokwi/sheet12\_knock\_esp32/sketch.ino}):
+\inputcode[firstline=53,lastline=91]{solutions/wokwi/sheet12_knock_esp32/sketch.ino}
+After the first gap (at most one revolution) the tooth counter is valid; the
+revolution flag is toggled at every gap and confirmed by the CAM level at tooth 10
+(CAM HIGH for $0^\circ$--$180^\circ$). Mean TDC sync error (PC test of the sketch with the chip
+model): $\le0.01^\circ$ at all speeds -- the TDC pulses coincide with the rising edges of
+teeth 20 and 50, so this check verifies the tooth counting and the phase (a wrong
+revolution flag would give $360^\circ$). Note that the TDC flag must be discarded while the
+decoder is not yet synchronised (stale pulse). In Wokwi the interrupt latency (a few
+\si{\micro s}, i.e.\ $\approx0.1^\circ$ at \SI{6000}{rpm}) adds to this. Between the teeth the
+angle is interpolated with the last tooth period; the 1\,\% second-order speed ripple
+changes the speed by only $\approx0.2\,\%$ within one tooth, so the interpolation error
+stays below $0.01^\circ$; the largest error occurs over the gap ($18^\circ$ extrapolated).
+
+b), c) Window and decision:
+\inputcode[firstline=209,lastline=245]{solutions/wokwi/sheet12_knock_esp32/sketch.ino}
+\inputcode[firstline=141,lastline=160]{solutions/wokwi/sheet12_knock_esp32/sketch.ino}
+
+d) Results (PC test harness running the sketch against the engine-sim chip code;
+counts after the warm-up; Wokwi results differ in detail):
+\begin{center}
+\small
+\begin{tabular}{@{}rrrrrrrrr@{}}
+\toprule
+rpm & knock amp. & noise & combustions & TP & FP & FN & detection & false alarms\\
+\midrule
+3000 & \SI{1.0}{V} & \SI{50}{mV} & 600 & 115 & 1 & 0 & 100\,\% & 0.2\,\%\\
+6000 & \SI{1.0}{V} & \SI{50}{mV} & 1400 & 279 & 4 & 0 & 100\,\% & 0.4\,\%\\
+1500 & \SI{0.2}{V} & \SI{50}{mV} & 200 & 32 & 0 & 12 & 72.7\,\% & 0.0\,\%\\
+3000 & \SI{0.2}{V} & \SI{50}{mV} & 600 & 104 & 1 & 11 & 90.4\,\% & 0.2\,\%\\
+6000 & \SI{0.2}{V} & \SI{50}{mV} & 1400 & 267 & 6 & 12 & 95.7\,\% & 0.5\,\%\\
+1500 & \SI{0.2}{V} & \SI{150}{mV} & 200 & 4 & 1 & 40 & 9.1\,\% & 0.6\,\%\\
+3000 & \SI{0.2}{V} & \SI{150}{mV} & 600 & 36 & 10 & 79 & 31.3\,\% & 2.1\,\%\\
+6000 & \SI{0.2}{V} & \SI{150}{mV} & 1400 & 131 & 30 & 148 & 47.0\,\% & 2.7\,\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+The real-time detector reproduces the offline results of 12.2 (same chain, same $K$):
+strong knock is always detected; light knock (\SI{0.2}{V}) at \SI{50}{mV} noise in
+73--96\,\% of the cases with $<1\,\%$ false alarms, and at \SI{150}{mV} noise the
+detection collapses while the false-alarm rate rises above the design value at high
+rpm (fewer degrees of freedom, 12.1\,d). The LED of a cylinder flashes for \SI{100}{ms}
+at each detection, the retard LED brightness follows the mean retard (sawtooth: fast
+up, slow down).
+
+e) Per sample: \texttt{analogRead}, 5 biquads (25 multiply-adds in float), angle
+interpolation (one division), a few comparisons -- some hundred instructions, i.e.\
+$\approx1$--\SI{2}{\micro s} at \SI{240}{MHz} plus the ADC conversion, well below
+\SI{40}{\micro s} (Wokwi timing is only indicative). UART: at \SI{6000}{rpm} 200
+combustions/s $\times\approx22$ characters = 4400 characters/s, 38\,\% of the
+11\,520 characters/s at 115\,200 baud; the 4-kB TX buffer decouples the printing from
+the sampling loop. Printing the raw samples (25\,000/s $\times\ge5$ characters) would
+exceed the UART capacity tenfold.
+
+f) In a closed loop the retard lowers the cylinder pressure and temperature and thus the
+knock probability; the controller then settles into a limit cycle around the knock limit
+(retard steps after each knock, slow advance in between). Testing requires a knock
+model that depends on the spark advance, e.g.\ $p_\text{knock}=f(\text{spark\_adv}-\text{retard})$,
+i.e.\ a SPARK input or a serial/I$^2$C command input of the chip. One would then record
+retard and knock rate per cylinder over time and check stability (no persistent heavy
+knock, small mean retard) for different noise levels and false-alarm rates.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Port to the Arduino Uno}{\Challenge}
+\sloppy
+Port the detector to the Uno (\codefile{wokwi/sheet12\_knock\_uno/}, starting from the Q15
+biquad of Sheet~10): Timer1 ISR at \SI{25}{kHz}, single biquad \texttt{kf\_bp2\_q14},
+window from the TDC pulse (period in samples of the previous combustion, cylinder~1 =
+TDC while CAM is HIGH), energy $\sum (y^2\gg8)$ in 32 bit, integer background
+$B\mathrel{+}=(\min(E,3B)-B)\gg4$, decision $E>2B$ without division. Report detection and
+false-alarm rates as in 12.3 and the limits of the port.
+\end{exercise}
+
+\begin{solution}
+See \codefile{solutions/wokwi/sheet12\_knock\_uno/sketch.ino}. The ISR adds only the
+window bookkeeping and the KNK check (\texttt{PIND}) to the ISR of Sheet~10 (estimated
+$\approx500$ of 640 cycles per sample); the decision, background, LEDs and printing run
+in \texttt{loop()} once per combustion. Results of the PC test (knock probability 20\,\%):
+1.0\,V/50\,mV at \SI{3000}{rpm}: 107 TP, 5 FP, 0 FN, 488 TN;
+0.2\,V/50\,mV: 87\,\% detection / 0\,\% false alarms at 1500 (34/39), 92.5\,\% / 1.2\,\% at
+3000 (99/107), 91.9\,\% / 0.1\,\% at \SI{6000}{rpm} (260/283);
+0.2\,V/150\,mV at 3000: 36\,\% / 3.4\,\%. That is about the performance of the ESP32 --
+consistent with 12.2, where the single biquad (BP2-win) was almost as good as the
+cascade. Limits: CPU load $\approx75$--80\,\% (no room for a second filter, FFT or MEM),
+no 60-2 decoder (the TDC pulse is a ground-truth helper of the simulator -- a real
+implementation must decode the crank wheel, e.g.\ with the input capture unit of
+Timer1, which competes with the sampling interrupt), window positions from the previous
+combustion (lag at fast rpm changes), 10-bit ADC (resolution \SI{4.9}{mV}$/0.6\approx
+\SI{8}{mV}$ at the sensor, sufficient for knock amplitudes $\gg$ noise), and no
+floating point for diagnostics.
+\end{solution}
+
+\begin{deliverables}
+12.1 on paper (block justification, numbers for b)--d)). \texttt{knockeval}: AUC and
+detection tables, pooled ROC plot (BP-win, WB-win, FFT, MEM), chosen threshold with
+justification. Wokwi: the confusion counts for the settings of 12.3\,d) and a
+screenshot of the LEDs; a short discussion (max.\ one page) of the remaining weaknesses of
+your detector.
+\end{deliverables}

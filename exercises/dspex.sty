@@ -1,0 +1,141 @@
+% dspex.sty -- layout and macros for the DSP exercise sheets
+%
+% Solutions are shown when \withsolutions is defined before loading,
+% e.g.  pdflatex "\def\withsolutions{}\def\sheetfile{sheets/sheet01}\input{sheet}"
+%
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{dspex}[2026/10/02 DSP exercise sheets]
+
+\RequirePackage[margin=2.2cm,headheight=14pt]{geometry}
+\RequirePackage[T1]{fontenc}
+\RequirePackage[utf8]{inputenc}
+\RequirePackage{lmodern}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{siunitx}
+\RequirePackage{booktabs,tabularx,array}
+\RequirePackage{enumitem}
+\RequirePackage{graphicx}
+\RequirePackage{xcolor}
+\RequirePackage{tikz}
+\RequirePackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
+\RequirePackage{listings}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{comment}
+\RequirePackage{fancyhdr}
+\RequirePackage[hidelinks]{hyperref}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- colours
+\definecolor{dspblue}{RGB}{0,84,159}
+\definecolor{dspgray}{RGB}{110,110,110}
+\definecolor{solgreen}{RGB}{0,110,60}
+\definecolor{codebg}{RGB}{246,246,246}
+
+% ---------------------------------------------------------------- solutions
+\newif\ifsolutions
+\ifdefined\withsolutions \solutionstrue \else \solutionsfalse \fi
+
+\ifsolutions
+  \newtcolorbox{solution}{breakable,enhanced,colback=solgreen!4,
+    colframe=solgreen!70!black,boxrule=0.5pt,arc=1pt,
+    left=5pt,right=5pt,top=3pt,bottom=3pt,
+    title={Solution},fonttitle=\bfseries\small,
+    coltitle=white,colbacktitle=solgreen!70!black}
+\else
+  \excludecomment{solution}
+\fi
+
+% ---------------------------------------------------------------- code
+\lstdefinestyle{dspc}{
+  language=C, basicstyle=\ttfamily\footnotesize, keywordstyle=\color{dspblue}\bfseries,
+  commentstyle=\color{dspgray}\itshape, stringstyle=\color{solgreen!70!black},
+  backgroundcolor=\color{codebg}, frame=single, rulecolor=\color{gray!40},
+  numbers=left, numberstyle=\tiny\color{dspgray}, numbersep=6pt,
+  breaklines=true, columns=fullflexible, keepspaces=true, showstringspaces=false,
+  tabsize=4, xleftmargin=14pt, framexleftmargin=14pt,
+  morekeywords={uint8_t,int8_t,uint16_t,int16_t,uint32_t,int32_t,uint64_t,int64_t,
+                size_t,bool,true,false,es_engine_t,csv_t}}
+\lstdefinestyle{shell}{
+  basicstyle=\ttfamily\footnotesize, backgroundcolor=\color{black!85},
+  basicstyle=\ttfamily\footnotesize\color{white}, frame=none,
+  breaklines=true, columns=fullflexible, keepspaces=true, xleftmargin=6pt}
+\lstset{style=dspc}
+
+% \codefile{path relative to code/}  -- typeset file name
+\newcommand{\codefile}[1]{\texttt{code/#1}}
+% \inputcode[lines]{path relative to code/}
+\newcommand{\codedir}{../code/}
+\newcommand{\inputcode}[2][]{\lstinputlisting[#1]{\codedir #2}}
+
+% ---------------------------------------------------------------- platform tags
+\newcommand{\tagbox}[2]{\tikz[baseline=(t.base)]\node[rounded corners=2pt,
+   fill=#1,text=white,font=\sffamily\scriptsize\bfseries,inner sep=2.5pt](t){#2};}
+\newcommand{\Wokwi}{\tagbox{orange!85!black}{WOKWI}}
+\newcommand{\JSLinux}{\tagbox{dspblue}{JSLINUX}}
+\newcommand{\Paper}{\tagbox{dspgray}{PAPER}}
+\newcommand{\Challenge}{\tagbox{red!70!black}{CHALLENGE}}
+
+% ---------------------------------------------------------------- sheet header
+\newcommand{\@sheetno}{}
+\newcommand{\@sheettitle}{}
+% \sheet{number}{title}{chapter reference text}
+\newcommand{\sheet}[3]{%
+  \renewcommand{\@sheetno}{#1}\renewcommand{\@sheettitle}{#2}%
+  \setcounter{exercise}{0}%
+  \pagestyle{fancy}\fancyhf{}%
+  \fancyhead[L]{\small\color{dspgray}Digital Signal Processing -- Exercises}%
+  \fancyhead[R]{\small\color{dspgray}Sheet #1\ifsolutions\ (with solutions)\fi}%
+  \fancyfoot[C]{\small\thepage}%
+  \renewcommand{\headrulewidth}{0.4pt}%
+  \thispagestyle{fancy}%
+  \begin{tcolorbox}[colback=dspblue,colframe=dspblue,coltext=white,arc=2pt,
+      left=8pt,right=8pt,top=6pt,bottom=6pt]
+    {\sffamily\small Digital Signal Processing \hfill Exercise Sheet #1}\\[2pt]
+    {\sffamily\LARGE\bfseries #2}\\[2pt]
+    {\sffamily\small Script: #3\ifsolutions\hfill\textbf{with solutions}\fi}
+  \end{tcolorbox}
+  \vspace{2pt}}
+
+\newtcolorbox{goals}{colback=gray!6,colframe=gray!45,boxrule=0.4pt,arc=1pt,
+  left=6pt,right=6pt,top=3pt,bottom=3pt,fontupper=\small,
+  title={Learning goals},fonttitle=\sffamily\bfseries\small,
+  coltitle=black,colbacktitle=gray!20}
+
+\newtcolorbox{hint}{colback=yellow!6,colframe=yellow!50!black,boxrule=0.4pt,arc=1pt,
+  left=6pt,right=6pt,top=2pt,bottom=2pt,fontupper=\small}
+\newcommand{\hinttext}{\textbf{Hint: }}
+
+\newtcolorbox{deliverables}{colback=dspblue!4,colframe=dspblue!60,boxrule=0.4pt,
+  arc=1pt,left=6pt,right=6pt,top=2pt,bottom=2pt,fontupper=\small,
+  title={Deliverables},fonttitle=\sffamily\bfseries\small,
+  coltitle=white,colbacktitle=dspblue!60}
+
+% ---------------------------------------------------------------- exercises
+\newcounter{exercise}
+% \begin{exercise}{Title}{\Wokwi}[points]
+\NewDocumentEnvironment{exercise}{m m o}{%
+  \refstepcounter{exercise}\par\medskip
+  \noindent{\sffamily\large\bfseries\color{dspblue}
+    Exercise \@sheetno.\theexercise\quad #1}\hfill #2%
+  \IfValueT{#3}{\ \small(#3 points)}\par\nopagebreak\smallskip}{\par}
+
+% numbered tasks inside an exercise: a), b), ...
+\newlist{tasks}{enumerate}{2}
+\setlist[tasks,1]{label=\alph*),leftmargin=2em,itemsep=3pt}
+\setlist[tasks,2]{label=\roman*.,leftmargin=2em}
+
+% ---------------------------------------------------------------- misc math
+\newcommand{\e}{\mathrm{e}}
+\newcommand{\jj}{\mathrm{j}}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\Z}{\mathcal{Z}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\Lap}{\mathcal{L}}
+\newcommand{\ecuquote}{\emph{The ECU does not see the engine. It sees only signals.}}
+
+\endinput

@@ -1,0 +1,375 @@
+\sheet{4}{Sampling}{Chapter~4 (Sampling and Quantisation)}
+
+\begin{goals}
+\begin{itemize}
+  \item Derive and apply the quantisation-noise model and the rule
+    $\mathrm{SNR}\approx 6.02N+1.76$\,dB; size an ADC for the knock sensor.
+  \item Configure timer-driven sampling on a microcontroller and verify the
+    sampling rate and the conversion time with the logic analyzer.
+  \item Quantify the effect of sampling-time jitter and compare it with
+    quantisation noise.
+  \item Resample a time-sampled engine signal onto a crank-angle grid using
+    the edges of the 60-2 crank signal, and explain when the time domain and
+    when the angle domain is the natural one.
+\end{itemize}
+\end{goals}
+
+\section*{Background}
+
+An ADC with $N$ bits and full-scale range $V_\mathrm{FS}$ has the step size
+(1 LSB) $\Delta = V_\mathrm{FS}/2^N$. If the signal is ``busy'' (it moves
+over many steps between samples), the quantisation error
+$e=x_q-x$ is well modelled as white noise, uniformly distributed in
+$[-\Delta/2,\Delta/2)$. Sampling instants that deviate randomly from the
+ideal grid, $t_n = nT_s+\delta_n$ with $\operatorname{std}(\delta_n)=\sigma_j$
+(\emph{jitter}), produce an additional error $e_n\approx\dot x(nT_s)\,\delta_n$
+that grows with the signal frequency.
+
+An ECU samples two kinds of signals: \emph{time-based} (fixed $T_s$, e.g.\ the
+knock sensor with \SIrange{20}{50}{kHz}) and \emph{angle-based} (one value per
+fixed crank-angle increment, triggered by the crank wheel). An angle grid can
+also be computed afterwards from time samples: the crank edges provide
+pairs (time, angle), between which the angle is interpolated.
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Quantisation and jitter budget}{\Paper}
+\begin{tasks}
+  \item Assume a uniformly distributed quantisation error. Derive its
+    variance and show that a full-scale sine quantised with $N$ bits has
+    $\mathrm{SNR}=6.02N+1.76$\,dB. By how much does the SNR drop if the sine
+    uses only $1/10$ of the full-scale amplitude?
+  \item Compute 1\,LSB and the rms quantisation noise for the Arduino Uno
+    (10 bit, \SIrange{0}{5}{V}) and the ESP32 (12 bit, \SIrange{0}{3.3}{V}).
+  \item The conditioned knock-sensor signal spans \SIrange{0}{5}{V} (offset
+    \SI{2.5}{V}) for the heaviest knock. The weakest knock that still has to be
+    measured has an amplitude of \SI{10}{mV}; its quantisation SNR must be at
+    least \SI{30}{dB}. Which dynamic range (in dB) is required, and how many
+    bits does the ADC need?
+  \item The knock detector only uses a band of width $B=\SI{1}{kHz}$ around
+    the knock frequency, the ADC samples at $f_s=\SI{50}{kHz}$. Assuming white
+    quantisation noise, by how many dB does a band-pass filter improve the SNR
+    of (c)? How many ADC bits does this ``save''?
+  \item Show that jitter limits the SNR of a sine of frequency $f$ to
+    $\mathrm{SNR}_j=-20\log_{10}(2\pi f\sigma_j)$. (i) Which jitter is allowed
+    for a \SI{6.5}{kHz} knock signal if jitter shall not degrade a 12-bit ADC?
+    (ii) A sampling loop that polls \texttt{micros()} (resolution \SI{4}{\micro
+    s} on the Uno) produces a timing error uniformly distributed over
+    \SI{4}{\micro s}. Compute $\sigma_j$, $\mathrm{SNR}_j$ at \SI{6.5}{kHz}
+    and the \emph{effective number of bits}
+    $\mathrm{ENOB}=(\mathrm{SNR}-1.76)/6.02$.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) For $e\sim\mathcal{U}[-\Delta/2,\Delta/2)$:
+$\sigma_e^2=\frac1\Delta\int_{-\Delta/2}^{\Delta/2}e^2\dd e=\frac{\Delta^2}{12}$.
+A full-scale sine has amplitude $A=2^{N-1}\Delta$ and power
+$P_s=A^2/2=2^{2N}\Delta^2/8$. Hence
+\[
+\mathrm{SNR}=\frac{P_s}{\sigma_e^2}=\frac{3}{2}\,2^{2N}
+\;\Rightarrow\;
+10\log_{10}\mathrm{SNR}=10\log_{10}1.5+20N\log_{10}2=1.76+6.02N\ \text{dB}.
+\]
+The noise power does not depend on the signal, so an amplitude of $1/10$ of
+full scale lowers the SNR by $20\log_{10}10=\SI{20}{dB}$ (equivalent to losing
+$3.3$ bits). Every unused part of the input range costs resolution.
+
+b) Uno: $\Delta=5/1024\,\text{V}=\SI{4.88}{mV}$,
+$\sigma_e=\Delta/\sqrt{12}=\SI{1.41}{mV}$.
+ESP32: $\Delta=3.3/4096\,\text{V}=\SI{0.806}{mV}$, $\sigma_e=\SI{0.233}{mV}$.
+
+c) Dynamic range: $20\log_{10}(\SI{2.5}{V}/\SI{10}{mV})=\SI{48}{dB}$.
+A sine of amplitude $a$ has $\mathrm{SNR}=(a^2/2)/(\Delta^2/12)=6a^2/\Delta^2$.
+$\mathrm{SNR}\ge 10^3$ requires $\Delta\le a\sqrt{6\cdot10^{-3}}=\SI{0.775}{mV}$,
+i.e.\ $2^N\ge \SI{5}{V}/\SI{0.775}{mV}=6455$, so $N=13$ bits (a 12-bit ADC
+gives $\Delta=\SI{1.22}{mV}$ and only \SI{26}{dB}). Equivalently:
+$48+30=\SI{78}{dB}$ of ``full-scale SNR'' $\Rightarrow N\ge(78-1.76)/6.02=12.7$.
+
+d) White quantisation noise is spread evenly over $[0,f_s/2]$; a filter of
+bandwidth $B$ keeps the fraction $2B/f_s=1/25$. The SNR improves by
+$10\log_{10}(f_s/2B)=\SI{14}{dB}$, i.e.\ $14/6.02\approx2.3$ bits: with the
+band-pass a 12-bit ADC reaches $26+14=\SI{40}{dB}$ and even 11 bits
+($\approx\SI{34}{dB}$) would suffice. (Oversampling and filtering trade
+sampling rate for resolution: \SI{3}{dB}, i.e.\ half a bit, per doubling of
+$f_s$.)
+
+e) For $x=A\sin\omega t$: $e_n\approx A\omega\cos(\omega nT_s)\,\delta_n$ with
+independent $\delta_n$, so $\overline{e^2}=A^2\omega^2\sigma_j^2/2$ and
+$\mathrm{SNR}_j=(A^2/2)/\overline{e^2}=1/(\omega\sigma_j)^2$, i.e.\
+$\mathrm{SNR}_j=-20\log_{10}(2\pi f\sigma_j)$.
+(i) 12 bit: $\mathrm{SNR}_q=\SI{74.0}{dB}$; $2\pi f\sigma_j\le10^{-74/20}=2.0\cdot10^{-4}$
+gives $\sigma_j\le\SI{4.9}{ns}$ at \SI{6.5}{kHz} -- only hardware-triggered
+conversions achieve this.
+(ii) Uniform over \SI{4}{\micro s}: $\sigma_j=\SI{4}{\micro s}/\sqrt{12}=\SI{1.15}{\micro s}$,
+$\mathrm{SNR}_j=-20\log_{10}(2\pi\cdot6500\cdot1.15\cdot10^{-6})=\SI{26.5}{dB}$,
+$\mathrm{ENOB}=4.1$ bits. A software-polled sampling loop turns a 10-bit ADC
+into a 4-bit ADC for knock signals!
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{ADC in practice: timer-driven sampling}{\Wokwi}
+Open the Uno project \codefile{wokwi/sheet04\_adc/} (sketch, diagram and the
+\texttt{engine-sim} chip files). Timer1 triggers an interrupt service routine
+(ISR) at $f_s=\SI{5}{kHz}$ that samples the \texttt{KNOCK} output of the chip
+(A1) into a RAM buffer of 400 samples; the buffer is printed afterwards (the
+UART cannot transmit \SI{5}{kHz}\,$\times$ a CSV line in real time). Pin 8
+toggles at every sample (logic analyzer D0), pin 9 is HIGH while the ISR runs
+(D1), the chip's \texttt{TDC} output (pin 2, INT0) marks combustion TDCs.
+\begin{tasks}
+  \item Timer1 runs in CTC mode with prescaler 8. Compute the compare value
+    \texttt{OCR1A} for \SI{5}{kHz} and complete \texttt{timer1\_start()}. What
+    is the lowest sampling rate possible with this prescaler?
+  \item Complete the ISR. Record about \SI{0.1}{s} with the logic analyzer
+    and determine from the VCD file (i) the sampling period (D0) and (ii) the
+    time the ISR needs (pulse width on D1). Which sampling rate is the
+    theoretical maximum for this structure? Why is the practical limit lower?
+  \item Between combustions, \SIrange{140}{175}{\degree} after each TDC, the
+    knock signal contains only sensor noise. Complete the computation of the
+    index range of this quiet window (at \SI{3000}{rpm}) and run the sketch
+    with the noise slider at \SI{50}{mV}, \SI{10}{mV} and \SI{0}{mV}. Compare
+    the printed standard deviation (in LSB) with your expectation
+    (chip output = $\SI{2.5}{V}+0.6\cdot$ sensor signal). Would the 12-bit ESP32
+    ADC improve the knock measurement here?
+  \item Turn the potentiometer to an arbitrary position and read the code
+    several times. Is the quantisation error of this constant input
+    ``noise''? What does this mean for the validity of the model of
+    Exercise~4.1?
+\end{tasks}
+\begin{hint}
+Wokwi measures time in \emph{simulated} time; the Uno core is simulated
+instruction by instruction, but treat the measured durations as indicative.
+\end{hint}
+\end{exercise}
+
+\begin{solution}
+a) Timer clock $f_\mathrm{T}=\SI{16}{MHz}/8=\SI{2}{MHz}$; the period is
+$(\texttt{OCR1A}+1)/f_\mathrm{T}$, so $\texttt{OCR1A}=2\cdot10^6/5000-1=399$.
+The 16-bit register allows at most $65536/f_\mathrm{T}=\SI{32.8}{ms}$, i.e.\
+$f_{s,\min}=\SI{30.5}{Hz}$ (prescaler 64/256/1024 for slower rates).
+\inputcode[firstline=29,lastline=52]{solutions/wokwi/sheet04_adc/sketch.ino}
+
+b) D0 changes level every \SI{200}{\micro s} (square wave with period
+\SI{400}{\micro s}). The D1 pulses last about \SI{110}{\micro s}: the
+conversion itself takes 13 ADC clock cycles at $\SI{16}{MHz}/128=\SI{125}{kHz}$,
+i.e.\ \SI{104}{\micro s}, plus the overhead of \texttt{analogRead()} and the ISR
+entry/exit. Theoretical maximum: $1/\SI{112}{\micro s}\approx\SI{8.9}{kHz}$ --
+then the CPU does nothing but sampling. In practice other interrupts (Timer0
+for \texttt{millis()}, INT0, UART) must fit in between and the main program
+needs CPU time, so about \SIrange{5}{7}{kHz} is a sensible limit with
+\texttt{analogRead()}. Single edges on D0 may be delayed by a few
+\si{\micro s} when the Timer0 ISR is running at the compare match: this is
+jitter (it can be removed by disabling Timer0, see Sheet~5).
+
+c) Samples per degree: $f_s/(6\,n)=5000/18000=0.278$, so
+$i_0=\lceil140\cdot0.278\rceil=39$, $i_1=\lfloor175\cdot0.278\rfloor=48$
+(10 samples per TDC, about 70 per block). Expected standard deviation:
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}\toprule
+noise slider & sensor noise at ADC & expected std & simulation (3990 samples)\\\midrule
+\SI{50}{mV} & \SI{30}{mV} & \SI{6.15}{LSB} & \SI{6.06}{LSB}\\
+\SI{10}{mV} & \SI{6}{mV}  & \SI{1.26}{LSB} & \SI{1.25}{LSB}\\
+\SI{0}{mV}  & 0 & 0 & \SI{0.46}{LSB}\\\bottomrule
+\end{tabular}
+\end{center}
+(``expected'' $=\sqrt{(0.6\sigma_\mathrm{noise}/\Delta)^2+1/12}$; the
+simulation column was obtained with the same engine model sampled exactly like
+the sketch. A single block contains only $\approx70$ samples, so the printed
+value scatters by about $\pm9\,\%$.) The quantisation noise
+($0.29$\,LSB) is negligible against the sensor noise
+($\sqrt{6.14^2+0.29^2}=6.15$, i.e.\ \SI{0.01}{dB} worse): the
+measurement is limited by the \emph{sensor}, not by the ADC; a 12-bit ADC
+would not help. Only for the noise-free signal does quantisation dominate:
+the offset \SI{2.5}{V} lies exactly on the transition between codes 511 and
+512, so tiny residues of the decaying bursts make the LSB flicker
+(std $\approx0.5$\,LSB in the simulation; in Wokwi the result depends on how
+the simulator rounds and may be exactly 0).
+
+d) The code is constant, e.g.\ \SI{3.30}{V} gives
+$\lfloor 3.30\cdot1024/5\rfloor=675$ every time. The error is a fixed, signal
+dependent offset (up to 1 LSB), not a random variable: the noise model of
+4.1 requires a signal that changes over many LSB between samples (or added
+noise/dither). For slowly varying signals the quantisation error is
+correlated and appears as distortion, not as white noise.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Quantisation noise and jitter}{\JSLinux}
+\codefile{jslinux/sheet04/quant.c} generates a sine of
+$f_0=\SI{1234.5}{Hz}$ at $f_s=\SI{50}{kHz}$ ($10^5$ samples; $f_0/f_s$ is not
+a simple fraction, so the error is not periodic). The full-scale range is
+$[-1,1)$.
+\begin{tasks}
+  \item Implement the function \texttt{quantise()}, a mid-tread quantiser
+    with $N$ bits: rounding to the nearest step and clipping to the codes
+    $q=-2^{N-1},\dots,2^{N-1}-1$. Implement \texttt{snr\_db()}. Measure the SNR for $N=4\dots16$ at full scale and
+    compare with $6.02N+1.76$\,dB. For which $N$ does the formula fail, and
+    why?
+  \item Repeat with an amplitude of 0.1 (\SI{-20}{dBFS}).
+  \item Implement jittered sampling (Gaussian $\delta_n$, no quantisation)
+    and measure the SNR for $f=\SI{100}{Hz}\dots\SI{20}{kHz}$ and
+    $\sigma_j=0.1,1,\SI{4}{\micro s}$. Compare with
+    $-20\log_{10}(2\pi f\sigma_j)$.
+  \item Combine a 12-bit quantiser with jitter: compute the ENOB for the
+    knock frequency \SI{6.5}{kHz}. At which signal frequency are jitter
+    noise and quantisation noise equal for $\sigma_j=\SI{1}{\micro s}$?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+\inputcode[firstline=41,lastline=61]{solutions/jslinux/sheet04/quant.c}
+Jittered sample: \lstinline|y[n] = A*sin(2*M_PI*f*(t + sj*grand()) + 0.3);|
+
+a/b) Program output (SNR in dB):
+\begin{center}\small
+\begin{tabular}{@{}rrrrr@{}}\toprule
+$N$ & full scale & $6.02N+1.76$ & \SI{-20}{dBFS} & expected\\\midrule
+4 & 24.74 & 25.84 & 5.27 & 5.84\\
+5 & 31.20 & 31.86 & 10.56 & 11.86\\
+6 & 37.47 & 37.88 & 18.80 & 17.88\\
+8 & 49.75 & 49.92 & 29.78 & 29.92\\
+10 & 61.89 & 61.96 & 42.18 & 41.96\\
+12 & 73.97 & 74.00 & 53.97 & 54.00\\
+14 & 86.03 & 86.04 & 66.10 & 66.04\\
+16 & 98.10 & 98.08 & 78.08 & 78.08\\\bottomrule
+\end{tabular}
+\end{center}
+From 8 bits on, the formula holds within \SI{0.2}{dB}. For $N\le5$ the
+measured SNR is up to \SI{1.1}{dB} lower: with few levels the error is no
+longer uniform and independent of the signal (it is a deterministic,
+signal-dependent staircase error with harmonics), and the amplitude
+$1-\Delta/2$ needed to avoid clipping reduces the signal power. The
+\SI{-20}{dBFS} column is \SI{20}{dB} lower (within $\pm\SI{0.4}{dB}$) for $N\ge7$; for small $N$ the
+reduced sine spans only a few codes and the deviations are larger
+($\pm\SI{1.3}{dB}$).
+
+c) Measured vs.\ theory (dB):
+\begin{center}\small
+\begin{tabular}{@{}r|rr|rr|rr@{}}\toprule
+$f$ [Hz] & \multicolumn{2}{c|}{$\sigma_j=\SI{0.1}{\micro s}$} &
+\multicolumn{2}{c|}{\SI{1}{\micro s}} & \multicolumn{2}{c}{\SI{4}{\micro s}}\\
+ & meas. & theory & meas. & theory & meas. & theory\\\midrule
+100   & 84.03 & 84.04 & 64.07 & 64.04 & 52.02 & 52.00\\
+1000  & 64.04 & 64.04 & 44.03 & 44.04 & 31.99 & 32.00\\
+6500  & 47.76 & 47.78 & 27.79 & 27.78 & 15.75 & 15.74\\
+10500 & 43.65 & 43.61 & 23.63 & 23.61 & 11.60 & 11.57\\
+20000 & 38.03 & 38.02 & 18.01 & 18.02 &  6.20 &  5.97\\\bottomrule
+\end{tabular}
+\end{center}
+The SNR drops by \SI{20}{dB} per decade of frequency and per decade of
+jitter. Only at \SI{20}{kHz} with \SI{4}{\micro s} ($2\pi f\sigma_j=0.5$) does the
+first-order approximation $e\approx\dot x\,\delta$ become inaccurate.
+
+d) 12 bit + jitter at \SI{6.5}{kHz}: $\sigma_j=\SI{0.1}{\micro s}$:
+\SI{47.8}{dB} (ENOB 7.6); \SI{1}{\micro s}: \SI{27.8}{dB} (ENOB 4.3);
+\SI{4}{\micro s}: \SI{15.8}{dB} (ENOB 2.3). At \SI{100}{Hz} and
+\SI{0.1}{\micro s} the full 12 bits remain (ENOB 11.97). Equality of the two
+noise sources: $2\pi f\sigma_j=10^{-74/20}\Rightarrow f=\SI{31.8}{Hz}$ for
+$\sigma_j=\SI{1}{\micro s}$. Conclusion: for kHz signals the sampling clock,
+not the number of bits, decides the effective resolution; ECUs therefore
+start knock conversions by hardware timers or sample continuously with a
+fixed ADC clock.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Time domain vs.\ crank-angle domain}{\JSLinux}
+In \codefile{jslinux/sheet04/angle\_resample.c} the virtual engine
+accelerates from \SI{1500}{rpm} to \SI{4500}{rpm} within \SI{1}{s}
+(\texttt{e.rpm} is changed during the simulation). The ion-current signal is
+sampled at $f_s=\SI{50}{kHz}$; the rising crank edges are time-stamped with a
+resolution of \SI{2}{\micro s} (``input capture'' as in a real ECU), and the
+cam level is latched at every edge.
+\begin{tasks}
+  \item Assign a crank angle to every edge: detect the gap (edge interval
+    $>2\times$ the previous one), give the first edge after the first gap the
+    angle \SI{0}{\degree} or \SI{360}{\degree} (cam level!), then add
+    \SI{6}{\degree} per edge, \SI{18}{\degree} across the gap.
+  \item Resample the signal onto the grid $\theta_m=\theta_0+m\cdot\SI{0.5}{\degree}$:
+    for every $\theta_m$ interpolate the time $t(\theta_m)$ linearly between
+    the two neighbouring edges, then the signal value $x(t(\theta_m))$
+    linearly between two time samples. The program compares the grid with the
+    true model angle: report the maximum and rms angle error and explain
+    its size. Rebuild with \texttt{-DDT\_CAP=20e-6} (edges only known at the
+    sample instants) and compare.
+  \item The program correlates every engine cycle with the first one,
+    (i) in the angle domain (1440 grid points per cycle) and (ii) in the time
+    domain (segments with the sample count of the first cycle, each starting
+    exactly at its cycle start). Interpret the table and the two plots.
+  \item The knock-sensor signal contains crank-synchronous parts (combustion
+    vibration $0\dots60^\circ$ after TDC) and fixed-frequency parts (valve
+    impacts: \SI{8}{kHz}, $\tau=\SI{0.4}{ms}$). How do the two look in the
+    angle domain during the ramp? Compute the angular length of $3\tau$ of a
+    valve burst at \SI{1500}{rpm} and \SI{4500}{rpm}.
+  \item Which angle step $\Delta\theta$ would be needed to sample the
+    \SI{10.5}{kHz} knock mode directly in the angle domain at \SI{600}{rpm}
+    and at \SI{6000}{rpm}? Which signals should an ECU therefore sample
+    angle-based, which time-based?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a/b) Key part of the solution:
+\inputcode[firstline=104,lastline=138]{solutions/jslinux/sheet04/angle_resample.c}
+Output: 2899 crank edges, first reference edge \#57 at $t=\SI{38.52}{ms}$
+(angle \SI{360}{\degree}, cam LOW), 35245 grid points. Angle error of the grid:
+max \SI{0.054}{\degree}, rms \SI{0.022}{\degree}. The error is caused by the
+time stamp resolution: an edge is registered up to $\Delta t_\mathrm{cap}$
+late, i.e.\ $\omega\,\Delta t_\mathrm{cap}=27000\,\si{\degree/s}\cdot\SI{2}{\micro s}=\SI{0.054}{\degree}$
+at \SI{4500}{rpm} -- exactly the maximum found. The linear interpolation
+between edges (constant speed over \SI{6}{\degree}) is not the limit: the 1\,\%
+second-order speed ripple changes $\omega$ by only $\approx0.2\,\%$ over a
+tooth. With \texttt{-DDT\_CAP=20e-6}: max \SI{0.534}{\degree}, rms
+\SI{0.222}{\degree} (and \SI{0.027}{\degree}/\SI{0.011}{\degree} for
+\SI{1}{\micro s}): the error scales linearly with the capture resolution.
+This is why ECUs time-stamp crank edges with a hardware capture unit instead
+of the ADC sample clock.
+
+c) Output (excerpt):
+\begin{center}\small
+\begin{tabular}{@{}rrrrr@{}}\toprule
+cycle & rpm (mean) & samples/cycle & corr.\ time domain & corr.\ angle domain\\\midrule
+1 & 1720 & 3488 & 1.000 & 1.0000\\
+2 & 1919 & 3127 & $-0.030$ & 0.9986\\
+5 & 2417 & 2482 & $-0.131$ & 0.9986\\
+13 & 3407 & 1761 & $-0.035$ & 0.9985\\
+22 & 4253 & 1411 & 0.043 & 0.9984\\\bottomrule
+\end{tabular}
+\end{center}
+In the angle domain every cycle is (up to the \SI{10}{mV} noise of the model)
+identical to the first one: correlation 0.998 for all 24 cycles. In the time
+domain the correlation collapses already in the second cycle, although the
+segments start exactly at the cycle start and the speed changed by only
+12\,\%: the ion peaks (width a few degrees) at $120^\circ$, $300^\circ$, \dots{}
+arrive \SIrange{1}{3}{ms} earlier and are narrower. The time plot shows the
+last cycle compressed to 40\,\% (2.5 cycles in the window of the first
+one), the angle plot shows two congruent curves. Crank-synchronous signals
+are \emph{stationary in the angle domain} and non-stationary in the time
+domain during speed changes; angle-based processing (synchronous averaging,
+order analysis, Sheet~6) requires the resampling.
+
+d) The combustion vibration is defined by the angle and stays congruent. A
+valve burst is a resonance with fixed frequency and decay time: in the angle
+domain its oscillation period is $\omega/f$ and changes with speed. $3\tau=\SI{1.2}{ms}$
+corresponds to $9000\,\si{\degree/s}\cdot\SI{1.2}{ms}=\SI{10.8}{\degree}$ at
+\SI{1500}{rpm} and \SI{32.4}{\degree} at \SI{4500}{rpm} (one \SI{8}{kHz} period:
+\SI{1.1}{\degree} resp.\ \SI{3.4}{\degree}). Fixed-frequency resonances are
+stationary in the time domain, crank-synchronous ones in the angle domain --
+no single domain makes everything stationary.
+
+e) The equivalent sampling rate is $f_\mathrm{eq}=\omega/\Delta\theta$;
+$f_\mathrm{eq}>2\cdot\SI{10.5}{kHz}$ requires $\Delta\theta<\omega/\SI{21}{kHz}$:
+\SI{0.17}{\degree} at \SI{600}{rpm} ($\omega=\SI{3600}{\degree/s}$) and
+\SI{1.7}{\degree} at \SI{6000}{rpm}. A fixed angle step that is fine enough
+at idle massively oversamples at high speed, a coarse one aliases at idle.
+Hence: knock sensor (fixed resonances) is sampled time-based with fixed
+$f_s$ and evaluated in a crank-angle \emph{window}; crank-synchronous
+quantities (cylinder pressure, ion current, engine speed per tooth, misfire
+detection) are sampled or resampled angle-based.
+\end{solution}
+
+\begin{deliverables}
+4.1: derivations and numbers. 4.2: completed sketch, logic-analyzer screenshot
+with sampling period and ISR duration, quiet-window results for three noise
+levels. 4.3: SNR tables (quantisation, jitter, ENOB) with short discussion.
+4.4: completed program, angle-error values for two capture resolutions, the
+correlation table and the two plots with your interpretation.
+\end{deliverables}

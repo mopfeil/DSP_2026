@@ -1,0 +1,402 @@
+\sheet{2}{Systems}{Chapter~2 (Systems)}
+
+\begin{goals}
+\begin{itemize}
+  \item Use the operator view $y=S\{x\}$ and decide for a given system whether it
+    is static or dynamic (memory), causal, linear and time-invariant -- by proof
+    and by experiment.
+  \item Design numerical test harnesses that \emph{reveal} a property and know
+    their pitfalls (impulse-only tests, small amplitudes, boundary effects).
+  \item Model engine subsystems as dynamic systems: inertia (first-order
+    lag), wall film, transport delay, switching sensor.
+  \item Understand the limit cycle of a two-point lambda controller and predict
+    its period from the loop dead time.
+\end{itemize}
+\end{goals}
+
+\section*{Definitions used on this sheet}
+For a system $y=S\{x\}$ (continuous or discrete time):
+\begin{itemize}
+  \item \emph{memoryless (static)}: $y(t_0)$ depends only on $x(t_0)$;
+  \item \emph{causal}: $y(t_0)$ depends only on $x(t)$, $t\le t_0$; equivalently,
+    if $x_1(t)=x_2(t)$ for $t<t_0$, then $y_1(t)=y_2(t)$ for $t<t_0$;
+  \item \emph{linear}: $S\{a x_1+b x_2\}=a S\{x_1\}+b S\{x_2\}$ for all inputs and
+    constants (superposition = additivity + homogeneity);
+  \item \emph{time-invariant}: $y(t)=S\{x(t)\}\Rightarrow y(t-t_0)=S\{x(t-t_0)\}$
+    for every shift $t_0$ (discrete time: integer shifts $n_0$).
+\end{itemize}
+Linearity and time invariance are previewed here; Chapter~3 shows why their
+combination (LTI) is so powerful.
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Properties by hand}{\Paper}
+\begin{tasks}
+  \item Decide for each system whether it is memoryless, causal, linear and
+    time-invariant (table with yes/no):
+    \begin{center}
+    \small
+    \begin{tabular}{@{}llll@{}}
+    S1: $y(t)=2x(t)$ & S2: $y(t)=x^2(t)$ & S3: $y[n]=x[n+1]-x[n]$ \\
+    S4: $y[n]=\frac13(x[n]+x[n-1]+x[n-2])$ & S5: $y(t)=x(t-T_d)$, $T_d>0$ & S6: $y(t)=|x(t)|$ \\
+    S7: $y(t)=\int_{-\infty}^{t}x(\tau)\dd\tau$ & S8: $y[n]=n\,x[n]$ & S9: $y[n]=x[n]+0.5$\\
+    S10: $y[n]=x[2n]$ & S11: $n_k=1/T_k$ (Sheet~1) & S12: $U=0.5+0.4\tanh\frac{1-\lambda}{0.005}$
+    \end{tabular}
+    \end{center}
+  \item Prove your answers formally for S6 (linearity), S8 (time invariance)
+    and S10 (causality and time invariance). For S9, show that the system is
+    not linear, but that the \emph{difference} of two outputs depends linearly
+    on the difference of the inputs (\emph{incrementally linear}).
+  \item An engineer computes the mean speed of one crank revolution as the
+    arithmetic mean of the 58 per-tooth speeds $1/T_k$, treating the gap
+    period like a normal tooth period. Compute the relative error at constant
+    speed. After correcting the gap ($3/T_{\text{gap}}$), is the arithmetic
+    mean of the per-tooth speeds equal to $60/T_{\text{rev}}$? Which property of
+    S11 is responsible, and what is the error for a speed fluctuation of
+    $\pm1\,\%$ (sinusoidal)?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) (M = memoryless, C = causal, L = linear, TI = time-invariant)
+\begin{center}
+\small
+\begin{tabular}{@{}lccccl@{}}
+\toprule
+system & M & C & L & TI & remark \\
+\midrule
+S1 $2x$          & yes & yes & yes & yes & amplifier \\
+S2 $x^2$         & yes & yes & no  & yes & $S\{2x\}=4S\{x\}$ \\
+S3 $x[n+1]-x[n]$ & no  & no  & yes & yes & forward difference uses the future \\
+S4 3-point MA    & no  & yes & yes & yes & memory of 2 samples \\
+S5 delay         & no  & yes & yes & yes & transport delay (lambda!) \\
+S6 $|x|$         & yes & yes & no  & yes & rectifier \\
+S7 integrator    & no  & yes & yes$^*$ & yes & $^*$initially at rest \\
+S8 $n\,x[n]$     & yes & yes & yes & no  & gain changes with time \\
+S9 $x+0.5$       & yes & yes & no  & yes & affine, $S\{0\}\neq0$ \\
+S10 $x[2n]$      & no  & no  & yes & no  & down-sampler \\
+S11 $1/T$        & yes & yes & no  & yes & speed from tooth period \\
+S12 $\tanh$      & yes & yes & no  & yes & switching lambda sensor \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+b) \emph{S6}: choose $x_1=1$, $a=-1$: $S\{-x_1\}=1\neq -S\{x_1\}=-1$, so
+homogeneity fails (additivity fails too: $x_1=1,x_2=-1$ gives $0\neq2$).
+\emph{S8}: input $x_2[n]=x[n-n_0]$ gives $y_2[n]=n\,x[n-n_0]$, whereas the
+shifted output is $y[n-n_0]=(n-n_0)\,x[n-n_0]$; they differ for $n_0\neq0$
+$\Rightarrow$ time-variant (but linear: $n(ax_1+bx_2)=a\,nx_1+b\,nx_2$).
+\emph{S10}: $y[1]=x[2]$ depends on a future input $\Rightarrow$ non-causal (for
+$n>0$), and the output at $n$ depends on $x[2n]\ne x[n]$ $\Rightarrow$ memory.
+Shift: $x_2[n]=x[n-1]$ gives $y_2[n]=x[2n-1]$, but $y[n-1]=x[2n-2]$
+$\Rightarrow$ time-variant. (Only shifts by even $n_0$ commute with S10 -- in
+the output domain by $n_0/2$; the down-sampler is ``periodically time-variant''.)
+\emph{S9}: $S\{ax\}=ax+0.5\neq a(x+0.5)$, and $S\{0\}=0.5\neq0$ (a linear system
+must map 0 to 0). But $y_1-y_2=x_1-x_2$: the deviation from the operating
+point is transferred linearly. This is how all ``linearised'' engine models
+around an operating point work.
+
+c) Treating the gap like a tooth, its contribution is $1/T_{\text{gap}}=n/3$:
+\[ \bar n = \frac{57\,n+n/3}{58}=0.98851\,n,\qquad\text{error } -1.15\,\%. \]
+With gap correction all 58 values equal $n$ at constant speed, but under a speed
+fluctuation the arithmetic mean of $1/T_k$ is \emph{not} $1/\overline{T}$: S11 is
+nonlinear (convex), and by Jensen's inequality
+$\overline{1/T}\ge 1/\overline{T}$. With $n(\theta)=n_0(1+\varepsilon\sin2\theta)$ the
+per-tooth speeds average to $n_0$ (teeth are equally spaced in \emph{angle}),
+whereas $60/T_{\text{rev}}=n_0/\overline{(1+\varepsilon\sin)^{-1}}
+\approx n_0(1-\varepsilon^2/2)$: the relative difference is
+$\varepsilon^2/2=5\cdot10^{-5}$ (\SI{0.15}{rpm} at \SI{3000}{rpm} -- exactly the
+offset seen on Sheet~1). The physically correct mean speed over a
+revolution is $60/T_{\text{rev}}$ (angle travelled / time); averaging in the
+period domain (sum of the $T_k$) and inverting once gives it exactly.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Black-box system identification}{\JSLinux}
+The header \codefile{jslinux/sheet02/mystery.h} contains five unknown systems
+\begin{center}\verb|void Sk(const double *x, double *y, int N);|\quad $k=1,\dots,5$\end{center}
+(input
+$x[0..N-1]$, $x[n]=0$ outside, output $y[0..N-1]$). One of them is LTI; the
+others violate exactly one or two of the properties of Exercise~2.1.
+\textbf{Do not read the header} -- find the properties by experiments, as you
+would with a supplier's ECU function delivered as object code. The program
+\codefile{jslinux/sheet02/blackbox.c} plots the responses to unit impulses at
+$n_0=30$ and $n_0=31$ and contains a (weak) homogeneity test with scaled
+impulses as an example.
+\begin{tasks}
+  \item Superposition test: compare $S\{a x_1+b x_2\}$ with $aS\{x_1\}+bS\{x_2\}$
+    for random signals and random weights, at amplitude 1 and 0.01. Why is the
+    impulse test of the template not sufficient, and why two amplitudes?
+  \item Shift test: compare $S\{x[n-k]\}$ with $y[n-k]$ for $k=1\dots4$. Why are
+    the first and last samples of the test signal set to zero?
+  \item Causality test: two inputs that agree for $n<n_0$ and differ
+    afterwards.
+  \item Memory test: two inputs that differ only at $n_0$. Why must the test
+    be repeated for several $n_0$?
+  \item Report a property table with the numerical evidence (largest deviation
+    of each test). For the LTI systems determine $h[n]$ from the plots and
+    give the difference equation. Why does an ``impulse response'' not
+    characterise the other systems?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+Output of \codefile{solutions/jslinux/sheet02/blackbox.c} (deviations of the
+linearity tests relative to the output amplitude):
+\begin{lstlisting}[style=shell,numbers=none]
+sys  linear(A=1) linear(A=0.01) imp-scale   shift      causal     memory
+S1    0.00e+00   0.00e+00       0.00e+00   1.96e+00   0.00e+00   1.00e+00
+S2    3.78e-16   3.49e-16       0.00e+00   0.00e+00   0.00e+00   2.50e-01
+S3    1.55e+00   3.58e-04       1.29e+00   0.00e+00   0.00e+00   0.00e+00
+S4    0.00e+00   2.47e-16       0.00e+00   0.00e+00   4.61e-01   2.50e-01
+S5    8.43e-01   8.48e-03       0.00e+00   0.00e+00   0.00e+00   6.21e-01
+
+sys  linear  time-inv  causal  memoryless
+S1   yes     NO        yes     NO
+S2   yes     yes       yes     NO
+S3   NO      yes       yes     yes
+S4   yes     yes       NO      NO
+S5   NO      yes       yes     NO
+\end{lstlisting}
+Deviations of $10^{-16}$ are rounding errors (the threshold is $10^{-9}$).
+The systems are (from \codefile{solutions/jslinux/sheet02/mystery\_gen.c}):
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+& system & properties \\
+\midrule
+S1 & $y[n]=x[n-(n\bmod 3)]$ (sample \& hold every 3 samples) & linear, time-variant, causal, memory \\
+S2 & $y[n]=0.75\,y[n-1]+0.25\,x[n-1]$ & LTI, causal, memory (IIR) \\
+S3 & $y[n]=\tanh(x[n])$ & nonlinear, memoryless, TI, causal \\
+S4 & $y[n]=0.25x[n-1]+0.5x[n]+0.25x[n+1]$ & LTI, \emph{non-causal}, memory \\
+S5 & $y[n]=0.625x[n]+0.375x[n-1]+0.25\,x[n]x[n-1]$ & nonlinear, TI, causal, memory \\
+\bottomrule
+\end{tabular}
+\end{center}
+a) The impulse homogeneity test detects only S3. S5 passes it, because the
+product term $x[n]x[n-1]$ vanishes for any \emph{single} impulse: an impulse
+never excites interactions between samples. Random signals with random weights
+excite all such terms. S3 ($\tanh$) is almost linear for small amplitudes
+($\tanh x\approx x-x^3/3$): relative deviation $3.6\cdot10^{-4}$ at $A=0.01$
+versus $1.55$ at $A=1$ -- small-signal linearisation; a test at small amplitude
+alone could miss the nonlinearity if the tolerance is too coarse.
+Similarly S5's deviation drops from 0.84 to $8.5\cdot10^{-3}$ (quadratic term
+$\propto A$ relative to the linear part).
+
+b) The shifted copy must not lose samples at the end or receive the
+implicit zeros of the boundary at the start; otherwise a non-causal LTI system
+such as S4 (which reads $x[n+1]$) shows boundary deviations and is wrongly
+classified as time-variant. S1 shows deviations up to 1.96: shifting the input by
+one sample changes which samples are held.
+
+c) Only S4 reacts before the inputs differ (deviation 0.46 at $n=n_0-1$,
+weight $0.25$ of $x[n+1]$).
+
+d) For S1 a change at $n_0$ with $n_0\bmod3\neq0$ has \emph{no} effect at all
+(the sample is never read), with $n_0\bmod3=0$ it affects $n_0\dots n_0+2$.
+A single $n_0$ may therefore report ``memoryless'' or even ``no effect''. In
+general: a test can only falsify a property; a passed test is evidence, not
+proof -- use many random trials.
+
+e) LTI systems: S2: $h[n]=0$ for $n\le0$, $h[n]=0.25\cdot0.75^{\,n-1}$ for
+$n\ge1$ (plot: 0.25, 0.1875, 0.141, \dots{} starting one sample after the
+impulse) $\Rightarrow$ $y[n]=0.75y[n-1]+0.25x[n-1]$, an exponential smoother
+with one sample delay. S4: $h[-1]=0.25$, $h[0]=0.5$, $h[1]=0.25$ (the plot for
+$n_0=30$ shows values at 29, 30, 31) $\Rightarrow$ centred, non-causal
+smoother. For the other systems the response to an impulse depends on
+\emph{where} the impulse is (S1: three ones for $n_0=30$, nothing for
+$n_0=31$) or on \emph{how large} it is and which other samples are present
+(S3, S5): $y=h*x$ (Chapter~3) requires linearity \emph{and} time invariance.
+\inputcode[firstline=52,lastline=69]{solutions/jslinux/sheet02/blackbox.c}
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{The engine as a dynamic system}{\JSLinux}
+Program: \codefile{jslinux/sheet02/engine\_dyn.c}.
+\begin{tasks}
+  \item \emph{Crankshaft inertia.} With fuel quantity $q$ (1 = nominal), the
+    engine speed obeys $\tau\,\dot n=K q-n$, $\tau=\SI{0.4}{s}$,
+    $K=\SI{2000}{rpm}$. Simulate a fuel step $1\to1.5$ at $t=\SI{0.5}{s}$ with
+    the Euler method ($T=\SI{1}{ms}$) and with the exact discretisation
+    $n[k]=a\,n[k-1]+(1-a)Kq[k-1]$, $a=\e^{-T/\tau}$ (derive it!). Determine $\tau$
+    from the 63\,\% point and compare both methods with the analytic solution
+    at $t=\SI{0.6}{s}$. Is the engine (fuel $\to$ speed) static or dynamic?
+  \item \emph{Lambda path.} Implement \texttt{lp\_step()} (one step = \SI{1}{ms}) --
+    it is the model inside the Wokwi chip \texttt{lambda-probe}:
+    $q\to$ wall film (first-order lag, \SI{20}{ms}) $\to$
+    $\lambda=(1+a_{\text{air}})/q_f$ $\to$ transport delay $T_d$ $\to$ sensor
+    lag (\SI{30}{ms}) $\to$ $U=0.5+0.4\tanh((1-\lambda)/0.005)$.
+    Classify each block (static/dynamic, linear, TI). Simulate fuel steps
+    $1.00\to1.10$ and $1.00\to1.20$ ($a_{\text{air}}=+5\,\%$, $T_d=\SI{200}{ms}$)
+    and measure the time until $U$ crosses \SI{0.45}{V}. Which observations prove
+    that the chain is nonlinear? Under which operating condition is it not
+    time-invariant on a real engine?
+  \item \emph{Closed loop -- prediction for Exercise~2.4.} A two-point controller
+    with integrator changes $q$ with slope $-r$ while the sensor reports rich
+    ($U>\SI{0.45}{V}$) and $+r$ while lean (period \SI{10}{ms}, 8-bit PWM).
+    Derive the period and the $\lambda$ amplitude of the resulting oscillation as
+    functions of $T_d$, $r$ and the lag time constants (hint: a ramp passing a
+    first-order lag $\tau$ is delayed by $\tau$). Implement the controller in
+    \texttt{closed\_loop()}, compare with your prediction for
+    $T_d=50\dots\SI{800}{ms}$, and explain what happens to the mean of $q$ when
+    the unmetered air changes. Extend the prediction to a controller with an
+    additional jump $\pm P$ at every switching of the sensor.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Exact discretisation: with $q$ constant over $[kT-T,kT)$ the ODE solution is
+$n(kT)=\e^{-T/\tau}n(kT-T)+(1-\e^{-T/\tau})Kq$. Output:
+\begin{lstlisting}[style=shell,numbers=none]
+(a) fuel step 1.0 -> 1.5 at t = 0.5 s: n = 2000 -> 2998.1 rpm (t = 3 s)
+    63% point reached at t = 0.900 s -> tau = 0.400 s
+    n(0.6 s): Euler 2221.44, exact 2221.20, analytic 2221.20 rpm
+    difference equation: n[k] = 0.997503 n[k-1] + 0.002497 * K q[k-1]
+\end{lstlisting}
+The exact discretisation reproduces the analytic solution
+$2000+1000(1-\e^{-0.1/0.4})=\SI{2221.20}{rpm}$; Euler ($a=1-T/\tau=0.9975$)
+is off by \SI{0.24}{rpm} -- negligible at $T/\tau=1/400$. The speed approaches
+\SI{3000}{rpm} exponentially; it depends on the past fuel input
+$\Rightarrow$ dynamic system (with memory), LTI in this model. The difference
+equation is the exponential smoother of Sheet~3.
+
+b) Blocks: wall film -- dynamic, linear, TI; $\lambda=(1+a)/q_f$ -- static,
+\emph{nonlinear}; transport delay -- dynamic (memory), linear, TI; sensor lag
+-- dynamic, linear, TI; switching characteristic -- static, strongly nonlinear
+(slope $\SI{80}{V}$ per unit $\lambda$ at $\lambda=1$, saturating at 0.1/0.9\,V).
+\begin{lstlisting}[style=shell,numbers=none]
+(b) fuel step 1.00 -> 1.10 at t = 100 ms (air +5 %, Td = 200 ms)
+    lambda 1.0500 -> 0.9545, crosses 1 after 13 ms (wall film)
+    sensor crosses 0.45 V after 240 ms
+    with step 1.00 -> 1.20 (double size): crosses after 223 ms, final U = 0.900 V (step 1.10: 0.900 V)
+\end{lstlisting}
+Response time = wall film ($\lambda$ crosses 1 after \SI{13}{ms}, theory
+$\SI{20}{ms}\cdot\ln2=\SI{13.9}{ms}$) + \SI{200}{ms} delay + sensor lag
+($\approx\SI{27}{ms}$). Nonlinearity: doubling the input step does not double the
+output (final value \SI{0.9}{V} in both cases), and the response \emph{time}
+depends on the step size (240 vs.\ \SI{223}{ms}) -- impossible for an LTI system,
+whose step response only scales. The sensor tells only ``rich'' or ``lean'',
+not \emph{how} rich. On a real engine $T_d$ is the gas travel time to the
+sensor, roughly $\propto 1/(\text{mass flow})$: at changing speed/load the
+system is time-variant.
+
+c) Let $T_l=T_d+\tau_f+\tau_s$ be the effective dead time of the loop and $q^*=1+a$
+the stoichiometric fuel quantity. When the sensor switches to rich, $q$ has
+already passed $q^*$ by $rT_l$. The controller now ramps down; $q$ reaches $q^*$
+after $T_l$, and the sensor sees it another $T_l$ later. Hence
+\[ T_{\text{period}} = 4\,T_l,\qquad q=q^*\pm rT_l,\qquad
+   \lambda\approx 1\mp\frac{rT_l}{q^*}. \]
+With an additional jump $P<rT_l$ the time to reach $q^*$ is shortened by $P/r$:
+$T_{\text{period}}=4T_l-2P/r$ (same peak deviation). Simulation ($r=0.2$/s,
+$+5\,\%$ air, $T_l=T_d+\SI{50}{ms}$):
+\begin{center}
+\small
+\begin{tabular}{@{}rccc@{}}
+\toprule
+$T_d$ / ms & period (sim.) & $4T_l$ & $\lambda$ range (sim.) \\
+\midrule
+50  & \SI{0.38}{s} & \SI{0.40}{s} & 0.985\dots1.017 \\
+100 & \SI{0.58}{s} & \SI{0.60}{s} & 0.977\dots1.028 \\
+200 & \SI{0.98}{s} & \SI{1.00}{s} & 0.958\dots1.046 \\
+400 & \SI{1.78}{s} & \SI{1.80}{s} & 0.924\dots1.091 \\
+800 & \SI{3.38}{s} & \SI{3.40}{s} & 0.864\dots1.193 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The prediction fits within 2--5\,\% (the effective lag is slightly smaller than
+\SI{50}{ms} because the sensor switches before $\lambda_s$ exactly reaches 1).
+Unmetered air $0/+5/+10\,\%$: mean $q$ = 0.9989 / 1.0495 / 1.0986 $\approx 1+a$ --
+the integrator drives the \emph{mean} mixture to $\lambda=1$ whatever the
+disturbance (integral action), period unchanged (\SI{0.98}{s}).
+With $P=0.03$: period \SI{0.70}{s} (prediction $1.0-0.3=\SI{0.70}{s}$), $\lambda$
+0.958\dots1.045; with $r=0.1$/s, $P=0.025$: period \SI{0.58}{s}, $\lambda$
+0.978\dots1.027 (prediction \SI{0.5}{s}, $\pm2.4\,\%$): the jump allows a smaller
+ramp, i.e.\ a smaller amplitude at the same or a higher frequency.
+\inputcode[firstline=80,lastline=93]{solutions/jslinux/sheet02/engine_dyn.c}
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Closed lambda loop}{\Wokwi}
+Project \codefile{wokwi/sheet02\_lambda/}: Arduino Uno and the custom chip
+\texttt{lambda-probe}. Pin 9 sends the fuel command as PWM
+(\texttt{analogWrite}, \SI{490}{Hz}, duty $=q/2$), A0 reads the sensor voltage
+\texttt{O2}, A1 the ground truth \texttt{LAM} $=\lambda/2$. The chip's sliders set
+the unmetered air ($\text{slider}-10$ in \%, default $+5\,\%$) and the transport
+delay (default \SI{200}{ms}).
+\begin{tasks}
+  \item Implement the two-point controller with integrator ($r=0.2$/s) in
+    \texttt{loop()}. Start the simulation and observe the limit cycle in the
+    Serial Monitor (\texttt{u\_o2}, \texttt{lambda}, \texttt{q}). Copy
+    \SI{5}{s} of data into JSLinux and plot $\lambda$ and $U$; compare with
+    Fig.~1.3 of the script and with your simulation of Exercise~2.3\,c).
+  \item Measure the oscillation period (column \texttt{period\_ms}) for transport
+    delays of 100, 200, 400 and \SI{800}{ms} and plot period over $T_d$. Determine
+    slope and intercept and interpret them.
+  \item Move the air slider from $+5\,\%$ to $-10\,\%$ and to $+10\,\%$. Describe
+    the transient and the new mean value of $q$.
+  \item Add the jump \texttt{PJUMP} $=0.03$, then reduce \texttt{RATE} to 0.1 with
+    \texttt{PJUMP} $=0.025$. Compare period and $\lambda$ amplitude. Why can no
+    two-point controller make the oscillation disappear, and what would a
+    continuous (PI) lambda controller need?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Controller (\codefile{solutions/wokwi/sheet02\_lambda/sketch.ino}):
+\inputcode[firstline=41,lastline=57]{solutions/wokwi/sheet02_lambda/sketch.ino}
+The sensor voltage switches between $\approx\SI{0.1}{V}$ and \SI{0.9}{V} (ADC
+values $\approx$20 and 184), almost rectangular as in Fig.~1.3, while $\lambda$
+oscillates triangularly (ramps of $q$, smoothed by the wall film) between about
+0.96 and 1.05; $q$ is a triangle around $1.05$ with steps of
+$2/255=0.0078$ (8-bit PWM). The ground-truth $\lambda$ read via A1 has a
+resolution of only $2\cdot\SI{4.9}{mV}\approx0.01$, so its extreme values
+scatter by $\pm0.01$. Expected period at $T_d=\SI{200}{ms}$: \SI{1.0}{s}
+(Exercise~2.3\,c): \SI{0.98}{s}, the chip uses the same model). The first
+period after the start is longer, because $q$ starts at 1.0 and must first
+ramp to $q^*=1.05$.
+
+b) Expected values (the reference sketch run on the PC against a replica of
+the chip model): \SI{0.58}{s}, \SI{1.00}{s}, \SI{1.80}{s}, \SI{3.40}{s} for
+$T_d=100$, 200, 400, \SI{800}{ms}, with $\lambda$ (from A1) in 0.978\dots1.026,
+0.958\dots1.046, 0.919\dots1.095, 0.860\dots1.193. The offline model of
+Exercise~2.3 gives up to \SI{20}{ms} less, because there the controller sees
+the sensor value of the current millisecond (no extra sampling delay).
+Period over $T_d$ is a straight line with slope $4.0$ (each
+switching needs the signal to travel through the delay twice per half
+period) and intercept $\approx\SI{0.18}{s} = 4\cdot\SI{45}{ms}$ (the two lags,
+\SI{20}{ms} wall film + \SI{30}{ms} sensor, minus the early switching of the
+sensor). In Wokwi the values may deviate by one controller period (\SI{10}{ms})
+per switching.
+
+c) At $-10\,\%$ air the stoichiometric quantity drops to $q^*=0.90$: the mixture
+is suddenly rich ($\lambda=0.9/1.05$), the sensor stays at \SI{0.9}{V} and the
+integrator ramps $q$ down with \SI{0.2}{/s}, i.e.\ it needs
+$\approx(1.05-0.90)/0.2=\SI{0.75}{s}$ plus the dead time before the limit cycle
+resumes around $q=0.90$. Simulation (\texttt{air\_step()} in the reference
+solution of 2.3): rich is reported \SI{0.21}{s} after the step (dead time), lean
+again after \SI{1.25}{s}, afterwards mean $q=0.9000$. At $+10\,\%$ the
+mixture becomes lean, $q$ ramps up and settles around mean $q=1.098$. The amplitude of the limit cycle in $\lambda$ is unchanged. Integral
+action removes any constant disturbance -- this is the purpose of the lambda loop
+(adaptation of fuel metering errors, air leaks, ageing).
+
+d) $P=0.03$, $r=0.2$: period \SI{0.70}{s}, $\lambda$ 0.958\dots1.045;
+$P=0.025$, $r=0.1$: period \SI{0.58}{s}, $\lambda$ 0.978\dots1.027 (model values).
+The jump immediately undoes most of the overshoot that accumulated during the dead
+time; therefore a smaller ramp suffices and the amplitude halves while the
+period even decreases. The oscillation cannot disappear: the sensor delivers
+only the \emph{sign} of $\lambda-1$ (relay characteristic), so the controller
+must keep moving to find out where $\lambda=1$ is -- relay + integrator + dead
+time always yield a limit cycle of period $\approx4T_l$. A PI controller with a
+fixed operating point would need a \emph{proportional} measure of $\lambda-1$:
+a wide-band (linear) lambda sensor. With the switching sensor, the catalytic
+converter's oxygen storage tolerates the small, fast oscillation -- one reason
+why the period and amplitude must be kept small, i.e.\ why $T_d$ matters.
+\end{solution}
+
+\begin{deliverables}
+2.1: property table, proofs. 2.2: test program, property table with
+numerical evidence, $h[n]$ of the LTI systems. 2.3: program, values of $\tau$,
+response times, prediction formula and comparison table. 2.4: sketch, plot of
+$\lambda$ and $U$ over \SI{5}{s}, period over $T_d$ (table + plot), results of
+c) and d).
+\end{deliverables}

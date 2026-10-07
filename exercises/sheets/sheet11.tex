@@ -1,0 +1,387 @@
+\sheet{11}{Maximum Entropy Spectral Estimation}{Chapter~11 (AR models, Yule--Walker, Levinson--Durbin, Burg)}
+
+\begin{goals}
+\begin{itemize}
+  \item Describe a resonance by an autoregressive (AR) model and relate the AR
+    poles to resonance frequency and damping.
+  \item Derive and solve the Yule--Walker equations with the Levinson--Durbin
+    recursion; implement Burg's method; explain the maximum entropy principle.
+  \item Compare MEM (AR) spectra with windowed periodograms on the very short
+    records available in a knock window (32--128 samples): frequency accuracy,
+    peak shape, resolution, artefacts.
+  \item Select the model order (FPE, AIC, MDL) and recognise the symptoms of a
+    wrong order (spurious peaks, line splitting).
+\end{itemize}
+\end{goals}
+
+\section*{Background}
+
+A knock window is short: $60^\circ$ crank angle are \SI{3.3}{ms} at
+\SI{3000}{rpm} and only \SI{1.7}{ms} at \SI{6000}{rpm}, i.e.\ 42--83 samples at
+$f_s=\SI{25}{kHz}$ (the rate of Sheet~10). The DFT of $N$ samples has the bin spacing
+$f_s/N$ (\SI{781}{Hz} for $N=32$), and windowing widens the peaks further. Parametric
+methods fit a model to the data and are not bound to this ``Rayleigh limit''.
+
+An AR($p$) process is white noise $e[n]$ (variance $\sigma^2$) filtered by an all-pole
+filter:
+\[
+  x[n]=-\sum_{i=1}^{p}a_i\,x[n-i]+e[n],\qquad
+  A(z)=1+\sum_{i=1}^{p}a_iz^{-i},\qquad
+  P(f)=\frac{\sigma^2\,T_s}{\bigl|A(\e^{\jj2\pi f/f_s})\bigr|^2}.
+\]
+Multiplying by $x[n-m]$ and taking expectations gives the
+\emph{Yule--Walker equations} $\sum_{i=1}^{p}a_i\,r[|m-i|]=-r[m]$, $m=1,\dots,p$, and
+$\sigma^2=r[0]+\sum_i a_i r[i]$. The \emph{Levinson--Durbin recursion} solves them
+order by order in $O(p^2)$ operations ($E_0=r[0]$):
+\[
+  k_m=-\frac{r[m]+\sum_{i=1}^{m-1}a_i^{(m-1)}r[m-i]}{E_{m-1}},\quad
+  a_i^{(m)}=a_i^{(m-1)}+k_m\,a_{m-i}^{(m-1)},\quad a_m^{(m)}=k_m,\quad
+  E_m=(1-k_m^2)E_{m-1}.
+\]
+\emph{Burg's method} uses the same order recursion, but estimates every reflection
+coefficient $k_m$ directly from the data by minimising the sum of forward and backward
+prediction error powers,
+\[
+  k_m=-\frac{2\sum_{n=m}^{N-1}f_{m-1}[n]\,b_{m-1}[n-1]}
+           {\sum_{n=m}^{N-1}\bigl(f_{m-1}^2[n]+b_{m-1}^2[n-1]\bigr)},\qquad
+  \begin{aligned}
+  f_m[n]&=f_{m-1}[n]+k_m b_{m-1}[n-1],\\ b_m[n]&=b_{m-1}[n-1]+k_m f_{m-1}[n],
+  \end{aligned}
+\]
+with $f_0[n]=b_0[n]=x[n]$. No autocorrelation estimate (and hence no implicit
+windowing of the data) is needed. Order selection criteria ($E_p$ = prediction error
+power of order $p$, $N$ = record length):
+\[
+  \mathrm{FPE}(p)=E_p\frac{N+p+1}{N-p-1},\qquad
+  \mathrm{AIC}(p)=N\ln E_p+2p,\qquad
+  \mathrm{MDL}(p)=N\ln E_p+p\ln N .
+\]
+Code: \codefile{jslinux/sheet11/}: \texttt{ar.h} (AR library), \texttt{fft.h}
+(radix-2 FFT with the API of Sheet~8, \texttt{fft(re, im, n, inverse)} -- you may
+use your own), \texttt{memspec.c} (Exercise~11.2), \texttt{resolve.c} (Exercise~11.3).
+
+%-------------------------------------------------------------------------
+\begin{exercise}{AR models and the maximum entropy principle}{\Paper}
+\begin{tasks}
+  \item AR(1): derive $a_1$ and $\sigma^2$ from $r[0],r[1]$ and the PSD. For which
+    sign of $a_1$ is the process low-pass, for which high-pass?
+  \item AR(2): write down the Yule--Walker equations and solve them for $a_1,a_2$
+    in terms of $\rho_1=r[1]/r[0]$, $\rho_2=r[2]/r[0]$. Then run the Levinson--Durbin
+    recursion by hand for the normalised autocorrelation
+    $r=[1,\;-0.0627,\;-0.8973]$ and give $k_1,k_2,a_1,a_2,E_1,E_2$.
+  \item Show that an AR(2) model with complex poles $z_{1,2}=r\e^{\pm\jj\theta}$ has
+    $a_1=-2r\cos\theta$, $a_2=r^2$ and describes a resonance. Compute $r$, $\theta$,
+    $a_1$, $a_2$ for the knock mode ($f_1=\SI{6.5}{kHz}$, decay time
+    $\tau=\SI{0.8}{ms}$, $f_s=\SI{25}{kHz}$) and compare with b). Estimate the
+    \SI{-3}{dB} bandwidth of the AR(2) peak from $r$.
+  \item \emph{Maximum entropy.} Given $r[0],\dots,r[p]$, there are infinitely many
+    PSDs consistent with these values. Burg proposed to choose the one with maximum
+    entropy rate $h=\frac{1}{4\pi}\int_{-\pi}^{\pi}\ln P(\omega)\dd\omega$
+    (+const.). Show with a Lagrange argument that this PSD has the form
+    $P(\omega)=1/\sum_{|m|\le p}\lambda_m\e^{-\jj\omega m}$, i.e.\ it is an
+    AR($p$) spectrum. How does the MEM spectrum treat the unknown lags $|m|>p$,
+    compared with a (windowed) periodogram?
+  \item Show that Burg's reflection coefficients always satisfy $|k_m|\le1$.
+    Why does this guarantee a stable (minimum-phase) $A(z)$ and why is that
+    important? Does the Yule--Walker method with the \emph{biased}
+    autocorrelation estimate have the same property?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) $r[1]=-a_1r[0]\Rightarrow a_1=-\rho_1$, $\sigma^2=r[0]+a_1r[1]=r[0](1-\rho_1^2)$,
+$P(f)=\sigma^2T_s/|1+a_1\e^{-\jj\omega}|^2=\sigma^2T_s/(1+a_1^2+2a_1\cos\omega)$.
+For $a_1<0$ (pole $z=-a_1>0$, positive correlation) the PSD is largest at
+$\omega=0$: low-pass; for $a_1>0$ (pole on the negative real axis) high-pass.
+
+b) $\begin{pmatrix}r_0&r_1\\r_1&r_0\end{pmatrix}\binom{a_1}{a_2}=-\binom{r_1}{r_2}$, hence
+\[
+  a_1=-\frac{\rho_1(1-\rho_2)}{1-\rho_1^2},\qquad a_2=-\frac{\rho_2-\rho_1^2}{1-\rho_1^2}.
+\]
+Levinson: $E_0=1$; $k_1=-\rho_1=0.0627$, $a_1^{(1)}=0.0627$,
+$E_1=(1-k_1^2)=0.99607$; $k_2=-(r_2+a_1^{(1)}r_1)/E_1=-(-0.8973-0.00393)/0.99607=0.9048$;
+$a_2=k_2=0.9048$, $a_1=a_1^{(1)}+k_2a_1^{(1)}=0.0627\cdot1.9048=0.1194$;
+$E_2=(1-k_2^2)E_1=0.1806$. The prediction error drops from 1 to 0.18: the
+process is well predictable (narrow resonance).
+
+c) $A(z)=(1-z_1z^{-1})(1-z_2z^{-1})=1-2r\cos\theta\,z^{-1}+r^2z^{-2}$. The impulse
+response of $1/A(z)$ is $\propto r^n\sin((n+1)\theta)$: a damped oscillation with
+$\theta=2\pi f/f_s$ and $r=\e^{-T_s/\tau}$. Knock mode:
+$\theta=2\pi\cdot0.26=93.6^\circ$, $r=\e^{-0.05}=0.9512$,
+$a_1=-2\cdot0.9512\cos 93.6^\circ=0.1195$, $a_2=0.9048$ -- exactly the values of b):
+the autocorrelation given there is that of the knock resonance excited by white noise.
+For $r$ close to 1 the \SI{-3}{dB} bandwidth is $\Delta f\approx(1-r)f_s/\pi=\SI{388}{Hz}$,
+in agreement with $1/(\pi\tau)=\SI{398}{Hz}$ (Sheet~10).
+
+d) Maximise $\int\ln P\dd\omega$ subject to
+$\frac{1}{2\pi}\int P(\omega)\e^{\jj\omega m}\dd\omega=r[m]$, $|m|\le p$. With
+Lagrange multipliers $\lambda_m$ the variation with respect to $P(\omega)$ gives
+$1/P(\omega)-\sum_{|m|\le p}\lambda_m\e^{\jj\omega m}=0$ (up to constants), so
+$1/P(\omega)$ is a non-negative trigonometric polynomial of degree $p$. By the
+Fej\'er--Riesz theorem it can be factorised as $|A(\e^{\jj\omega})|^2/\sigma^2$ with a
+minimum-phase $A$ of degree $p$: the maximum entropy PSD is the AR($p$) spectrum,
+and the constraints are exactly the Yule--Walker equations. The MEM spectrum
+\emph{extrapolates} the autocorrelation beyond lag $p$ in the ``most random'' way
+consistent with the known lags (by the AR recursion). The periodogram implicitly sets
+all lags $|m|\ge N$ to zero and tapers the others (triangular/window lag weighting);
+this truncation causes the $\mathrm{sinc}$ main-lobe width $\approx f_s/N$ and the
+side lobes (leakage). MEM has neither, hence its sharp peaks from short records.
+
+e) With $F=\sum f^2$, $B=\sum b^2$, $C=\sum fb$: Cauchy--Schwarz gives
+$|C|\le\sqrt{FB}\le\tfrac12(F+B)$ (geometric $\le$ arithmetic mean), so
+$|k_m|=2|C|/(F+B)\le1$. In the Levinson structure $|k_m|<1$ for all $m$ is equivalent
+to all zeros of $A(z)$ inside the unit circle (Schur--Cohn), i.e.\ the synthesis filter
+$1/A(z)$ is stable, the prediction errors $E_m=(1-k_m^2)E_{m-1}$ stay positive and
+the spectrum is well defined. The biased autocorrelation sequence is positive
+semidefinite, so Yule--Walker with the biased estimate also yields $|k_m|\le1$; the
+unbiased estimate (division by $N-m$) does not guarantee this and may produce
+unstable models.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{MEM vs.\ periodogram on short knock windows}{\JSLinux}
+\sloppy
+\begin{lstlisting}[style=shell]
+gcc -O2 -o memspec memspec.c -lm && ./memspec [N] [p]     # default N = 64, p = 8
+\end{lstlisting}
+\begin{tasks}
+  \item Complete \texttt{ar\_levinson()}, \texttt{ar\_burg()} and \texttt{ar\_psd()}
+    in \texttt{ar.h}. Test them with the AR(2) example of 11.1\,b) (you must get
+    $a_1=0.1194$, $a_2=0.9048$).
+  \item Part (a) of \texttt{memspec} takes one knock window ($N$ samples starting
+    $10^\circ$ after TDC, \SI{3000}{rpm}, mean removed) and computes the Hann
+    periodogram (zero padded to 1024), the Yule--Walker and the Burg spectrum.
+    Plot \texttt{mem.csv} for $N=32$, 64, 128 and describe the differences.
+  \item Part (b) estimates the knock frequency (maximum between 5.5 and 7.5\,kHz)
+    in 300 windows for $N=32$, 64, 128 with four methods and reports mean,
+    standard deviation, rms error, the \SI{-3}{dB} width of the peak and how often
+    the second mode (\SI{10.5}{kHz}) is found. Interpret the table: in which
+    respect is MEM better than the periodogram, in which not? Why does Burg's
+    frequency estimate scatter more than the periodogram's?
+  \item Complete \texttt{ar\_crit()}. Part (c) applies FPE, AIC and MDL to Burg models
+    up to order 20. Which orders are chosen, and why are about 6--8 poles plausible
+    for the knock signal?
+  \item Part (d) uses Burg with orders 2 to 32 for $N=64$. Explain the growing number
+    of peaks and the ``split'' knock peak, and give a rule of thumb for the order.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Levinson--Durbin (\codefile{solutions/jslinux/sheet11/ar.h}):
+\inputcode[firstline=60,lastline=69]{solutions/jslinux/sheet11/ar.h}
+Burg:
+\inputcode[firstline=87,lastline=105]{solutions/jslinux/sheet11/ar.h}
+Note the backward loop over $n$: $b[n-1]$ must still hold the error of order $m-1$
+when $f[n]$ and $b[n]$ are updated. With $r=[1,-0.0627,-0.8973]$ \texttt{ar\_levinson}
+returns $a_1=0.1194$, $a_2=0.9048$, $E_2=0.181$.
+
+b) Example window ($N=64$, \SI{2.56}{ms}, burst onset at $14.3^\circ$ ATDC, $p=8$):
+peak frequencies \SI{6490}{Hz} (Hann periodogram), \SI{6491}{Hz} (Yule--Walker),
+\SI{6479}{Hz} (Burg); second mode at 10527/10634/10602\,Hz.
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[width=0.8\textwidth,height=5.2cm,xlabel={$f$ [kHz]},ylabel={PSD [dB re 1\,V$^2$/Hz]},
+  xmin=0,xmax=12.5,ymin=-95,ymax=-30,legend pos=south west,legend style={font=\scriptsize},
+  tick label style={font=\scriptsize},label style={font=\small}]
+\addplot[gray,thin] table[x expr=\thisrow{f}/1000,y expr=10*log10(\thisrow{per_hann}),col sep=comma]
+  {\codedir solutions/jslinux/sheet11/mem_example.csv};
+\addplot[dspblue,dashed,thick] table[x expr=\thisrow{f}/1000,y expr=10*log10(\thisrow{yule_walker}),col sep=comma]
+  {\codedir solutions/jslinux/sheet11/mem_example.csv};
+\addplot[red!70!black,thick] table[x expr=\thisrow{f}/1000,y expr=10*log10(\thisrow{burg}),col sep=comma]
+  {\codedir solutions/jslinux/sheet11/mem_example.csv};
+\legend{Hann periodogram,Yule--Walker $p=8$,Burg $p=8$}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+The periodogram shows the two modes as broad main lobes (Hann, $N=64$: main lobe
+$4f_s/N=\SI{1.56}{kHz}$ wide) with side lobes and a deep, ragged background. The AR
+spectra are smooth, have narrow peaks at both modes and a low-frequency peak (the
+combustion vibration that is not removed by subtracting the mean). Yule--Walker is
+smoother and its peaks are lower and broader than Burg's: the biased autocorrelation
+estimate corresponds to an implicitly windowed (``pre- and post-windowed'') record.
+For $N=32$ the periodogram lobes become twice as wide, while the Burg peaks remain
+sharp; for $N=128$ all methods agree well.
+
+c) Output of part (b):
+\begin{center}
+\small
+\begin{tabular}{@{}rlrrrrr@{}}
+\toprule
+$N$ & method & mean [Hz] & std [Hz] & rms err [Hz] & \SI{-3}{dB} width [Hz] & 10.5\,kHz found\\
+\midrule
+32 & periodogram rect & 6469 & 99 & 103 & 1043 & 83\,\%\\
+32 & periodogram Hann & 6451 & 130 & 139 & 1540 & 75\,\%\\
+32 & Yule--Walker $p=8$ & 6516 & 74 & 76 & 630 & 72\,\%\\
+32 & Burg $p=8$ & 6487 & 106 & 107 & 376 & 74\,\%\\
+\midrule
+64 & periodogram rect & 6494 & 21 & 22 & 519 & 100\,\%\\
+64 & periodogram Hann & 6496 & 20 & 21 & 666 & 100\,\%\\
+64 & Yule--Walker $p=8$ & 6515 & 37 & 40 & 382 & 86\,\%\\
+64 & Burg $p=8$ & 6486 & 85 & 86 & 277 & 90\,\%\\
+\midrule
+128 & periodogram rect & 6493 & 34 & 35 & 417 & 100\,\%\\
+128 & periodogram Hann & 6496 & 35 & 35 & 377 & 98\,\%\\
+128 & Yule--Walker $p=8$ & 6542 & 39 & 57 & 464 & 90\,\%\\
+128 & Burg $p=8$ & 6532 & 84 & 90 & 354 & 89\,\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+\emph{Peak shape:} the true knock spectrum has a \SI{-3}{dB} width of
+$1/(\pi\tau)\approx\SI{400}{Hz}$. Burg reproduces it already from 32 samples
+(\SI{376}{Hz}); the periodograms show the width of their window main lobe
+(\SI{1043}{Hz} and \SI{1540}{Hz} for $N=32$) and approach the true width only for
+$N=128$. This is the advantage of MEM: the spectral \emph{shape} and the resolution are
+not limited by $f_s/N$.\\
+\emph{Frequency of an isolated, strong peak:} here the (zero-padded, interpolated)
+periodogram maximum is as good or better (rms error \SI{21}{Hz} for $N=64$); for a
+single sinusoid in white noise it is the maximum-likelihood estimator. A wide main
+lobe does not shift the maximum. Burg's estimate scatters by 80--100\,Hz: (i) its
+frequency estimate of a sinusoid depends on the initial phase (known bias of the Burg
+method for short records), (ii) the forward--backward averaging assumes a stationary
+signal, but the knock burst decays -- backwards it grows, so the fitted poles are
+pushed towards the unit circle and their angles are disturbed; (iii) with $p=8$ the
+model has to share its poles between two modes, the low-frequency vibration and the
+noise. A noise-free test (single damped sinusoid, $N=64$, $p=2$) confirms (i)/(ii):
+Burg finds 6300--6698\,Hz depending on the phase and $r\approx0.995$ instead of 0.951.
+For knock \emph{detection} (Sheet~12) the exact frequency is irrelevant; what matters is
+the energy near \SI{6.5}{kHz} relative to the background -- and there MEM's clean,
+leakage-free spectrum of a 32-sample window is attractive.
+
+d) Order selection (Burg, orders 1--20, 300 windows):
+\begin{center}
+\small
+\begin{tabular}{@{}rccc@{}}
+\toprule
+$N$ & FPE: mean / most frequent & AIC & MDL\\
+\midrule
+32 & 7.2 / 7 & 7.8 / 7 & 5.0 / 3\\
+64 & 8.8 / 7 & 8.9 / 7 & 6.8 / 7\\
+128 & 10.1 / 7 & 10.2 / 7 & 7.2 / 7\\
+\bottomrule
+\end{tabular}
+\end{center}
+The signal contains two resonances (2 pole pairs), the low-frequency combustion
+vibration (1 pair) and noise: 6--8 poles are physically plausible, and all criteria
+mostly choose $p=7$. FPE and AIC are asymptotically equivalent; they penalise the
+order weakly and tend to overestimate it for larger $N$ (mean 10). MDL penalises with
+$\ln N$ and is consistent; for $N=32$ it often selects only $p=3$ (one resonance),
+because a short record does not justify more parameters.
+
+e) Burg, $N=64$:
+\begin{center}
+\small
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+$p$ & peaks within 20\,dB of max & knock peak split & rms error [Hz]\\
+\midrule
+2 & 1.00 & 0\,\% & 479\\
+4 & 1.00 & 0\,\% & 128\\
+8 & 2.08 & 0\,\% & 80\\
+16 & 3.66 & 17\,\% & 97\\
+24 & 5.89 & 30\,\% & 100\\
+32 & 8.42 & 52\,\% & 111\\
+\bottomrule
+\end{tabular}
+\end{center}
+With $p=2$ one pole pair has to describe everything (the estimate is pulled away from
+\SI{6.5}{kHz}). For $p\gg$ (number of components) the surplus poles are placed close to
+the unit circle to fit noise details of the particular record: spurious peaks appear,
+and the knock peak splits into two (\emph{line splitting}, typical for Burg at high
+order and high SNR). At $p=N/2$ the AR spectrum approaches the erratic behaviour of the
+periodogram (the model has as many parameters as there are independent lags). Rule
+of thumb: $p\approx$ 2 $\times$ (number of expected resonances) + 2, and $p\le N/3$; check
+with FPE/AIC/MDL.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Resolving two close resonances}{\JSLinux}
+\sloppy
+A temperature-dependent shift of the knock mode in one cylinder, or a second structural
+mode of the engine block, can create two resonances only a few hundred Hz apart. Can
+the ECU still separate them within one knock window?
+\begin{lstlisting}[style=shell]
+gcc -O2 -o resolve resolve.c -lm && ./resolve 500 && ./resolve 250 && ./resolve 1000
+\end{lstlisting}
+\begin{tasks}
+  \item Complete \texttt{resolved()}: the two components count as resolved if there is a
+    local maximum within $\Delta f/2$ of $f_1$ and one within $\Delta f/2$ of $f_2$, and
+    the spectrum dips by at least \SI{3}{dB} between them.
+  \item The program generates two sinusoids at $f_1=\SI{6.5}{kHz}$ and $f_1+\Delta f$
+    (random phases) in white noise with an SNR of 40, 20 and \SI{10}{dB} per component
+    and records how often the rectangular periodogram, the Hann periodogram and Burg
+    ($p=N/3$, at most 32) resolve them for $N=16\dots256$. Determine the minimum record
+    length for $\ge90\,\%$ resolution for $\Delta f=\SI{500}{Hz}$ and compare with the
+    Rayleigh limit $N\approx f_s/\Delta f$. How does the SNR influence the result?
+  \item Repeat for $\Delta f=250$ and \SI{1000}{Hz}. At $\Delta f=\SI{500}{Hz}$ and
+    \SI{6000}{rpm}, a $60^\circ$ window has 42 samples: which method can resolve the two
+    modes?
+  \item Part (b) of the program uses \emph{damped} modes with $\tau=\SI{0.8}{ms}$, as in a
+    real knock burst. Explain why now even long records and high SNR do not help for
+    $\Delta f=\SI{250}{Hz}$ and why Burg's success rate saturates at about 50--60\,\% for
+    $\Delta f=\SI{500}{Hz}$.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) See \codefile{solutions/jslinux/sheet11/resolve.c}:
+\inputcode[firstline=36,lastline=52]{solutions/jslinux/sheet11/resolve.c}
+
+b) $\Delta f=\SI{500}{Hz}$, percentage of resolved trials (200 trials each):
+\begin{center}
+\small
+\begin{tabular}{@{}rr|rrr|rrr|rrr|rrr@{}}
+\toprule
+ & & \multicolumn{3}{c|}{SNR 40\,dB} & \multicolumn{3}{c|}{SNR 20\,dB} &
+ \multicolumn{3}{c|}{SNR 10\,dB} & \multicolumn{3}{c}{damped, 40\,dB}\\
+$N$ & $p$ & rect & Hann & Burg & rect & Hann & Burg & rect & Hann & Burg & rect & Hann & Burg\\
+\midrule
+16 & 5 & 0 & 0 & 32 & 0 & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 28\\
+24 & 8 & 0 & 0 & 60 & 0 & 0 & 22 & 0 & 0 & 0 & 0 & 0 & 34\\
+32 & 10 & 4 & 0 & 84 & 2 & 0 & 58 & 0 & 0 & 6 & 1 & 0 & 44\\
+48 & 16 & 37 & 10 & 100 & 39 & 11 & 100 & 37 & 4 & 92 & 31 & 6 & 46\\
+64 & 21 & 56 & 25 & 100 & 49 & 21 & 100 & 56 & 24 & 100 & 34 & 26 & 50\\
+96 & 32 & 100 & 50 & 100 & 100 & 46 & 100 & 100 & 46 & 100 & 39 & 42 & 58\\
+128 & 32 & 100 & 100 & 100 & 100 & 100 & 100 & 100 & 100 & 100 & 36 & 54 & 58\\
+256 & 32 & 100 & 100 & 100 & 100 & 100 & 100 & 100 & 100 & 100 & 35 & 100 & 58\\
+\bottomrule
+\end{tabular}
+\end{center}
+Minimum $N$ for $\ge90\,\%$: periodogram rect 96, Hann 128 (independent of the SNR),
+Burg 48 at \SI{40}{dB} and \SI{20}{dB} (84\,\% already at $N=32$ for \SI{40}{dB}), 48 at
+\SI{10}{dB}. The Rayleigh limit $f_s/\Delta f=50$ samples is the record length at which
+the main lobes (width $2f_s/N$ for rect, $4f_s/N$ for Hann between the first zeros)
+start to separate; with random phases and the 3-dB criterion about twice this length
+is needed (rect: 56\,\% at $N=64$, Hann: about $2\times$ longer). The periodogram's
+resolution is a property of the window and does not improve with SNR. Burg beats the
+Rayleigh limit by a factor 2 at moderate SNR -- the ``super-resolution'' of MEM --,
+but its advantage shrinks with decreasing SNR: at \SI{10}{dB} it needs $N=48$ and fails
+completely below $N=32$, because the noise has to be modelled by the same few poles.
+
+c) $\Delta f=\SI{250}{Hz}$ (Rayleigh limit 100 samples): rect needs $N=256$, Hann 256,
+Burg 64 (94\,\%) at \SI{40}{dB}, 96 at 20 and \SI{10}{dB}.
+$\Delta f=\SI{1000}{Hz}$ (Rayleigh 25): rect $N=48$, Hann 64, Burg 24 at 40/20\,dB and 32
+(99\,\%) at \SI{10}{dB}. With 42 samples ($60^\circ$ at \SI{6000}{rpm}) and
+$\Delta f=\SI{500}{Hz}$, only Burg can separate the modes (and only at SNR
+$\gtrsim\SI{10}{dB}$); the periodogram resolves them in less than 40\,\% of the cases.
+
+d) A damped mode has a Lorentzian line of width $1/(\pi\tau)=\SI{400}{Hz}$ -- this is a
+property of the signal, not of the estimator. Two such lines \SI{250}{Hz} apart overlap
+into a single peak, so no method can show two maxima: the success rate stays at
+0--28\,\% for all $N$ (output of \texttt{./resolve 250}, damped part). At
+$\Delta f=\SI{500}{Hz}$ the lines are just separable; a long rectangular window does
+not help either (the signal has decayed after $\approx3\tau=60$ samples, more samples
+only add noise), the Hann window at $N=256$ succeeds because it suppresses the
+discontinuity at the burst onset. Burg saturates at 50--60\,\%: the forward--backward
+error criterion assumes stationarity, so for decaying signals it biases the pole radii
+towards 1 and the pole angles depending on the phases (cf.\ 11.2\,c). For damped
+exponentials, methods that model the decay explicitly (forward linear prediction /
+covariance method, Prony) are more appropriate. For $\Delta f=\SI{1000}{Hz}$ Burg
+resolves the damped modes in 90--98\,\% of the cases from $N=24$ on.
+\end{solution}
+
+\begin{deliverables}
+11.1 on paper. Completed \texttt{ar.h}; plots of \texttt{mem.csv} for $N=32,64,128$;
+the tables of \texttt{memspec} parts (b)--(d) and of \texttt{resolve} for
+$\Delta f=250,500,1000$\,Hz with a half-page interpretation: when would you use MEM
+in a knock controller, and when not?
+\end{deliverables}

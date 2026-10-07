@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "chip-engine-sim", "id": "eng", "top": -150, "left": -40,
+      "attrs": { "vmax": "5", "offset": "2.5" } },
+    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -170, "left": 260, "attrs": {} },
+    { "type": "wokwi-pushbutton", "id": "btn1", "top": -100, "left": 120,
+      "attrs": { "color": "blue", "label": "dump" } },
+    { "type": "wokwi-led", "id": "led_tdc", "top": -90, "left": 200, "attrs": { "color": "red", "label": "TDC" } },
+    { "type": "wokwi-led", "id": "led_cyl1", "top": -90, "left": 230, "attrs": { "color": "green", "label": "cyl 1" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": -30, "left": 190, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -30, "left": 220, "rotate": 90, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "eng:GND", "uno:GND.1", "black", [] ],
+    [ "eng:VCC", "uno:5V", "red", [] ],
+    [ "eng:CRANK", "uno:2", "green", [] ],
+    [ "eng:CAM", "uno:4", "blue", [] ],
+    [ "btn1:1.l", "uno:7", "gray", [] ],
+    [ "btn1:2.l", "uno:GND.2", "black", [] ],
+    [ "uno:12", "r1:1", "orange", [] ],
+    [ "r1:2", "led_tdc:A", "orange", [] ],
+    [ "led_tdc:C", "uno:GND.2", "black", [] ],
+    [ "uno:11", "r2:1", "purple", [] ],
+    [ "r2:2", "led_cyl1:A", "purple", [] ],
+    [ "led_cyl1:C", "uno:GND.2", "black", [] ],
+    [ "logic1:D0", "eng:CRANK", "green", [] ],
+    [ "logic1:D1", "eng:CAM", "blue", [] ],
+    [ "logic1:D2", "eng:TDC", "yellow", [] ],
+    [ "logic1:D3", "uno:12", "orange", [] ],
+    [ "logic1:D4", "uno:11", "purple", [] ],
+    [ "logic1:GND", "uno:GND.3", "black", [] ]
+  ],
+  "dependencies": {}
+}
