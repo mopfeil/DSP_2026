@@ -4,6 +4,19 @@ Exercise sheets (LaTeX) and lab code for the master lecture
 *Digital Signal Processing -- Using Automotive Engine Signals as a Guiding Example*
 (`DSP_Lecture.pdf`).
 
+## Getting the code
+
+```sh
+git clone https://github.com/mopfeil/DSP_2026.git      # HTTPS, read-only
+git clone git@github.com:mopfeil/DSP_2026.git          # SSH, needs a key with access
+```
+
+On the course server the repo pushes through the deploy key
+`~/.ssh/dsp2026_deploy`, using the `github-dsp2026` host alias from `~/.ssh/config`:
+```sh
+git clone git@github-dsp2026:mopfeil/DSP_2026.git
+```
+
 ## Layout
 
 | Path | Content |
