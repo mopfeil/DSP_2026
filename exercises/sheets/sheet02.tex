@@ -111,6 +111,32 @@ period domain (sum of the $T_k$) and inverting once gives it exactly.
 \end{solution}
 
 %-------------------------------------------------------------------------
+\section*{Setup: JSLinux}
+From this sheet on, most lab exercises run in JSLinux, a Linux system in the
+browser. If you have not done Bonus Exercise~0.B1, set it up now (about
+\SI{10}{min}):
+\begin{enumerate}
+  \item Open \url{https://bellard.org/jslinux}, start the \emph{x86 Alpine
+    Linux} (console) virtual machine and check the compiler with
+    \texttt{gcc --version} (or \texttt{tcc -v}).
+  \item Upload the course headers \texttt{engine\_signals.h},
+    \texttt{asciiplot.h}, \texttt{csvio.h} (\codefile{common/}) and the
+    files of the exercise (e.g.\ \codefile{jslinux/sheet02/}) with the
+    upload button below the terminal; check with \texttt{ls} that they arrived.
+    Headers and program must be in the same directory.
+  \item Compile and run, e.g.
+\begin{lstlisting}[style=shell]
+gcc -O2 -o blackbox blackbox.c -lm
+./blackbox
+\end{lstlisting}
+  \item The VM forgets all files when the page is reloaded: keep your sources
+    on your own computer and upload them again. Text from Wokwi (Serial
+    Monitor) gets into the VM with \texttt{cat > data.csv}, paste,
+    \texttt{Ctrl-D}; \texttt{export\_file data.csv} downloads a file from
+    the VM to your computer.
+\end{enumerate}
+
+%-------------------------------------------------------------------------
 \begin{exercise}{Black-box system identification}{\JSLinux}
 The header \codefile{jslinux/sheet02/mystery.h} contains five unknown systems
 \begin{center}\verb|void Sk(const double *x, double *y, int N);|\quad $k=1,\dots,5$\end{center}

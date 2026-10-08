@@ -68,8 +68,10 @@ from these signals. Sheet 12 (knock detection) assembles all parts.
     (time signal, spectrum, pole-zero map).
   \item \texttt{csvio.h}: read/write of sample files; a set of
     pre-recorded data files (crank, knock with/without knock, lambda).
-  \item Sheet 0 (\emph{Getting started}, 45\,min): blink + serial CSV on
-    Wokwi; compile/run/upload/download on JSLinux.
+  \item Sheet 0 (\emph{Getting started}, 45\,min): blink + serial CSV and
+    the engine simulator chip on Wokwi; compile/run/upload/download on
+    JSLinux as an optional bonus exercise. Sheet 2 repeats the JSLinux
+    setup in a short section for everybody.
 \end{itemize}
 
 \subsection*{Sheet format}
@@ -86,7 +88,7 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \toprule
 \# & Chapter & Lab core & \W & \J\\
 \midrule
-1 & ECU and Signals & 60-2 crank signal, RPM from tooth timing, signal zoo & x & x\\
+1 & ECU and Signals & 60-2 crank signal, RPM from tooth timing (bonus: signal zoo) & x & (x)\\
 2 & Systems & Black-box property tests, lambda loop with delay & x & x\\
 3 & LTI Systems & Convolution, impulse/step response, moving-average RPM & x & x\\
 4 & Sampling & ADC sampling, quantisation SNR, time vs.\ angle domain & x & x\\
@@ -101,6 +103,8 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \bottomrule
 \end{tabularx}
 \end{center}
+(x) = optional bonus exercise only. Sheets 0 and 1 (the first lab days) are
+Wokwi-only; JSLinux becomes mandatory from Sheet~2 on.
 
 %=====================================================================
 \section{Sheet 1 -- The ECU Sees Only Signals}
@@ -117,28 +121,30 @@ first piece of information (engine speed) from a raw signal.
   \item Relation crank angle vs.\ cam angle (720$^\circ$ vs.\ 360$^\circ$):
     period of each signal at 3000\,rpm.}
 
-\exercise{1.2}{Signal zoo}{\J}{
-  \item Generate and plot all five sensor models with
-    \texttt{engine\_signals.h}; compute mean, RMS, min/max.
-  \item Determine numerically whether a signal is periodic (autocorrelation
-    peak) -- compare crank at constant speed vs.\ knock signal.}
-
-\exercise{1.3}{60-2 crank wheel and engine speed}{\W}{
+\exercise{1.2}{60-2 crank wheel and engine speed}{\W}{
   \item Arduino Uno + \texttt{crank-60-2} chip: capture rising edges by
     interrupt, store tooth periods, print CSV.
   \item Detect the missing-tooth gap (period ratio $>$ 2), count teeth,
     compute crank angle and RPM; light an LED at TDC.
   \item Vary RPM with a potentiometer; observe jitter in the RPM estimate.}
 
-\exercise{1.4}{Cam/crank synchronisation (challenge)}{\W}{
+\exercise{1.3}{Cam/crank synchronisation (challenge)}{\W}{
   \item Add the cam signal and determine the 720$^\circ$ cycle phase
     (cylinder identification).}
+
+\exercise{1.B1}{Signal zoo (bonus, optional)}{\J}{
+  \item Generate and plot all five sensor models with
+    \texttt{engine\_signals.h}; compute mean, RMS, min/max.
+  \item Determine numerically whether a signal is periodic (autocorrelation
+    peak) -- compare crank at constant speed vs.\ knock signal.}
 
 %=====================================================================
 \section{Sheet 2 -- Systems}
 \begin{sheetinfo}
 Goals: the operator view $y=S\{x\}$; static/dynamic, causal/non-causal,
 memoryless/with memory; first contact with linearity and time invariance.
+First sheet with mandatory JSLinux exercises: starts with a short JSLinux
+setup section (for students who skipped the bonus exercises of Sheets 0--1).
 \end{sheetinfo}
 
 \exercise{2.1}{Properties by hand}{\Pap}{
