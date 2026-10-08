@@ -5,8 +5,9 @@
   \item Classify the engine sensor signals (continuous/discrete time,
     analog/binary amplitude, deterministic/stochastic, periodic/aperiodic)
     and know their characteristic time scales.
-  \item Describe sensor signals quantitatively: mean, RMS, extreme values,
-    autocorrelation as a numerical test for periodicity.
+  \item \emph{Bonus (optional):} describe sensor signals quantitatively:
+    mean, RMS, extreme values, autocorrelation as a numerical test for
+    periodicity.
   \item Extract a first piece of information from a raw signal: crank
     angle and engine speed from the 60-2 tooth timing, including the
     effect of the timer resolution.
@@ -281,8 +282,199 @@ inject sequentially.
 \end{solution}
 
 %-------------------------------------------------------------------------
+\begin{exercise}{60-2 crank wheel and engine speed}{\Wokwi}
+Open the Wokwi project \codefile{wokwi/sheet01\_crank/} (Arduino Uno, engine
+simulator chip, logic analyzer, two LEDs, push button). \texttt{eng:CRANK}
+is connected to pin~2 (external interrupt INT0), \texttt{eng:CAM} to pin~4.
+The ISR \texttt{crank\_isr()} is called at every rising crank edge and
+time-stamps it. With \texttt{TIMEBASE\_TIMER1 = 1} the time stamp is the
+16-bit Timer1 counter (prescaler 8, \SI{0.5}{\micro s} per tick), with 0 it
+is \texttt{micros()} (resolution \SI{4}{\micro s} on the Uno).
+\begin{tasks}
+  \item \emph{Preparation (paper).} Derive \eqref{eq:rpm}. A timer of resolution
+    $\Delta$ quantises the tooth period. Show that the resulting quantisation
+    step of the per-tooth speed is $\Delta n \approx n^2\Delta$ (with $n$ in rpm
+    and $\Delta$ in s) and evaluate it for $\Delta=\SI{4}{\micro s}$ and
+    \SI{0.5}{\micro s} at 600, 3000 and \SI{7000}{rpm}. Compare with the
+    amplitude of the 1\,\% speed ripple of the model. The gap is detected by
+    the ratio test $T_k > 2\,T_{k-1}$: estimate the angular acceleration
+    (in rpm/s) at which the test would fail (missed gap, or false gap), and
+    compare with realistic engine accelerations
+    ($\lesssim\SI{10000}{rpm/s}$).
+  \item Complete the ISR: gap detection, tooth counter, per-revolution
+    statistics, TDC LED (pin 12) on for $30^\circ$ starting at each TDC
+    edge. Which tooth numbers belong to $\theta=120^\circ$ and $300^\circ$?
+    Check with the logic analyzer (D0 = crank, D2 = TDC output of the chip,
+    D3 = your LED) and report the column \texttt{teeth} and
+    \texttt{sync\_err}.
+  \item Complete the speed computation in \texttt{loop()} (per revolution,
+    last tooth, min/max per tooth). At \SI{3000}{rpm}, compare
+    \texttt{rpm\_rev} with the spread \texttt{rpm\_min}\dots\texttt{rpm\_max}
+    for both time bases. Press the button to dump 120 tooth periods, copy
+    only this block and plot the per-tooth speed (column \texttt{rpm}), e.g.\
+    in a spreadsheet or with your CSV plot program of Bonus Exercise~0.B1\,d)
+    in JSLinux. Which part of the
+    ``jitter'' is information, which part is measurement error?
+  \item Move the speed slider (600\dots\SI{7000}{rpm}) and repeat c) at
+    \SI{7000}{rpm}. Why is printing one CSV line per \emph{tooth} not an
+    option (estimate the UART load)?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) One tooth $=6^\circ=\frac{1}{60}$\,rev, so the speed is
+$\frac{1}{60\,T_k}$\,rev/s $=\frac{60}{60\,T_k}$\,rpm $=1/T_k$ (in rpm with $T_k$
+in s). The gap covers $18^\circ$, a revolution $360^\circ$, hence $3/T_{\text{gap}}$
+and $60/T_{\text{rev}}$. With $n=1/T$: $\left|\frac{\dd n}{\dd T}\right|=\frac{1}{T^2}=n^2$,
+so a period error of one tick changes $n$ by $\Delta n\approx n^2\Delta$:
+
+\begin{center}
+\small
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+$n$ / rpm & $T_k$ & $\Delta n$ ($\Delta=\SI{4}{\micro s}$) & $\Delta n$ ($\Delta=\SI{0.5}{\micro s}$) & ripple ($\pm1\,\%$) \\
+\midrule
+600  & \SI{1667}{\micro s} & \SI{1.4}{rpm} & \SI{0.2}{rpm} & $\pm$\SI{6}{rpm} \\
+3000 & \SI{333}{\micro s}  & \SI{36}{rpm}  & \SI{4.5}{rpm} & $\pm$\SI{30}{rpm} \\
+7000 & \SI{143}{\micro s}  & \SI{196}{rpm} & \SI{24.5}{rpm}& $\pm$\SI{70}{rpm} \\
+\bottomrule
+\end{tabular}
+\end{center}
+The relative resolution $\Delta n/n=\Delta/T_k$ degrades linearly with speed. With
+\texttt{micros()} the ripple is buried in the quantisation above
+$\approx\SI{2500}{rpm}$; with the \SI{0.5}{\micro s} timer it is resolved over the
+whole range. Real ECUs use capture timers with $\le\SI{100}{ns}$ resolution.
+
+Gap test: let $\omega_1$ be the speed during the tooth before the gap,
+$\omega_2$ the mean speed across the gap. Then $T_{\text{gap}}/T_{\text{prev}}
+=3\omega_1/\omega_2<2$ requires $\omega_2>1.5\,\omega_1$ within about two
+tooth periods ($\approx12^\circ/\omega_1$):
+$\dot\omega\approx 0.5\,\omega_1^2/12^\circ$, i.e.\ $\dot n\approx n^2/4$ (rpm/s,
+$n$ in rpm) -- \SI{90000}{rpm/s} at \SI{600}{rpm}. A false gap
+($T_k/T_{k-1}>2$ for a normal tooth) needs the speed to halve within one tooth,
+$\dot n\approx -n^2/2$, \SI{-180000}{rpm/s} at \SI{600}{rpm}. Both are an order
+of magnitude beyond real engines, so threshold 2 (the geometric mean of 1 and 3
+would be 1.73) is robust in normal operation. Critical is only the
+start (cranking at \SI{200}{rpm} with $\pm$30\,\% speed fluctuations from the
+compression strokes, limit $\dot n\approx\SI{10000}{rpm/s}$), where ECUs add
+plausibility checks (tooth count 58 between gaps, cam edge position).
+
+b) Key part of the solution
+(\codefile{solutions/wokwi/sheet01\_crank/sketch.ino}):
+\inputcode[firstline=52,lastline=99]{solutions/wokwi/sheet01_crank/sketch.ino}
+$120^\circ$ and $300^\circ$ correspond to the rising edges of teeth 20 and 50.
+Every revolution reports \texttt{teeth} $=58$ edges (57 normal teeth + the gap
+edge) and \texttt{sync\_err} $=0$. In the logic analyzer the LED rises
+a few microseconds (interrupt latency) after the rising edge of tooth 20 (50),
+i.e.\ practically together with the \SI{50}{\micro s} TDC pulse of the chip, which
+is emitted exactly at $120^\circ$/$300^\circ$. The LED marks the
+crank-angle \emph{event}; it is lit for 5 teeth = $30^\circ$.
+
+c) Expected values at \SI{3000}{rpm} (obtained with an offline model of exactly this
+measurement, \codefile{solutions/wokwi/sheet01\_crank/tooth\_sim.c}, over 200
+revolutions; in Wokwi rare additional outliers of a few \si{\micro s} can occur
+when the crank interrupt has to wait for the Timer0 or UART interrupt):
+\begin{center}
+\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+time base & rpm\_rev & per-tooth min\dots max & per-tooth std \\
+\midrule
+\texttt{micros()}, \SI{4}{\micro s} & 2999.4\dots3000.0 & 2941\dots3049 & \SI{25.7}{rpm} \\
+Timer1, \SI{0.5}{\micro s} & 2999.85 & 2967\dots3030 & \SI{21.7}{rpm} \\
+\bottomrule
+\end{tabular}
+\end{center}
+The per-revolution speed is very precise (one tick on \SI{20}{ms}:
+$\Delta n/n=0.5/40000$) and slightly \emph{below} 3000, because the mean of
+$1/(1+\varepsilon\sin2\theta)$ is $1+\varepsilon^2/2$
+($n\varepsilon^2/2=\SI{0.15}{rpm}$). The per-tooth values with Timer1 show the
+\emph{real} speed fluctuation: $\pm1\,\%$, two periods per revolution, std
+$30/\sqrt2=\SI{21.2}{rpm}$ -- this is information (in a real engine the
+torque pulses of the individual combustions; used e.g.\ for misfire
+detection). With \texttt{micros()} the values jump in steps of $\approx\SI{36}{rpm}$
+(332, 336\,\si{\micro s}) -- a measurement error of the same size as the
+information. The plotted dump shows a clean sine with 2 periods per
+58 teeth for Timer1 and a staircase-like, noisy version for \texttt{micros()}.
+
+d) At \SI{7000}{rpm} the model gives per-tooth std \SI{94}{rpm} (micros, range
+6757\dots7143) vs.\ \SI{51}{rpm} (Timer1, 6920\dots7092, ripple
+$\pm\SI{70}{rpm}$); the per-revolution value stays within
+$\pm\SI{3}{rpm}$ resp.\ \SI{0.5}{rpm}. When the slider is moved, the speed
+changes abruptly in the simulator; the gap is still found (ratio 3 vs.\ 1,
+see a)) as long as the jump does not fall exactly into the gap.
+UART: at \SI{7000}{rpm} there are $7000\cdot58/60\approx6800$ teeth/s; a line
+such as \texttt{1234,57,286,6993.0} has $\approx20$ characters, i.e.\
+\SI{136000}{chars/s} -- twelve times the capacity of 115200\,baud
+(\SI{11520}{chars/s}). Hence statistics per revolution and block dumps from RAM.
+\end{solution}
+
+%-------------------------------------------------------------------------
+\begin{exercise}{Cam/crank synchronisation}{\Challenge}
+Extend your sketch such that it determines the $720^\circ$ phase from the cam
+signal (\texttt{eng:CAM}, HIGH for $0^\circ\le\theta<180^\circ$).
+\begin{tasks}
+  \item Why should the cam level not be read at the reference edge
+    ($\theta=0^\circ$), and which tooth is a good choice instead?
+  \item Implement \texttt{phase} ($0^\circ$ or $360^\circ$), toggle it at every
+    gap, and check it at every revolution (\texttt{cam\_err}). Light the LED on
+    pin~11 only at the compression TDC of cylinder~1 and verify it with the
+    logic analyzer (D1 = cam, D4 = LED).
+  \item Give the crank angle and the number of the cylinder that fires at each of
+    the four TDC events.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) The cam edge at $\theta=0^\circ$ coincides with the reference edge of the
+crank signal (in the simulator both are written in the same event, on a real
+engine the cam edge has a tolerance of several degrees and drifts with cam
+phasing). Reading the level there is a race. The level must be read in the
+middle of a cam state, e.g.\ at tooth 10 ($60^\circ$ or $420^\circ$): HIGH $\Rightarrow$
+first revolution (phase $0^\circ$), LOW $\Rightarrow$ second revolution (phase
+$360^\circ$). Any tooth with $\ge 10^\circ$ distance to $0^\circ$ and $180^\circ$ works.
+
+b) See the listing in Exercise~1.2 (line 21 and lines 43--48): at every gap
+\texttt{phase = 360 - phase}, at tooth 10 the cam level is compared with the
+predicted phase; \texttt{cam\_err} stays 0 and the printed \texttt{phase}
+alternates 0, 360, 0, \dots{} The green LED is on only every second time
+the red TDC LED lights up, i.e.\ once per engine cycle (every \SI{40}{ms} at
+\SI{3000}{rpm}).
+
+c) $\theta=\text{phase}+6^\circ k$; firing order 1-3-4-2:
+\begin{center}
+\small
+\begin{tabular}{@{}cccc@{}}
+\toprule
+phase & tooth & crank angle & cylinder \\
+\midrule
+$0^\circ$   & 20 & $120^\circ$ & 1 \\
+$0^\circ$   & 50 & $300^\circ$ & 3 \\
+$360^\circ$ & 20 & $480^\circ$ & 4 \\
+$360^\circ$ & 50 & $660^\circ$ & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{solution}
+
+\begin{deliverables}
+1.1: completed classification table and time-scale table. 1.2: sketch,
+screenshot of the logic analyzer (gap, TDC, LED), table of rpm statistics for
+both time bases at 3000 and \SI{7000}{rpm}, plot of a tooth-period dump. 1.3
+(optional): extended sketch, logic analyzer screenshot with cam and
+cylinder-1 LED. Bonus 1.B1 (optional): program, table of statistics and
+periods, short interpretation.
+\end{deliverables}
+
+%=========================================================================
+\section*{Bonus: JSLinux (optional)}
+\begingroup
+\setcounter{exercise}{0}\renewcommand{\theexercise}{B\arabic{exercise}}
+For interested students: the following exercise analyses all engine signals
+offline in JSLinux (set up as in Bonus Exercise~0.B1).
+
 \begin{exercise}{Signal zoo}{\JSLinux}
-The program \codefile{jslinux/sheet01/signal\_zoo.c} generates \SI{160}{ms}
+The program \codefile{bonus/jslinux/sheet01/signal\_zoo.c} generates \SI{160}{ms}
 (four engine cycles) of the crank, cam, knock and ion signals at
 \SI{3000}{rpm}, $f_s=\SI{25}{kHz}$, and \SI{20}{s} of a lambda sensor signal
 ($f_s=\SI{200}{Hz}$) for a slowly oscillating $\lambda(t)$. Additionally, a crank
@@ -308,7 +500,7 @@ signal during a speed ramp \SIrange{2000}{4000}{rpm} is generated.
 \end{exercise}
 
 \begin{solution}
-a) Output of the reference solution \codefile{solutions/jslinux/sheet01/signal\_zoo.c}:
+a) Output of the reference solution \codefile{solutions/bonus/jslinux/sheet01/signal\_zoo.c}:
 \begin{lstlisting}[style=shell,numbers=none]
 signal              mean       rms       min       max
 crank             0.4808    0.6934    0.0000    1.0000
@@ -368,188 +560,6 @@ The biased estimator ($1/N$ instead of $1/(N-m)$) multiplies $r[m]$ by
 $(N-m)/N$; at lag 1000 of a 4000-sample record this is a factor $0.75$, so the
 cam signal would show $r=0.75$ although it is perfectly periodic, and shorter
 lags would always be favoured. Key part of the solution:
-\inputcode[firstline=48,lastline=80]{solutions/jslinux/sheet01/signal_zoo.c}
+\inputcode[firstline=48,lastline=80]{solutions/bonus/jslinux/sheet01/signal_zoo.c}
 \end{solution}
-
-%-------------------------------------------------------------------------
-\begin{exercise}{60-2 crank wheel and engine speed}{\Wokwi}
-Open the Wokwi project \codefile{wokwi/sheet01\_crank/} (Arduino Uno, engine
-simulator chip, logic analyzer, two LEDs, push button). \texttt{eng:CRANK}
-is connected to pin~2 (external interrupt INT0), \texttt{eng:CAM} to pin~4.
-The ISR \texttt{crank\_isr()} is called at every rising crank edge and
-time-stamps it. With \texttt{TIMEBASE\_TIMER1 = 1} the time stamp is the
-16-bit Timer1 counter (prescaler 8, \SI{0.5}{\micro s} per tick), with 0 it
-is \texttt{micros()} (resolution \SI{4}{\micro s} on the Uno).
-\begin{tasks}
-  \item \emph{Preparation (paper).} Derive \eqref{eq:rpm}. A timer of resolution
-    $\Delta$ quantises the tooth period. Show that the resulting quantisation
-    step of the per-tooth speed is $\Delta n \approx n^2\Delta$ (with $n$ in rpm
-    and $\Delta$ in s) and evaluate it for $\Delta=\SI{4}{\micro s}$ and
-    \SI{0.5}{\micro s} at 600, 3000 and \SI{7000}{rpm}. Compare with the
-    amplitude of the 1\,\% speed ripple of the model. The gap is detected by
-    the ratio test $T_k > 2\,T_{k-1}$: estimate the angular acceleration
-    (in rpm/s) at which the test would fail (missed gap, or false gap), and
-    compare with realistic engine accelerations
-    ($\lesssim\SI{10000}{rpm/s}$).
-  \item Complete the ISR: gap detection, tooth counter, per-revolution
-    statistics, TDC LED (pin 12) on for $30^\circ$ starting at each TDC
-    edge. Which tooth numbers belong to $\theta=120^\circ$ and $300^\circ$?
-    Check with the logic analyzer (D0 = crank, D2 = TDC output of the chip,
-    D3 = your LED) and report the column \texttt{teeth} and
-    \texttt{sync\_err}.
-  \item Complete the speed computation in \texttt{loop()} (per revolution,
-    last tooth, min/max per tooth). At \SI{3000}{rpm}, compare
-    \texttt{rpm\_rev} with the spread \texttt{rpm\_min}\dots\texttt{rpm\_max}
-    for both time bases. Press the button to dump 120 tooth periods, copy
-    only this block into JSLinux and plot the per-tooth speed (column
-    \texttt{rpm}) with your CSV plot program of Exercise~0.2\,d). Which part of the
-    ``jitter'' is information, which part is measurement error?
-  \item Move the speed slider (600\dots\SI{7000}{rpm}) and repeat c) at
-    \SI{7000}{rpm}. Why is printing one CSV line per \emph{tooth} not an
-    option (estimate the UART load)?
-\end{tasks}
-\end{exercise}
-
-\begin{solution}
-a) One tooth $=6^\circ=\frac{1}{60}$\,rev, so the speed is
-$\frac{1}{60\,T_k}$\,rev/s $=\frac{60}{60\,T_k}$\,rpm $=1/T_k$ (in rpm with $T_k$
-in s). The gap covers $18^\circ$, a revolution $360^\circ$, hence $3/T_{\text{gap}}$
-and $60/T_{\text{rev}}$. With $n=1/T$: $\left|\frac{\dd n}{\dd T}\right|=\frac{1}{T^2}=n^2$,
-so a period error of one tick changes $n$ by $\Delta n\approx n^2\Delta$:
-
-\begin{center}
-\small
-\begin{tabular}{@{}rrrrr@{}}
-\toprule
-$n$ / rpm & $T_k$ & $\Delta n$ ($\Delta=\SI{4}{\micro s}$) & $\Delta n$ ($\Delta=\SI{0.5}{\micro s}$) & ripple ($\pm1\,\%$) \\
-\midrule
-600  & \SI{1667}{\micro s} & \SI{1.4}{rpm} & \SI{0.2}{rpm} & $\pm$\SI{6}{rpm} \\
-3000 & \SI{333}{\micro s}  & \SI{36}{rpm}  & \SI{4.5}{rpm} & $\pm$\SI{30}{rpm} \\
-7000 & \SI{143}{\micro s}  & \SI{196}{rpm} & \SI{24.5}{rpm}& $\pm$\SI{70}{rpm} \\
-\bottomrule
-\end{tabular}
-\end{center}
-The relative resolution $\Delta n/n=\Delta/T_k$ degrades linearly with speed. With
-\texttt{micros()} the ripple is buried in the quantisation above
-$\approx\SI{2500}{rpm}$; with the \SI{0.5}{\micro s} timer it is resolved over the
-whole range. Real ECUs use capture timers with $\le\SI{100}{ns}$ resolution.
-
-Gap test: let $\omega_1$ be the speed during the tooth before the gap,
-$\omega_2$ the mean speed across the gap. Then $T_{\text{gap}}/T_{\text{prev}}
-=3\omega_1/\omega_2<2$ requires $\omega_2>1.5\,\omega_1$ within about two
-tooth periods ($\approx12^\circ/\omega_1$):
-$\dot\omega\approx 0.5\,\omega_1^2/12^\circ$, i.e.\ $\dot n\approx n^2/4$ (rpm/s,
-$n$ in rpm) -- \SI{90000}{rpm/s} at \SI{600}{rpm}. A false gap
-($T_k/T_{k-1}>2$ for a normal tooth) needs the speed to halve within one tooth,
-$\dot n\approx -n^2/2$, \SI{-180000}{rpm/s} at \SI{600}{rpm}. Both are an order
-of magnitude beyond real engines, so threshold 2 (the geometric mean of 1 and 3
-would be 1.73) is robust in normal operation. Critical is only the
-start (cranking at \SI{200}{rpm} with $\pm$30\,\% speed fluctuations from the
-compression strokes, limit $\dot n\approx\SI{10000}{rpm/s}$), where ECUs add
-plausibility checks (tooth count 58 between gaps, cam edge position).
-
-b) Key part of the solution
-(\codefile{solutions/wokwi/sheet01\_crank/sketch.ino}):
-\inputcode[firstline=52,lastline=99]{solutions/wokwi/sheet01_crank/sketch.ino}
-$120^\circ$ and $300^\circ$ correspond to the rising edges of teeth 20 and 50.
-Every revolution reports \texttt{teeth} $=58$ edges (57 normal teeth + the gap
-edge) and \texttt{sync\_err} $=0$. In the logic analyzer the LED rises
-a few microseconds (interrupt latency) after the rising edge of tooth 20 (50),
-i.e.\ practically together with the \SI{50}{\micro s} TDC pulse of the chip, which
-is emitted exactly at $120^\circ$/$300^\circ$. The LED marks the
-crank-angle \emph{event}; it is lit for 5 teeth = $30^\circ$.
-
-c) Expected values at \SI{3000}{rpm} (obtained with an offline model of exactly this
-measurement, \codefile{solutions/jslinux/sheet01/tooth\_sim.c}, over 200
-revolutions; in Wokwi rare additional outliers of a few \si{\micro s} can occur
-when the crank interrupt has to wait for the Timer0 or UART interrupt):
-\begin{center}
-\small
-\begin{tabular}{@{}lccc@{}}
-\toprule
-time base & rpm\_rev & per-tooth min\dots max & per-tooth std \\
-\midrule
-\texttt{micros()}, \SI{4}{\micro s} & 2999.4\dots3000.0 & 2941\dots3049 & \SI{25.7}{rpm} \\
-Timer1, \SI{0.5}{\micro s} & 2999.85 & 2967\dots3030 & \SI{21.7}{rpm} \\
-\bottomrule
-\end{tabular}
-\end{center}
-The per-revolution speed is very precise (one tick on \SI{20}{ms}:
-$\Delta n/n=0.5/40000$) and slightly \emph{below} 3000, because the mean of
-$1/(1+\varepsilon\sin2\theta)$ is $1+\varepsilon^2/2$
-($n\varepsilon^2/2=\SI{0.15}{rpm}$). The per-tooth values with Timer1 show the
-\emph{real} speed fluctuation: $\pm1\,\%$, two periods per revolution, std
-$30/\sqrt2=\SI{21.2}{rpm}$ -- this is information (in a real engine the
-torque pulses of the individual combustions; used e.g.\ for misfire
-detection). With \texttt{micros()} the values jump in steps of $\approx\SI{36}{rpm}$
-(332, 336\,\si{\micro s}) -- a measurement error of the same size as the
-information. The dump plotted in JSLinux shows a clean sine with 2 periods per
-58 teeth for Timer1 and a staircase-like, noisy version for \texttt{micros()}.
-
-d) At \SI{7000}{rpm} the model gives per-tooth std \SI{94}{rpm} (micros, range
-6757\dots7143) vs.\ \SI{51}{rpm} (Timer1, 6920\dots7092, ripple
-$\pm\SI{70}{rpm}$); the per-revolution value stays within
-$\pm\SI{3}{rpm}$ resp.\ \SI{0.5}{rpm}. When the slider is moved, the speed
-changes abruptly in the simulator; the gap is still found (ratio 3 vs.\ 1,
-see a)) as long as the jump does not fall exactly into the gap.
-UART: at \SI{7000}{rpm} there are $7000\cdot58/60\approx6800$ teeth/s; a line
-such as \texttt{1234,57,286,6993.0} has $\approx20$ characters, i.e.\
-\SI{136000}{chars/s} -- twelve times the capacity of 115200\,baud
-(\SI{11520}{chars/s}). Hence statistics per revolution and block dumps from RAM.
-\end{solution}
-
-%-------------------------------------------------------------------------
-\begin{exercise}{Cam/crank synchronisation}{\Challenge}
-Extend your sketch such that it determines the $720^\circ$ phase from the cam
-signal (\texttt{eng:CAM}, HIGH for $0^\circ\le\theta<180^\circ$).
-\begin{tasks}
-  \item Why should the cam level not be read at the reference edge
-    ($\theta=0^\circ$), and which tooth is a good choice instead?
-  \item Implement \texttt{phase} ($0^\circ$ or $360^\circ$), toggle it at every
-    gap, and check it at every revolution (\texttt{cam\_err}). Light the LED on
-    pin~11 only at the compression TDC of cylinder~1 and verify it with the
-    logic analyzer (D1 = cam, D4 = LED).
-  \item Give the crank angle and the number of the cylinder that fires at each of
-    the four TDC events.
-\end{tasks}
-\end{exercise}
-
-\begin{solution}
-a) The cam edge at $\theta=0^\circ$ coincides with the reference edge of the
-crank signal (in the simulator both are written in the same event, on a real
-engine the cam edge has a tolerance of several degrees and drifts with cam
-phasing). Reading the level there is a race. The level must be read in the
-middle of a cam state, e.g.\ at tooth 10 ($60^\circ$ or $420^\circ$): HIGH $\Rightarrow$
-first revolution (phase $0^\circ$), LOW $\Rightarrow$ second revolution (phase
-$360^\circ$). Any tooth with $\ge 10^\circ$ distance to $0^\circ$ and $180^\circ$ works.
-
-b) See the listing in Exercise~1.3 (line 21 and lines 43--48): at every gap
-\texttt{phase = 360 - phase}, at tooth 10 the cam level is compared with the
-predicted phase; \texttt{cam\_err} stays 0 and the printed \texttt{phase}
-alternates 0, 360, 0, \dots{} The green LED is on only every second time
-the red TDC LED lights up, i.e.\ once per engine cycle (every \SI{40}{ms} at
-\SI{3000}{rpm}).
-
-c) $\theta=\text{phase}+6^\circ k$; firing order 1-3-4-2:
-\begin{center}
-\small
-\begin{tabular}{@{}cccc@{}}
-\toprule
-phase & tooth & crank angle & cylinder \\
-\midrule
-$0^\circ$   & 20 & $120^\circ$ & 1 \\
-$0^\circ$   & 50 & $300^\circ$ & 3 \\
-$360^\circ$ & 20 & $480^\circ$ & 4 \\
-$360^\circ$ & 50 & $660^\circ$ & 2 \\
-\bottomrule
-\end{tabular}
-\end{center}
-\end{solution}
-
-\begin{deliverables}
-1.1: completed classification table and time-scale table. 1.2: program, table
-of statistics and periods, short interpretation. 1.3: sketch, screenshot of
-the logic analyzer (gap, TDC, LED), table of rpm statistics for both time
-bases at 3000 and \SI{7000}{rpm}, plot of a tooth-period dump. 1.4 (optional):
-extended sketch, logic analyzer screenshot with cam and cylinder-1 LED.
-\end{deliverables}
+\endgroup

@@ -28,6 +28,7 @@ git clone git@github-dsp2026:mopfeil/DSP_2026.git
 | `exercises/AUTHORING.md` | conventions for writing/extending sheets |
 | `code/common/` | `engine_signals.h` (virtual engine), `asciiplot.h`, `csvio.h` |
 | `code/jslinux/sheetNN/` | student templates (C, with TODOs) for JSLinux |
+| `code/bonus/jslinux/sheetNN/` | optional JSLinux bonus exercises of the Wokwi-only lab days (sheets 00-01) |
 | `code/wokwi/sheetNN_*/` | student Wokwi projects (`sketch.ino`, `diagram.json`, ...) |
 | `code/wokwi/chips/` | Wokwi custom chips `engine-sim` and `lambda-probe` (generated) |
 | `code/solutions/` | reference solutions (do not hand out) |

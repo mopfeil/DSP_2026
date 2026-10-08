@@ -1,5 +1,5 @@
 /*
- * Sheet 1, Exercise 1.3 -- offline model of the Wokwi tooth-timing
+ * Sheet 1, Exercise 1.2 -- offline model of the Wokwi tooth-timing
  * measurement (instructor tool, used to compute the expected values
  * quoted in the solution).
  *

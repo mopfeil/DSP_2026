@@ -1,5 +1,5 @@
 /*
- * Sheet 1, Exercise 1.2 -- Signal zoo (REFERENCE SOLUTION)
+ * Sheet 1, Bonus Exercise 1.B1 -- Signal zoo (student template)
  *
  * Build and run:   gcc -O2 -o signal_zoo signal_zoo.c -lm
  *                  ./signal_zoo
@@ -29,52 +29,31 @@ static double r[MAXLAG + 1];
 /* ---- (a) statistics -------------------------------------------------- */
 static void stats(const char *name, const double *x, int n)
 {
-    double mean = 0.0, ms = 0.0, mn = x[0], mx = x[0];
-    int i;
-    for (i = 0; i < n; i++) {
-        mean += x[i];
-        ms += x[i] * x[i];
-        if (x[i] < mn) mn = x[i];
-        if (x[i] > mx) mx = x[i];
-    }
-    mean /= n;
-    ms /= n;
-    printf("%-14s %9.4f %9.4f %9.4f %9.4f\n", name, mean, sqrt(ms), mn, mx);
+    double mean = 0.0, rms = 0.0, mn = x[0], mx = x[0];
+    (void)n;
+    /* TODO (a): compute mean, RMS value, minimum and maximum of x[0..n-1] */
+    printf("%-14s %9.4f %9.4f %9.4f %9.4f\n", name, mean, rms, mn, mx);
 }
 
-/* ---- (b) normalised autocorrelation (mean removed, unbiased: each lag
-         is divided by its number of products N-m, so that a periodic
-         signal gives r = 1 at its period) ------------------------------ */
+/* ---- (b) normalised autocorrelation --------------------------------- */
 static void autocorr(const double *x, int n, double *rr, int maxlag)
 {
-    double mean = 0.0, r0;
-    int i, m;
-    for (i = 0; i < n; i++) mean += x[i];
-    mean /= n;
-    for (m = 0; m <= maxlag; m++) {
-        double s = 0.0;
-        for (i = 0; i + m < n; i++) s += (x[i] - mean) * (x[i + m] - mean);
-        rr[m] = s / (n - m);
-    }
-    r0 = rr[0] > 0.0 ? rr[0] : 1.0;
-    for (m = 0; m <= maxlag; m++) rr[m] /= r0;
+    int m;
+    (void)x; (void)n;
+    /* TODO (b): rr[m] = sum_i (x[i]-mean)(x[i+m]-mean) / (n-m),  m = 0..maxlag,
+       then normalise by rr[0] so that rr[0] = 1.
+       Why divide by (n-m) and not by n?                                  */
+    for (m = 0; m <= maxlag; m++) rr[m] = (m == 0);
 }
 
-/* period estimate: after the first zero crossing, find the largest
-   autocorrelation value rmax; the period is the FIRST local maximum that
-   reaches 0.9 rmax (avoids picking a multiple of the period).
+/* period estimate from the autocorrelation.
    Returns the lag (0 if none), *peak = r[lag].                        */
 static int period_lag(const double *rr, int maxlag, double *peak)
 {
-    int m0 = 1, m;
-    double rmax = -1.0;
-    while (m0 <= maxlag && rr[m0] > 0.0) m0++;        /* first zero crossing */
-    for (m = m0; m <= maxlag; m++) if (rr[m] > rmax) rmax = rr[m];
-    for (m = m0 + 1; m < maxlag; m++)
-        if (rr[m] >= rr[m - 1] && rr[m] >= rr[m + 1] && rr[m] >= 0.9 * rmax) {
-            *peak = rr[m];
-            return m;
-        }
+    (void)rr; (void)maxlag;
+    /* TODO (b): skip the main lobe (up to the first zero crossing), then
+       return the first local maximum that is "high enough", e.g. at least
+       0.9 times the largest value found after the first zero crossing.  */
     *peak = 0.0;
     return 0;
 }

@@ -15,6 +15,8 @@ exercises/sheets/sheetNN.tex   one file per sheet (NN = 00..12)
 exercises/Makefile             `make sheetNN` builds exercise + solution PDF
 code/common/                   engine_signals.h, asciiplot.h, csvio.h -- do NOT modify
 code/jslinux/sheetNN/          student C programs (templates with TODOs)
+code/bonus/jslinux/sheetNN/    optional JSLinux bonus exercises (sheets 00-01;
+                               solutions in code/solutions/bonus/jslinux/)
 code/wokwi/sheetNN_<name>/     student Wokwi projects: sketch.ino, diagram.json,
                                (+ copies of needed headers, see below)
 code/wokwi/chips/              engine-sim + lambda-probe custom chips (generated)

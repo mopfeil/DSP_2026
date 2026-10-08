@@ -3,8 +3,9 @@
 \begin{goals}
 \begin{itemize}
   \item Run, modify and share an Arduino project in the Wokwi simulator.
-  \item Transfer measured data from Wokwi (Serial Monitor) to JSLinux.
-  \item Compile and run C programs in JSLinux and plot results in the terminal.
+  \item \emph{Bonus (optional):} compile and run C programs in JSLinux, plot
+    results in the terminal, and transfer measured data from Wokwi (Serial
+    Monitor) to JSLinux.
   \item Get to know the course library \codefile{common/engine\_signals.h}, the
     \emph{virtual engine} used on all following sheets.
 \end{itemize}
@@ -88,13 +89,59 @@ execution times are only indicative; we count operations instead.
 \end{solution}
 
 %-------------------------------------------------------------------------
+\begin{exercise}{The engine simulator chip}{\Wokwi}
+Every Wokwi project of the following sheets contains the custom chip
+\texttt{engine-sim}. Add the files \texttt{engine-sim.chip.c} and
+\texttt{engine-sim.chip.json} from \codefile{wokwi/chips/} to the Uno project of
+Exercise~0.1 and add the part
+\verb|{ "type": "chip-engine-sim", "id": "eng", "attrs": { "vmax": "5", "offset": "2.5" } }|
+to \texttt{diagram.json}.
+\begin{tasks}
+  \item Connect \texttt{eng:CRANK} to logic analyzer D1, \texttt{eng:CAM} to D2
+    and \texttt{eng:TDC} to D3 (and \texttt{eng:GND} to ground). Record
+    \SI{100}{ms} at \SI{3000}{rpm} and view the \texttt{.vcd} file (e.g.\ in
+    PulseView or GTKWave). Identify the missing-tooth gap and verify the
+    tooth period.
+  \item How many crank teeth lie between the gap and the first TDC pulse?
+    Compare with the conventions above.
+  \item Change the engine speed with the slider of the chip and repeat the
+    tooth-period measurement at \SI{6000}{rpm}.
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) At \SI{3000}{rpm} one revolution takes \SI{20}{ms}; the tooth period
+(rising to rising edge) is $\SI{20}{ms}/60=\SI{333}{\micro s}$, across the gap
+$3\cdot\SI{333}{\micro s}=\SI{1}{ms}$.
+
+b) The reference edge (first tooth after the gap) is at $\theta=0^\circ$, TDC of
+cylinder 1 at $120^\circ$, i.e.\ 20 teeth after the reference edge.
+
+c) At \SI{6000}{rpm}: \SI{167}{\micro s} per tooth, \SI{500}{\micro s} across
+the gap.
+\end{solution}
+
+\begin{deliverables}
+Screenshot of the Wokwi logic analyzer view (or VCD plot) with the gap marked.
+Bonus (optional): terminal output of \texttt{hello\_signals}; the CSV-plot
+program of 0.B1\,d).
+\end{deliverables}
+
+%=========================================================================
+\section*{Bonus: JSLinux (optional)}
+\begingroup
+\setcounter{exercise}{0}\renewcommand{\theexercise}{B\arabic{exercise}}
+The lab exercises above use only Wokwi. Interested students can in addition
+process the engine signals in plain C on a Linux system that runs in the
+browser. The JSLinux exercises of the following sheets build on this one.
+
 \begin{exercise}{First steps in JSLinux}{\JSLinux}
 Open \url{https://bellard.org/jslinux} and start the \emph{x86 Alpine Linux}
 (console) virtual machine.
 \begin{tasks}
   \item Check the toolchain: \texttt{gcc --version} (or \texttt{tcc -v}). Upload
     \texttt{engine\_signals.h}, \texttt{asciiplot.h}, \texttt{csvio.h}
-    (\codefile{common/}) and \codefile{jslinux/sheet00/hello\_signals.c} with
+    (\codefile{common/}) and \codefile{bonus/jslinux/sheet00/hello\_signals.c} with
     the upload button below the terminal.
 \begin{lstlisting}[style=shell]
 gcc -O2 -o hello_signals hello_signals.c -lm
@@ -137,41 +184,4 @@ if (csv_read("pot.csv", &d) == 0) {
 }
 \end{lstlisting}
 \end{solution}
-
-%-------------------------------------------------------------------------
-\begin{exercise}{The engine simulator chip}{\Wokwi}
-Every Wokwi project of the following sheets contains the custom chip
-\texttt{engine-sim}. Add the files \texttt{engine-sim.chip.c} and
-\texttt{engine-sim.chip.json} from \codefile{wokwi/chips/} to the Uno project of
-Exercise~0.1 and add the part
-\verb|{ "type": "chip-engine-sim", "id": "eng", "attrs": { "vmax": "5", "offset": "2.5" } }|
-to \texttt{diagram.json}.
-\begin{tasks}
-  \item Connect \texttt{eng:CRANK} to logic analyzer D1, \texttt{eng:CAM} to D2
-    and \texttt{eng:TDC} to D3 (and \texttt{eng:GND} to ground). Record
-    \SI{100}{ms} at \SI{3000}{rpm} and view the \texttt{.vcd} file (e.g.\ in
-    PulseView or GTKWave). Identify the missing-tooth gap and verify the
-    tooth period.
-  \item How many crank teeth lie between the gap and the first TDC pulse?
-    Compare with the conventions above.
-  \item Change the engine speed with the slider of the chip and repeat the
-    tooth-period measurement at \SI{6000}{rpm}.
-\end{tasks}
-\end{exercise}
-
-\begin{solution}
-a) At \SI{3000}{rpm} one revolution takes \SI{20}{ms}; the tooth period
-(rising to rising edge) is $\SI{20}{ms}/60=\SI{333}{\micro s}$, across the gap
-$3\cdot\SI{333}{\micro s}=\SI{1}{ms}$.
-
-b) The reference edge (first tooth after the gap) is at $\theta=0^\circ$, TDC of
-cylinder 1 at $120^\circ$, i.e.\ 20 teeth after the reference edge.
-
-c) At \SI{6000}{rpm}: \SI{167}{\micro s} per tooth, \SI{500}{\micro s} across
-the gap.
-\end{solution}
-
-\begin{deliverables}
-Screenshot of the Wokwi logic analyzer view (or VCD plot) with the gap marked;
-terminal output of \texttt{hello\_signals}; the CSV-plot program of 0.2\,d).
-\end{deliverables}
+\endgroup

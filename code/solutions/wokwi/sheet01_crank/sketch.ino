@@ -1,5 +1,5 @@
 /*
- * Sheet 1, Exercises 1.3 and 1.4 -- 60-2 crank wheel decoding
+ * Sheet 1, Exercises 1.2 and 1.3 -- 60-2 crank wheel decoding
  * (REFERENCE SOLUTION, Arduino Uno + engine-sim chip)
  *
  *   eng:CRANK -> D2 (INT0)   eng:CAM -> D4   button -> D7 (to GND)

@@ -1,5 +1,5 @@
 /*
- * Sheet 0 -- Getting started with JSLinux
+ * Sheet 0, Bonus Exercise 0.B1 -- Getting started with JSLinux
  *
  * Build and run:   gcc -O2 -o hello_signals hello_signals.c -lm
  *                  ./hello_signals
