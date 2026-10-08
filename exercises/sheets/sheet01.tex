@@ -54,6 +54,119 @@ tooth corresponds to $6^\circ = 1/60$ revolution, the engine speed in rpm is
   \label{eq:rpm}
 \end{equation}
 
+
+\section*{Background: crankshaft, camshaft and the $720^\circ$ cycle}
+
+A four-stroke engine needs \emph{two} crankshaft revolutions for one working
+cycle (intake, compression, power, exhaust), but every valve opens only
+once per cycle. The camshaft is therefore driven by a timing belt (or chain)
+with a ratio of $2:1$: its sprocket has twice as many teeth as the crankshaft
+sprocket, so it turns once while the crankshaft turns twice. The crank angle
+$\theta$ is counted over the full cycle, $0^\circ\le\theta<720^\circ$, which
+is exactly one camshaft revolution ($360^\circ$ cam angle). The 60-2 wheel on
+the crankshaft repeats after $360^\circ$ crank angle, the single segment of
+the cam phase wheel only after $720^\circ$.
+
+\begin{center}
+\begin{tikzpicture}[font=\footnotesize,>={Stealth[length=4pt]}]
+  % ---------------- (a) mechanism, front view (schematic) ----------------
+  \begin{scope}
+    % 60-2 trigger wheel on the crankshaft (58 teeth, 3 deg each)
+    \draw[dspblue] (0,0) circle[radius=1.0];
+    \foreach \i in {0,...,57} {
+      \pgfmathsetmacro\a{150-6*\i}
+      \fill[dspblue] (\a:1.0) -- (\a:1.12)
+        arc[start angle=\a, end angle=\a-3, radius=1.12] -- ({\a-3}:1.0) -- cycle;
+    }
+    % cylinder, piston, connecting rod, crank throw
+    \draw[thick] (-0.48,1.45) -- (-0.48,4.0) (0.48,1.45) -- (0.48,4.0);
+    \filldraw[fill=gray!25] (-0.62,4.0) rectangle (0.62,4.35);
+    \filldraw[fill=gray!40] (-0.42,2.49) rectangle (0.42,3.09);
+    \draw[very thick,dspgray] (0,0) -- (0.45,0.536);
+    \draw[very thick,dspgray] (0.45,0.536) -- (0,2.689);
+    \fill (0.45,0.536) circle[radius=0.05] (0,2.689) circle[radius=0.05];
+    % sprockets and timing belt (ratio 2:1)
+    \filldraw[fill=white,thick] (0,0) circle[radius=0.55];
+    \fill (0,0) circle[radius=0.06];
+    \filldraw[fill=white,thick] (0,5.6) circle[radius=1.1];
+    \draw[line width=1.6pt,white]
+      (0.547,-0.054) arc[start angle=-5.64, end angle=-174.36, radius=0.55]
+      -- (-1.095,5.492) arc[start angle=185.64, end angle=-5.64, radius=1.1]
+      -- cycle;
+    \draw[line width=0.8pt]
+      (0.547,-0.054) arc[start angle=-5.64, end angle=-174.36, radius=0.55]
+      -- (-1.095,5.492) arc[start angle=185.64, end angle=-5.64, radius=1.1]
+      -- cycle;
+    % cam phase wheel segment (90 deg cam = 180 deg crank)
+    \fill[dspblue] (20:1.2) ++(0,5.6) arc[start angle=20, end angle=110, radius=1.2]
+      -- ($(0,5.6)+(110:1.32)$) arc[start angle=110, end angle=20, radius=1.32] -- cycle;
+    % cam lobe, valve
+    \filldraw[fill=gray!40] (0.3,5.6) arc[start angle=0, end angle=180, radius=0.3]
+      to[out=-90,in=180] (0,5.08) to[out=0,in=-90] cycle;
+    \fill (0,5.6) circle[radius=0.06];
+    \draw[thick] (0,5.08) -- (0,4.05);
+    \fill (-0.22,3.95) -- (0.22,3.95) -- (0.05,4.05) -- (-0.05,4.05) -- cycle;
+    % Hall sensors
+    \filldraw[fill=dspgray] (225:1.2) ++(-0.28,-0.12) rectangle ++(0.22,0.24);
+    \filldraw[fill=dspgray] ($(0,5.6)+(60:1.4)$) rectangle ++(0.24,0.22);
+    % labels
+    \draw[gray] (-1.1,-0.85) -- (-1.6,-1.2) node[below,black,align=center]
+      {crank sensor};
+    \draw[gray] ($(0,5.6)+(62:1.6)$) -- (1.4,7.4) node[above,black] {cam sensor};
+    \node[align=right,anchor=east] at (-1.25,0.3)
+      {crankshaft,\\ $z$ teeth,\\ 60-2 wheel};
+    \node[align=right,anchor=east] at (-1.25,5.6)
+      {camshaft,\\ $2z$ teeth,\\ phase segm.};
+    \node[anchor=west,align=left] at (1.1,2.6) {timing\\ belt $2:1$};
+    % rotation arrows
+    \draw[->,thick,dspblue] (60:1.4) arc[start angle=60, end angle=10, radius=1.4];
+    \node[dspblue,anchor=west,align=left] at (1.45,0.65)
+      {2 rev.\\ $=720^\circ$};
+    \draw[->,thick,dspblue] ($(0,5.6)+(-20:1.5)$) arc[start angle=-20, end angle=-60, radius=1.5];
+    \node[dspblue,anchor=west,align=left] at (1.55,4.35)
+      {1 rev.\\ $=360^\circ$};
+    \node at (0,-1.9) {(a)};
+  \end{scope}
+  % ---------------- (b) one working cycle over the crank angle -------------
+  \begin{scope}[shift={(4.85,0.4)},x=0.0108cm,y=1cm]
+    % row labels
+    \foreach \y/\t in {5.4/crankshaft,4.6/camshaft,3.8/cylinder 1,2.9/crank signal,2.1/cam signal}
+      \node[anchor=east] at (-8,\y) {\t};
+    % crankshaft revolutions
+    \draw (0,5.15) rectangle node {1st revolution} (360,5.65);
+    \draw (360,5.15) rectangle node {2nd revolution} (720,5.65);
+    % camshaft revolution
+    \draw (0,4.35) rectangle node {1 revolution ($360^\circ$ cam angle)} (720,4.85);
+    % strokes of cylinder 1 (combustion TDC at 120 deg)
+    \draw[fill=gray!15] (0,3.55) rectangle node {compr.} (120,4.05);
+    \draw[fill=orange!35] (120,3.55) rectangle node {power} (300,4.05);
+    \draw[fill=gray!15] (300,3.55) rectangle node {exhaust} (480,4.05);
+    \draw[fill=dspblue!15] (480,3.55) rectangle node {intake} (660,4.05);
+    \draw[fill=gray!15] (660,3.55) rectangle (720,4.05);
+    % crank signal: 60-2 teeth, repeats every 360 deg
+    \foreach \r in {0,360} \foreach \k in {0,...,57}
+      \fill[dspblue] (\r+6*\k,2.65) rectangle (\r+6*\k+3,3.15);
+    \draw[dspblue] (0,2.65) -- (720,2.65);
+    % cam signal: HIGH for 0..180 deg, repeats every 720 deg
+    \draw[thick,dspblue] (0,1.85) -- (0,2.35) -- (180,2.35) -- (180,1.85) -- (720,1.85);
+    % axis
+    \draw[->] (0,1.5) -- (760,1.5) node[right] {$\theta$};
+    \foreach \x in {0,120,180,360,480,720}
+      \draw (\x,1.45) -- (\x,1.55) node[pos=0,below] {$\x^\circ$};
+    % TDCs of cylinder 1
+    \draw[dashed,red!70!black] (120,1.5) -- (120,4.25);
+    \draw[dashed,red!70!black] (480,1.5) -- (480,4.25);
+    \node[red!70!black,align=center] at (120,0.6) {TDC\\ ignition};
+    \node[red!70!black,align=center] at (480,0.6) {TDC\\ gas exchange};
+    \node at (360,-0.25) {(b)};
+  \end{scope}
+\end{tikzpicture}
+\end{center}
+\noindent (a)~Schematic front view of one cylinder with crank drive and
+overhead camshaft; the timing belt turns the camshaft once per two crankshaft
+revolutions. (b)~One working cycle of cylinder~1 over the crank angle: the
+crank wheel pattern and the piston position repeat after $360^\circ$, the
+strokes and the cam signal only after $720^\circ$.
 %-------------------------------------------------------------------------
 \begin{exercise}{Signal classification and time scales}{\Paper}
 \begin{tasks}
