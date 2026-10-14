@@ -1,0 +1,3 @@
+.pio/
+wokwi.vcd
+chips/wokwi-api.h

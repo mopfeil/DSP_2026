@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "chip-engine-sim", "id": "eng", "top": -150, "left": -40,
+      "attrs": { "vmax": "5", "offset": "2.5", "fs_khz": "50" } },
+    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -170, "left": 260, "attrs": {} }
+  ],
+  "connections": [
+    [ "eng:GND", "uno:GND.1", "black", [] ],
+    [ "eng:VCC", "uno:5V", "red", [] ],
+    [ "eng:KNOCK", "uno:A0", "green", [] ],
+    [ "eng:TDC", "uno:2", "blue", [] ],
+    [ "eng:CAM", "uno:4", "violet", [] ],
+    [ "logic1:D0", "uno:8", "orange", [] ],
+    [ "logic1:D1", "eng:TDC", "blue", [] ],
+    [ "logic1:D2", "eng:KNK", "red", [] ],
+    [ "logic1:GND", "uno:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

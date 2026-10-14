@@ -31,6 +31,7 @@ git clone git@github-dsp2026:mopfeil/DSP_2026.git
 | `code/bonus/jslinux/sheetNN/` | optional JSLinux bonus exercises of the Wokwi-only lab days (sheets 00-01) |
 | `code/wokwi/sheetNN_*/` | student Wokwi projects (`sketch.ino`, `diagram.json`, ...) |
 | `code/wokwi/chips/` | Wokwi custom chips `engine-sim` and `lambda-probe` (generated) |
+| `code/wokwi_vscode/` | the Wokwi projects as PlatformIO projects for **Wokwi for VS Code**, prebuilt chips, tutorial (`README.md`) |
 | `code/solutions/` | reference solutions (do not hand out) |
 | `tools/make_chips.sh` | regenerates the chips after changing `engine_signals.h` |
 | `tools/wokwi_mock/` | PC stand-in for the Wokwi chip API to test chips with gcc |
@@ -50,7 +51,9 @@ cam, knock sensor (6.5/10.5 kHz knock modes, valve impacts, noise), ion current
 and a switching lambda sensor. The same model drives the Wokwi custom chip
 `engine-sim` (via `tools/make_chips.sh`), so results in JSLinux and Wokwi agree.
 After any change of the header run `tools/make_chips.sh` and copy the chip
-files into the Wokwi projects that use them.
+files into the Wokwi projects that use them; for VS Code also rebuild the
+`.wasm` chips (`make` in `code/wokwi_vscode/chips/`) and run
+`code/wokwi_vscode/sync.sh`.
 
 Testing a chip locally:
 ```sh
@@ -85,6 +88,9 @@ ATTR_rpm=6000 ./run 0.05      # prints t_ns,pin,value of digital edges
   button wiring in sheet 9, Q15 ISR load in sheet 10.
 * Lambda loop periods in sheet 2 (predicted 0.58/1.00/1.80/3.40 s for
   Td = 100/200/400/800 ms).
+* Wokwi for VS Code (`code/wokwi_vscode/`): the prebuilt `.wasm` chips
+  (wasi-sdk 34) load, chip sliders are shown, ESP32 `firmware.bin` from
+  pioarduino boots.
 * JSLinux: confirm gcc (or tcc) is available in the chosen VM image.
 
 ## Ideas for later

@@ -1,0 +1,11 @@
+{
+  "name": "Engine Simulator",
+  "author": "DSP lecture",
+  "pins": ["CRANK", "CAM", "TDC", "KNK", "GND", "VCC", "ION", "KNOCK"],
+  "controls": [
+    { "id": "rpm",        "label": "Engine speed (rpm)",       "type": "range", "min": 600, "max": 7000, "step": 100 },
+    { "id": "knock_prob", "label": "Knock probability (%)",    "type": "range", "min": 0,   "max": 100,  "step": 5 },
+    { "id": "knock_amp",  "label": "Knock amplitude (x0.1 V)", "type": "range", "min": 0,   "max": 30,   "step": 1 },
+    { "id": "noise",      "label": "Sensor noise (mV rms)",    "type": "range", "min": 0,   "max": 500,  "step": 10 }
+  ]
+}

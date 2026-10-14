@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -130, "left": 20, "attrs": {} },
+    {
+      "type": "chip-engine-sim",
+      "id": "eng",
+      "top": -120,
+      "left": 160,
+      "attrs": { "vmax": "5", "offset": "2.5", "rpm": "3000", "knock_prob": "20", "noise": "50" }
+    },
+    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -140, "left": 330, "attrs": {} }
+  ],
+  "connections": [
+    [ "pot1:GND", "uno:GND.1", "black", [] ],
+    [ "pot1:VCC", "uno:5V", "red", [] ],
+    [ "pot1:SIG", "uno:A0", "green", [] ],
+    [ "eng:GND", "uno:GND.2", "black", [] ],
+    [ "eng:VCC", "uno:5V", "red", [] ],
+    [ "eng:KNOCK", "uno:A1", "blue", [] ],
+    [ "eng:TDC", "uno:2", "violet", [] ],
+    [ "logic1:D0", "uno:8", "orange", [] ],
+    [ "logic1:D1", "uno:9", "yellow", [] ],
+    [ "logic1:D2", "eng:TDC", "violet", [] ],
+    [ "logic1:D3", "eng:KNK", "magenta", [] ],
+    [ "logic1:GND", "uno:GND.3", "black", [] ]
+  ],
+  "dependencies": {}
+}

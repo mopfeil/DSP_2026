@@ -20,6 +20,9 @@ code/bonus/jslinux/sheetNN/    optional JSLinux bonus exercises (sheets 00-01;
 code/wokwi/sheetNN_<name>/     student Wokwi projects: sketch.ino, diagram.json,
                                (+ copies of needed headers, see below)
 code/wokwi/chips/              engine-sim + lambda-probe custom chips (generated)
+code/wokwi_vscode/             generated Wokwi for VS Code copies of code/wokwi/
+                               (and code/solutions/wokwi_vscode/); after changing a
+                               Wokwi project run code/wokwi_vscode/sync.sh
 code/solutions/jslinux/sheetNN/        complete reference solutions
 code/solutions/wokwi/sheetNN_<name>/   complete reference solutions
 tools/wokwi_mock/              PC mock of the Wokwi chip API (for chip testing)

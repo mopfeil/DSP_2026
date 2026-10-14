@@ -1,0 +1,9 @@
+{
+  "name": "Lambda Probe",
+  "author": "DSP lecture",
+  "pins": ["INJ", "GND", "VCC", "", "", "LAM", "O2", ""],
+  "controls": [
+    { "id": "air",   "label": "Unmetered air (slider-10 = %)", "type": "range", "min": 0,  "max": 20,  "step": 1 },
+    { "id": "delay", "label": "Transport delay (ms)",          "type": "range", "min": 20, "max": 800, "step": 10 }
+  ]
+}

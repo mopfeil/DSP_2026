@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "chip-lambda-probe", "id": "lam", "top": -140, "left": 40, "attrs": {} },
+    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -150, "left": 260, "attrs": {} }
+  ],
+  "connections": [
+    [ "lam:GND", "uno:GND.1", "black", [] ],
+    [ "lam:VCC", "uno:5V", "red", [] ],
+    [ "uno:9", "lam:INJ", "orange", [] ],
+    [ "lam:O2", "uno:A0", "green", [] ],
+    [ "lam:LAM", "uno:A1", "blue", [] ],
+    [ "logic1:D0", "uno:9", "orange", [] ],
+    [ "logic1:GND", "uno:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "chip-engine-sim", "id": "eng", "top": -10, "left": -220,
+      "attrs": { "vmax": "3.3", "offset": "1.65", "fs_khz": "50" } },
+    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -150, "left": -200, "attrs": {} }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "eng:VCC", "esp:3V3", "red", [] ],
+    [ "eng:GND", "esp:GND.1", "black", [] ],
+    [ "eng:KNOCK", "esp:D34", "green", [] ],
+    [ "eng:TDC", "esp:D27", "blue", [] ],
+    [ "eng:CAM", "esp:D26", "violet", [] ],
+    [ "eng:KNK", "esp:D25", "orange", [] ],
+    [ "logic1:D0", "eng:TDC", "blue", [] ],
+    [ "logic1:D1", "eng:CAM", "violet", [] ],
+    [ "logic1:D2", "eng:KNK", "orange", [] ],
+    [ "logic1:GND", "esp:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

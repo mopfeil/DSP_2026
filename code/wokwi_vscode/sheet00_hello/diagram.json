@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -120, "left": 40, "attrs": {} },
+    { "type": "wokwi-logic-analyzer", "id": "logic1", "top": -130, "left": 240, "attrs": {} }
+  ],
+  "connections": [
+    [ "pot1:GND", "uno:GND.1", "black", [] ],
+    [ "pot1:VCC", "uno:5V", "red", [] ],
+    [ "pot1:SIG", "uno:A0", "green", [] ],
+    [ "logic1:D0", "uno:13", "orange", [] ],
+    [ "logic1:GND", "uno:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

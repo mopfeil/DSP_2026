@@ -1,0 +1,52 @@
+{
+  "folders": [
+    {
+      "path": "sheet00_hello"
+    },
+    {
+      "path": "sheet01_crank"
+    },
+    {
+      "path": "sheet02_lambda"
+    },
+    {
+      "path": "sheet03_rpmfilter"
+    },
+    {
+      "path": "sheet04_adc"
+    },
+    {
+      "path": "sheet05_alias_esp32"
+    },
+    {
+      "path": "sheet05_alias_uno"
+    },
+    {
+      "path": "sheet08_knockfft"
+    },
+    {
+      "path": "sheet08_unofft"
+    },
+    {
+      "path": "sheet09_resonator"
+    },
+    {
+      "path": "sheet10_esp32_filter"
+    },
+    {
+      "path": "sheet10_uno_q15"
+    },
+    {
+      "path": "sheet12_knock_esp32"
+    },
+    {
+      "path": "sheet12_knock_uno"
+    }
+  ],
+  "extensions": {
+    "recommendations": [
+      "wokwi.wokwi-vscode",
+      "platformio.platformio-ide"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -130, "left": 20, "attrs": {} },
+    { "type": "wokwi-slide-switch", "id": "sw1", "top": -110, "left": 150, "attrs": {} },
+    { "type": "wokwi-slide-switch", "id": "sw2", "top": -110, "left": 220, "attrs": {} },
+    { "type": "wokwi-pushbutton", "id": "btn1", "top": -120, "left": 290, "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    [ "pot1:GND", "uno:GND.1", "black", [] ],
+    [ "pot1:VCC", "uno:5V", "red", [] ],
+    [ "pot1:SIG", "uno:A0", "green", [] ],
+    [ "sw1:2", "uno:3", "blue", [] ],
+    [ "sw1:1", "uno:GND.1", "black", [] ],
+    [ "sw2:2", "uno:4", "violet", [] ],
+    [ "sw2:1", "uno:GND.1", "black", [] ],
+    [ "btn1:1.l", "uno:2", "orange", [] ],
+    [ "btn1:2.l", "uno:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

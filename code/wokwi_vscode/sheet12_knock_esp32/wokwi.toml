@@ -1,0 +1,15 @@
+# Wokwi for VS Code. Build first (PlatformIO: Build, or "pio run"),
+# then F1 -> "Wokwi: Start Simulator". See code/wokwi_vscode/README.md.
+[wokwi]
+version = 1
+firmware = '.pio/build/esp32/firmware.bin'
+elf = '.pio/build/esp32/firmware.elf'
+# Logic analyzer capture, written when the simulation stops
+vcdFile = 'wokwi.vcd'
+# For GDB debugging ("Wokwi: Start Simulator and Wait for Debugger")
+gdbServerPort = 3333
+
+# Custom chip, prebuilt from code/wokwi/chips/engine-sim.chip.c (see chips/Makefile)
+[[chip]]
+name = 'engine-sim'
+binary = '../chips/engine-sim.chip.wasm'

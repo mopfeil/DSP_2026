@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "DSP lecture",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "chip-engine-sim", "id": "eng", "top": 20, "left": -220,
+      "attrs": { "vmax": "3.3", "offset": "1.65", "knock_prob": "50" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "eng:VCC", "esp:3V3", "red", [] ],
+    [ "eng:GND", "esp:GND.1", "black", [] ],
+    [ "eng:KNOCK", "esp:D34", "green", [] ],
+    [ "eng:TDC", "esp:D18", "blue", [] ],
+    [ "eng:KNK", "esp:D19", "orange", [] ]
+  ],
+  "dependencies": {}
+}
