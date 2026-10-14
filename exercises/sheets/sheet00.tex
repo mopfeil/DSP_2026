@@ -46,6 +46,21 @@ The conventions of the model are fixed for all sheets:
     1\,\% speed ripple at twice crankshaft frequency.
 \end{itemize}
 
+\section*{Alternative: Wokwi in VS Code}
+
+All Wokwi exercises run in the browser; nothing has to be installed. If you
+prefer working locally, every Wokwi project of the course is also available as
+a project for the \emph{Wokwi for VS Code} extension in
+\codefile{wokwi\_vscode/} (same sketches and circuits). There you build the
+firmware with PlatformIO and Wokwi simulates it; the custom chips come
+precompiled. You need VS Code with the extensions \emph{PlatformIO IDE} and
+\emph{Wokwi Simulator} and a free Wokwi license. Setup and workflow are
+described step by step in \codefile{wokwi\_vscode/README.md}. In the
+exercises, ``open the project in Wokwi'' then means: open the folder of
+the same name in \codefile{wokwi\_vscode/} and edit \texttt{src/sketch.ino}.
+The logic analyzer recording is written to \texttt{wokwi.vcd} in the project
+folder when you stop the simulation.
+
 %-------------------------------------------------------------------------
 \begin{exercise}{First steps in Wokwi}{\Wokwi}
 Open \url{https://wokwi.com}, create a new \emph{Arduino Uno} project and replace
@@ -96,6 +111,14 @@ Every Wokwi project of the following sheets contains the custom chip
 Exercise~0.1 and add the part
 \verb|{ "type": "chip-engine-sim", "id": "eng", "attrs": { "vmax": "5", "offset": "2.5" } }|
 to \texttt{diagram.json}.
+\emph{VS Code:} work in \codefile{wokwi\_vscode/sheet00\_hello/}; instead of
+copying the chip files, add the precompiled chip to \texttt{wokwi.toml}
+(as in \texttt{sheet01\_crank/wokwi.toml}):
+\begin{lstlisting}
+[[chip]]
+name = 'engine-sim'
+binary = '../chips/engine-sim.chip.wasm'
+\end{lstlisting}
 \begin{tasks}
   \item Connect \texttt{eng:CRANK} to logic analyzer D1, \texttt{eng:CAM} to D2
     and \texttt{eng:TDC} to D3 (and \texttt{eng:GND} to ground). Record
