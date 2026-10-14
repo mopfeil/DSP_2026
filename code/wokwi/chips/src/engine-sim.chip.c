@@ -17,6 +17,7 @@
  * The signal model is engine_signals.h (inlined below by make_chips.sh).
  */
 #include "wokwi-api.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include "engine_signals.h"
