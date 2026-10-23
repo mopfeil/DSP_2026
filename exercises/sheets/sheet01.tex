@@ -171,16 +171,17 @@ strokes and the cam signal only after $720^\circ$.
 %-------------------------------------------------------------------------
 \begin{exercise}{Signal classification and time scales}{\Paper}
 \begin{tasks}
-  \item Classify the five engine signals of Table~1.2 of the script (crank,
+  \item Classify the five engine signals of Table~1.1 of the script (crank,
     cam, knock, ion current, lambda) with respect to
     (i) time: continuous/discrete, (ii) amplitude: analog/binary (digital),
     (iii) deterministic/stochastic, (iv) periodic/quasi-periodic/aperiodic.
-    Justify every entry in one line. Note that the answer may differ for the
+    Collect the result in a table and justify every entry in one line. Note that the answer may differ for the
     physical sensor output and for the representation inside the ECU.
   \item Discuss the borderline cases: (i) Is the crank signal periodic
     during an acceleration? Is it periodic in another independent
-    variable? (ii) Why does the script call the knock signal
-    \emph{quasi-periodic}, although a single knock event is a transient?
+    variable? (ii) The knock signal is often called
+    \emph{quasi-periodic}, although a single knock event is a transient.
+    Why?
     Introduce the notion of a signal whose \emph{statistics} are periodic
     in the crank angle.
   \item Fill in the following table for an engine speed of \SI{3000}{rpm}:
@@ -202,7 +203,31 @@ strokes and the cam signal only after $720^\circ$.
 \end{exercise}
 
 \begin{solution}
-a) Classification (physical signal $\to$ inside the ECU):
+\textbf{a) Classification.} Go through the four criteria one at a time and
+ask each time: \emph{what does the sensor deliver}, and \emph{what does the
+ECU store}?
+\begin{enumerate}[label=Step \arabic*:,leftmargin=*,itemsep=1pt]
+  \item \emph{Time.} Every sensor delivers a voltage at every instant, so all
+    five physical signals are continuous-time (CT). Inside the ECU they become
+    discrete-time (DT) signals, in two different ways: analog signals are
+    \emph{sampled} at fixed times $t=nT_s$ by the ADC; binary signals are
+    \emph{time-stamped} at their edges by a capture timer, so the index is
+    the tooth number $k$, not a fixed sampling time.
+  \item \emph{Amplitude.} A Hall sensor switches between two levels. This
+    makes crank and cam binary. Knock, ion current and lambda are analog
+    voltages, and the ADC quantises them (e.g.\ 10 or 12 bits). The lambda
+    sensor is analog, but its characteristic is so steep that in practice it
+    shows only two values (\SI{0.1}{V} lean, \SI{0.9}{V} rich).
+  \item \emph{Predictability.} If the engine speed is known, the tooth wheel
+    and the cam pattern follow exactly from the geometry, so they are
+    deterministic. Knock and noise have random onset, amplitude and phase, so
+    they are stochastic. Combustion varies from cycle to cycle, so the ion
+    current is only partly deterministic.
+  \item \emph{Periodicity.} Ask after which shift the signal repeats, in time
+    $t$ or in crank angle $\theta$: crank $360^\circ$, cam $720^\circ$,
+    combustion-related signals $720^\circ/4=180^\circ$ (one event per TDC).
+\end{enumerate}
+This gives the table (physical signal $\to$ inside the ECU):
 
 \begin{center}
 \small
@@ -226,26 +251,54 @@ lambda & CT $\to$ DT (slow, 10--100\,Hz) & analog, but practically
 \bottomrule
 \end{tabularx}
 \end{center}
-Crank and cam are physically continuous-time voltages with two levels; the
-ECU, however, does not sample them but time-stamps their edges with a
-capture timer -- the information is in the \emph{sequence of edge times}
-$t_k$, i.e.\ a discrete-time signal indexed by the tooth number.
-All analog signals become discrete-time and quantised (= digital) after the ADC.
+Crank and cam are physically continuous-time voltages with two levels. The
+ECU, however, does not sample them. A capture timer time-stamps their edges,
+so the information is in the \emph{sequence of edge times} $t_k$, which is a
+discrete-time signal indexed by the tooth number. All analog signals become
+discrete-time and quantised (= digital) after the ADC.
 
-b) (i) During an acceleration the tooth period changes from tooth to tooth,
-so $x(t)=x(t+T)$ holds for no $T$: the crank signal is not periodic in time.
-It is, however, \emph{exactly} periodic in the crank angle,
-$x_c(\theta)=x_c(\theta+360^\circ)$, independently of the speed -- the reason
-why many engine algorithms work in the angle domain (Sheet~4).
-(ii) Each knock burst is a transient (damped oscillation), its onset,
-amplitude and phase are random and it does not occur in every cycle. But the
-\emph{probability} of a burst, the valve impacts, the combustion vibration
-and the noise level repeat every $180^\circ$ (each TDC): the mean value and the
-autocorrelation of the signal are periodic functions of the crank angle.
-Such a signal is called \emph{cyclostationary}. ``Quasi-periodic'' in the
-script means exactly this.
+\textbf{b) Borderline cases.}
+(i) A signal is periodic in $t$ if $x(t)=x(t+T)$ for all $t$ and one fixed
+$T>0$. During an acceleration $\omega(t)$ increases, so the tooth period
+$T_k=6^\circ/\omega$ gets shorter from tooth to tooth and no single $T$
+works: the crank signal is \emph{not} periodic in time. Write it as a
+function of the crank angle instead, $x(t)=x_c(\theta(t))$ with
+$\theta(t)=\int_0^t\omega(t')\dd t'$. The wheel geometry fixes $x_c$, so
+$x_c(\theta)=x_c(\theta+360^\circ)$ holds \emph{exactly}, whatever the speed.
+This is why many engine algorithms work in the angle domain (Sheet~4).
 
-c) At $n=\SI{3000}{rpm}$ ($\SI{50}{rev/s}$, $\omega=\SI{18000}{\degree/s}$):
+(ii) Look at a single burst: it is a damped oscillation
+$A\,\e^{-(t-t_0)/\tau}\sin(2\pi f_1(t-t_0)+\varphi)$ with random $t_0$, $A$ and
+$\varphi$, and in many cycles there is no burst at all. That is a transient,
+not a periodic signal. Now look at \emph{averages over many cycles} at a fixed
+crank angle: the knock \emph{probability}, the valve impacts, the combustion
+vibration and the noise level are the same after every TDC. So the mean
+$\mu(\theta)=\mathrm{E}\{x(\theta)\}$ and the autocorrelation
+$R(\theta,\theta+\Delta)=\mathrm{E}\{x(\theta)\,x(\theta+\Delta)\}$ satisfy
+\[ \mu(\theta+180^\circ)=\mu(\theta),\qquad
+   R(\theta+180^\circ,\theta+180^\circ+\Delta)=R(\theta,\theta+\Delta). \]
+A signal whose statistics are periodic like this is called
+\emph{cyclostationary}. This is exactly what ``quasi-periodic'' means for the
+knock signal.
+
+\textbf{c) Time scales at \SI{3000}{rpm}.} Everything follows from two
+numbers:
+\[ T_{\text{rev}}=\frac{60}{n}=\frac{60}{3000}\,\text{s}=\SI{20}{ms},\qquad
+   \omega=\frac{360^\circ}{T_{\text{rev}}}=\SI{18000}{\degree/s}. \]
+Each other entry is then an angle divided by $\omega$:
+\begin{itemize}[itemsep=1pt]
+  \item tooth: $T_z=6^\circ/\omega=\SI{20}{ms}/60=\SI{333.3}{\micro s}$, i.e.\ $f_z=\SI{3}{kHz}$;
+  \item gap: the rising edge of tooth 57 is at $342^\circ$, that of tooth 0 at
+    $360^\circ$, so $18^\circ/\omega=3\,T_z=\SI{1}{ms}$;
+  \item cam period = engine cycle: $720^\circ/\omega=2\,T_{\text{rev}}=\SI{40}{ms}$;
+    cam HIGH for $180^\circ$: \SI{10}{ms};
+  \item 4 combustions per $720^\circ$: one every $180^\circ$, i.e.\ \SI{10}{ms},
+    firing frequency $\SI{100}{Hz}=2\times$ the rotation frequency (2nd order);
+  \item $1^\circ$: $1/\omega=\SI{55.6}{\micro s}$, so the knock window
+    $5^\circ\dots25^\circ$ ATDC is $\SI{0.278}{ms}\dots\SI{1.389}{ms}$ after TDC;
+  \item oscillations within $\tau$: $f_1\tau=\SI{6500}{Hz}\cdot\SI{0.8}{ms}=5.2$.
+\end{itemize}
+
 \begin{center}
 \small
 \begin{tabular}{@{}lll@{}}
@@ -264,21 +317,53 @@ knock oscillations in $\tau$ & $f_1\tau$ & $6.5\cdot 0.8 = 5.2$ \\
 \bottomrule
 \end{tabular}
 \end{center}
+These numbers are easy to check with a few lines of C. Change \texttt{n} to
+get the table for another speed:
+\begin{lstlisting}
+double n = 3000.0;                  /* engine speed, rpm      */
+double T_rev = 60.0 / n;            /* s per revolution       */
+double w = 360.0 / T_rev;           /* crank speed, deg/s     */
+printf("tooth       %7.1f us  (%.0f Hz)\n", 1e6 * 6.0 / w, w / 6.0);
+printf("gap         %7.3f ms\n", 1e3 * 18.0 / w);
+printf("combustion  %7.3f ms  (%.0f Hz)\n", 1e3 * 180.0 / w, w / 180.0);
+printf("1 deg       %7.2f us\n", 1e6 / w);
+printf("knock onset %7.3f .. %.3f ms ATDC\n", 1e3 * 5.0 / w, 1e3 * 25.0 / w);
+\end{lstlisting}
+\begin{lstlisting}[style=shell,numbers=none]
+tooth         333.3 us  (3000 Hz)
+gap           1.000 ms
+combustion   10.000 ms  (100 Hz)
+1 deg         55.56 us
+knock onset   0.278 .. 1.389 ms ATDC
+\end{lstlisting}
 The signals thus span four decades of time scales: knock (\SI{100}{\micro s}),
 teeth (\SI{300}{\micro s}), combustions (\SI{10}{ms}), lambda (\SI{1}{s}).
 
-d) The crank wheel looks identical in both revolutions of a cycle: at
+\textbf{d) Crank and cam.}
+The crank wheel looks identical in both revolutions of a cycle: at
 $\theta=120^\circ$ (compression TDC of cylinder~1, ignition) and at
-$\theta=480^\circ$ (gas-exchange TDC of cylinder~1, overlap) the crank signal
-is the same. Only the camshaft, which turns once per cycle, distinguishes the
-two revolutions. At \SI{200}{rpm} one revolution lasts \SI{300}{ms}.
-(i) Worst case: the ECU starts just after the reference mark and must wait for
-the next gap \emph{and} needs one normal tooth period before it to apply the
-ratio test: almost one revolution, $\approx\SI{300}{ms}$.
-(ii) Then another $60^\circ$ to the cam evaluation:
-$420^\circ \approx \SI{350}{ms}$. Before that, the ECU can only use
-``wasted spark'' (fire both cylinders 1 and 4 at every crank TDC) and must not
-inject sequentially.
+$\theta=480^\circ$ (gas-exchange TDC of cylinder~1, valve overlap) the crank
+signal is the same, and so is the piston position. Only the camshaft, which
+turns once per cycle, tells the two revolutions apart.
+
+At \SI{200}{rpm}: $T_{\text{rev}}=60/200\,\text{s}=\SI{300}{ms}$, so
+$1^\circ\,\widehat{=}\,\SI{0.833}{ms}$.
+
+(i) The ratio test at the reference edge ($360^\circ$) needs \emph{three}
+consecutive rising edges: tooth 56 ($336^\circ$) and tooth 57 ($342^\circ$)
+give $T_{\text{prev}}$, and tooth 57 and the reference edge give
+$T_{\text{gap}}$. The worst case is to switch on just \emph{after} the edge at
+$336^\circ$. The current gap then cannot be tested (no $T_{\text{prev}}$), and
+the ECU has to wait for the next reference edge at $720^\circ$:
+\[ t_{360} = (720^\circ-336^\circ)\cdot\SI{0.833}{ms/\degree}
+   = 384^\circ \;\widehat{=}\; \SI{320}{ms}. \]
+(Best case: switch on just before $336^\circ$, sync after $24^\circ=\SI{20}{ms}$.)
+
+(ii) After the reference edge the ECU still has to reach the cam evaluation at
+$60^\circ$:
+\[ t_{720} = 384^\circ+60^\circ=444^\circ \;\widehat{=}\; \SI{370}{ms}. \]
+Until then the ECU can use only ``wasted spark'' (fire cylinders 1 and 4
+together at every crank TDC), and it must not inject sequentially.
 \end{solution}
 
 %-------------------------------------------------------------------------
@@ -322,11 +407,25 @@ is \texttt{micros()} (resolution \SI{4}{\micro s} on the Uno).
 \end{exercise}
 
 \begin{solution}
-a) One tooth $=6^\circ=\frac{1}{60}$\,rev, so the speed is
-$\frac{1}{60\,T_k}$\,rev/s $=\frac{60}{60\,T_k}$\,rpm $=1/T_k$ (in rpm with $T_k$
-in s). The gap covers $18^\circ$, a revolution $360^\circ$, hence $3/T_{\text{gap}}$
-and $60/T_{\text{rev}}$. With $n=1/T$: $\left|\frac{\dd n}{\dd T}\right|=\frac{1}{T^2}=n^2$,
-so a period error of one tick changes $n$ by $\Delta n\approx n^2\Delta$:
+\textbf{a) Speed formulas.} Step 1: one tooth is $6^\circ=\frac{1}{60}$\,rev.
+If it takes $T_k$ seconds, the speed is
+\[ n=\frac{1/60\ \text{rev}}{T_k}=\frac{1}{60\,T_k}\,\frac{\text{rev}}{\text{s}}
+    =\frac{60}{60\,T_k}\,\frac{\text{rev}}{\text{min}}=\frac{1}{T_k/\text{s}}\ \text{rpm}. \]
+The gap covers $18^\circ=\frac{3}{60}$\,rev and a revolution covers 1\,rev,
+so the same steps give $3/T_{\text{gap}}$ and $60/T_{\text{rev}}$.
+
+Step 2, quantisation: the timer can only measure $T_k$ as an integer
+multiple of the tick $\Delta$. A period error of one tick causes a speed error
+\[ \Delta n\approx\left|\frac{\dd n}{\dd T}\right|\Delta
+   =\frac{1}{T^2}\,\Delta = n^2\Delta
+   \qquad(n=1/T\text{ in rpm, }T,\Delta\text{ in s}). \]
+Example: at \SI{3000}{rpm} and $\Delta=\SI{4}{\micro s}$,
+$\Delta n=3000^2\cdot4\cdot10^{-6}=\SI{36}{rpm}$. Equivalently, the relative
+error is one tick out of $T_k/\Delta=333/4\approx83$ ticks, i.e.\ 1.2\,\%.
+
+Step 3, compare with the ripple: the model speed is
+$\omega=\omega_0(1+\varepsilon\sin2\theta)$ with $\varepsilon=0.01$, i.e.\
+amplitude $\pm0.01\,n$:
 
 \begin{center}
 \small
@@ -340,40 +439,109 @@ $n$ / rpm & $T_k$ & $\Delta n$ ($\Delta=\SI{4}{\micro s}$) & $\Delta n$ ($\Delta
 \bottomrule
 \end{tabular}
 \end{center}
-The relative resolution $\Delta n/n=\Delta/T_k$ degrades linearly with speed. With
-\texttt{micros()} the ripple is buried in the quantisation above
-$\approx\SI{2500}{rpm}$; with the \SI{0.5}{\micro s} timer it is resolved over the
-whole range. Real ECUs use capture timers with $\le\SI{100}{ns}$ resolution.
+The relative resolution $\Delta n/n=\Delta/T_k=n\Delta$ gets worse linearly
+with speed. The quantisation step equals the ripple amplitude when
+$n^2\Delta=0.01\,n$, i.e.\ at $n=0.01/\Delta$: \SI{2500}{rpm} for
+\texttt{micros()}, \SI{20000}{rpm} for Timer1. Above \SI{2500}{rpm} the ripple
+is therefore buried in the \texttt{micros()} quantisation. With the
+\SI{0.5}{\micro s} timer it is resolved over the whole speed range. Real ECUs
+use capture timers with $\le\SI{100}{ns}$ resolution.
 
-Gap test: let $\omega_1$ be the speed during the tooth before the gap,
-$\omega_2$ the mean speed across the gap. Then $T_{\text{gap}}/T_{\text{prev}}
-=3\omega_1/\omega_2<2$ requires $\omega_2>1.5\,\omega_1$ within about two
-tooth periods ($\approx12^\circ/\omega_1$):
-$\dot\omega\approx 0.5\,\omega_1^2/12^\circ$, i.e.\ $\dot n\approx n^2/4$ (rpm/s,
-$n$ in rpm) -- \SI{90000}{rpm/s} at \SI{600}{rpm}. A false gap
-($T_k/T_{k-1}>2$ for a normal tooth) needs the speed to halve within one tooth,
-$\dot n\approx -n^2/2$, \SI{-180000}{rpm/s} at \SI{600}{rpm}. Both are an order
-of magnitude beyond real engines, so threshold 2 (the geometric mean of 1 and 3
-would be 1.73) is robust in normal operation. Critical is only the
-start (cranking at \SI{200}{rpm} with $\pm$30\,\% speed fluctuations from the
-compression strokes, limit $\dot n\approx\SI{10000}{rpm/s}$), where ECUs add
-plausibility checks (tooth count 58 between gaps, cam edge position).
+Step 4, robustness of the gap test. Let $\omega_1$ be the speed during the
+tooth before the gap and $\omega_2$ the mean speed across the gap. Then
+\[ \frac{T_{\text{gap}}}{T_{\text{prev}}}=\frac{18^\circ/\omega_2}{6^\circ/\omega_1}
+   =3\,\frac{\omega_1}{\omega_2}. \]
+\emph{Missed gap:} the ratio drops to 2 or less if $\omega_2\ge1.5\,\omega_1$.
+The centres of the two intervals are $3^\circ+9^\circ=12^\circ$ apart, i.e.\
+$\Delta t\approx12^\circ/\omega_1$. The speed must therefore rise by
+$0.5\,\omega_1$ within $\Delta t$:
+\[ \dot\omega\approx\frac{0.5\,\omega_1}{12^\circ/\omega_1}=\frac{\omega_1^2}{24^\circ}. \]
+Convert to rpm with $\omega=6n$ ($\omega$ in $^\circ$/s, $n$ in rpm):
+$6\dot n=36n^2/24$, so $\dot n\approx n^2/4$ (rpm/s). At \SI{600}{rpm} this is
+$600^2/4=\SI{90000}{rpm/s}$.
 
-b) Key part of the solution
-(\codefile{solutions/wokwi/sheet01\_crank/sketch.ino}):
-\inputcode[firstline=52,lastline=99]{solutions/wokwi/sheet01_crank/sketch.ino}
-$120^\circ$ and $300^\circ$ correspond to the rising edges of teeth 20 and 50.
-Every revolution reports \texttt{teeth} $=58$ edges (57 normal teeth + the gap
-edge) and \texttt{sync\_err} $=0$. In the logic analyzer the LED rises
-a few microseconds (interrupt latency) after the rising edge of tooth 20 (50),
-i.e.\ practically together with the \SI{50}{\micro s} TDC pulse of the chip, which
-is emitted exactly at $120^\circ$/$300^\circ$. The LED marks the
-crank-angle \emph{event}; it is lit for 5 teeth = $30^\circ$.
+\emph{False gap:} a normal tooth gives a ratio $T_k/T_{k-1}>2$ only if the
+speed halves within one tooth ($\Delta t\approx6^\circ/\omega$):
+$\dot\omega\approx-0.5\,\omega^2/6^\circ$, i.e.\ $\dot n\approx-n^2/2$, which
+is \SI{-180000}{rpm/s} at \SI{600}{rpm}.
 
-c) Expected values at \SI{3000}{rpm} (obtained with an offline model of exactly this
-measurement, \codefile{solutions/wokwi/sheet01\_crank/tooth\_sim.c}, over 200
-revolutions; in Wokwi rare additional outliers of a few \si{\micro s} can occur
-when the crank interrupt has to wait for the Timer0 or UART interrupt):
+Both limits are an order of magnitude beyond real engines
+($\lesssim\SI{10000}{rpm/s}$). The offline model confirms the large margin:
+at 3000 and \SI{7000}{rpm} the measured gap ratio lies in $2.97\dots3.09$ and
+the ratio of normal teeth stays below $1.03$. So threshold 2 is robust in
+normal operation (the geometric mean of 1 and 3 would be 1.73). Only the start
+is critical: when cranking at \SI{200}{rpm}, the compression strokes cause
+$\pm30\,\%$ speed fluctuations, and the limit is
+$\dot n\approx200^2/4=\SI{10000}{rpm/s}$. That is why ECUs add plausibility
+checks there (tooth count 58 between gaps, cam edge position).
+
+\textbf{b) ISR.} The tooth numbers follow from $\theta=6^\circ k$:
+$k=120/6=20$ and $k=300/6=50$. The LED stays on for $30^\circ/6^\circ=5$ teeth.
+The reference solution
+(\codefile{solutions/wokwi/sheet01\_crank/sketch.ino}, line numbers as in the
+file) works in three steps.
+
+\emph{Step 1 -- time stamp and tooth period.} Unsigned subtraction gives the
+right period even when the counter wraps around. The 16-bit Timer1 wraps every
+$65536\cdot\SI{0.5}{\micro s}=\SI{32.8}{ms}$, so periods up to \SI{32.8}{ms}
+are measured correctly. The longest interval is the gap, which limits the
+method to $n>3/\SI{32.8}{ms}\approx\SI{92}{rpm}$; that is enough for cranking.
+The first edge only initialises \texttt{t\_last}:
+\inputcode[firstline=52,lastline=60,firstnumber=52]{solutions/wokwi/sheet01_crank/sketch.ino}
+Note \texttt{T\_prev != 0}: right after the start there is no previous period,
+so no gap decision is made (this is the extra edge needed in 1.1\,d).
+
+\emph{Step 2 -- gap and tooth counter.} At the gap the counter is reset to 0
+and the accumulated revolution statistics go to \texttt{loop()}. If the
+previous revolution did not end at tooth 57, an edge was lost or counted twice,
+and \texttt{sync\_errors} is incremented. Every other edge increments
+\texttt{tooth} and updates sum, minimum and maximum of $T$:
+\inputcode[firstline=62,lastline=81,firstnumber=62]{solutions/wokwi/sheet01_crank/sketch.ino}
+
+\emph{Step 3 -- TDC LED.} Switch it on at teeth 20/50 and off 5 teeth later:
+\inputcode[firstline=83,lastline=92,firstnumber=83]{solutions/wokwi/sheet01_crank/sketch.ino}
+
+Expected result: every revolution reports \texttt{teeth} $=58$ edges (57
+normal teeth + the gap edge) and \texttt{sync\_err} $=0$. In the logic
+analyzer the LED (D3) rises a few microseconds (interrupt latency) after the
+rising edge of tooth 20 (50) on D0. This is practically together with the
+\SI{50}{\micro s} TDC pulse of the chip on D2, which is emitted exactly at
+$120^\circ$/$300^\circ$. At \SI{3000}{rpm} the LED is lit for
+$5\cdot\SI{333}{\micro s}=\SI{1.67}{ms}$ every \SI{10}{ms}. The LED marks the
+crank-angle \emph{event}.
+
+\textbf{c) Speed computation.} \texttt{loop()} copies the shared variables
+with interrupts disabled. Without that, the ISR could change a multi-byte
+value halfway through the read. It then applies \eqref{eq:rpm}.
+The \emph{longest} tooth period gives the \emph{lowest} speed, so
+\texttt{rpm\_min} uses \texttt{tmax}:
+\inputcode[firstline=139,lastline=151,firstnumber=139]{solutions/wokwi/sheet01_crank/sketch.ino}
+
+\emph{Step 1 -- per-revolution resolution.} One revolution lasts
+$\SI{20}{ms}=5000$ ticks (\texttt{micros()}) or $40000$ ticks (Timer1). One
+tick therefore gives $\Delta n=3000/5000=\SI{0.6}{rpm}$, resp.\
+$3000/40000=\SI{0.075}{rpm}$.
+
+\emph{Step 2 -- expected per-tooth values.} With the ripple, the tooth period
+varies by $\pm1\,\%$, i.e.\ $T_k=330.0\dots\SI{336.7}{\micro s}$. Since
+\texttt{micros()} returns multiples of \SI{4}{\micro s}, the measured period is
+one of $328, 332, 336, \SI{340}{\micro s}$, which gives the speed levels
+$3048.8, 3012.0, 2976.2, \SI{2941.2}{rpm}$. These levels are
+$\approx\SI{36}{rpm}$ apart, as predicted in a).
+
+\emph{Step 3 -- check with the offline model.}
+\codefile{solutions/wokwi/sheet01\_crank/tooth\_sim.c} reproduces exactly this
+measurement over 200 revolutions:
+\begin{lstlisting}[style=shell,numbers=none]
+$ ./tooth_sim 3000 4
+rpm 3000, tick 4.00 us: per-tooth rpm mean 3000.7 std 25.7 min 2941.2 max 3048.8 (11286 teeth)
+  per-revolution rpm 2999.40..3000.00
+$ ./tooth_sim 3000 0.5
+rpm 3000, tick 0.50 us: per-tooth rpm mean 3000.6 std 21.7 min 2967.4 max 3030.3 (11286 teeth)
+  per-revolution rpm 2999.85..2999.85
+\end{lstlisting}
+(In Wokwi, rare extra outliers of a few \si{\micro s} can occur when the crank
+interrupt has to wait for the Timer0 or UART interrupt.)
 \begin{center}
 \small
 \begin{tabular}{@{}lccc@{}}
@@ -385,28 +553,68 @@ Timer1, \SI{0.5}{\micro s} & 2999.85 & 2967\dots3030 & \SI{21.7}{rpm} \\
 \bottomrule
 \end{tabular}
 \end{center}
-The per-revolution speed is very precise (one tick on \SI{20}{ms}:
-$\Delta n/n=0.5/40000$) and slightly \emph{below} 3000, because the mean of
-$1/(1+\varepsilon\sin2\theta)$ is $1+\varepsilon^2/2$
-($n\varepsilon^2/2=\SI{0.15}{rpm}$). The per-tooth values with Timer1 show the
-\emph{real} speed fluctuation: $\pm1\,\%$, two periods per revolution, std
-$30/\sqrt2=\SI{21.2}{rpm}$ -- this is information (in a real engine the
-torque pulses of the individual combustions; used e.g.\ for misfire
-detection). With \texttt{micros()} the values jump in steps of $\approx\SI{36}{rpm}$
-(332, 336\,\si{\micro s}) -- a measurement error of the same size as the
-information. The plotted dump shows a clean sine with 2 periods per
-58 teeth for Timer1 and a staircase-like, noisy version for \texttt{micros()}.
 
-d) At \SI{7000}{rpm} the model gives per-tooth std \SI{94}{rpm} (micros, range
-6757\dots7143) vs.\ \SI{51}{rpm} (Timer1, 6920\dots7092, ripple
-$\pm\SI{70}{rpm}$); the per-revolution value stays within
-$\pm\SI{3}{rpm}$ resp.\ \SI{0.5}{rpm}. When the slider is moved, the speed
-changes abruptly in the simulator; the gap is still found (ratio 3 vs.\ 1,
-see a)) as long as the jump does not fall exactly into the gap.
-UART: at \SI{7000}{rpm} there are $7000\cdot58/60\approx6800$ teeth/s; a line
-such as \texttt{1234,57,286,6993.0} has $\approx20$ characters, i.e.\
-\SI{136000}{chars/s} -- twelve times the capacity of 115200\,baud
-(\SI{11520}{chars/s}). Hence statistics per revolution and block dumps from RAM.
+\emph{Step 4 -- interpretation.} The per-revolution speed is slightly
+\emph{below} 3000. The reason is that the revolution time is
+$T_{\text{rev}}=\int_0^{360^\circ}\dd\theta/\omega$, and the mean of
+$1/(1+\varepsilon\sin2\theta)$ is $\approx1+\varepsilon^2/2$. So
+$n_{\text{rev}}\approx n(1-\varepsilon^2/2)=3000-\SI{0.15}{rpm}$.
+
+The per-tooth spread splits into two independent parts, which add as
+variances:
+\begin{itemize}[itemsep=1pt]
+  \item \emph{Information}: the real ripple, a sine of amplitude
+    \SI{30}{rpm} with 2 periods per revolution. Its std is
+    $30/\sqrt2=\SI{21.2}{rpm}$. On a real engine these are the torque pulses
+    of the individual combustions, used e.g.\ for misfire detection.
+  \item \emph{Measurement error}: each period is the difference of two time
+    stamps, and each stamp has a rounding error that is uniform over one tick.
+    The difference therefore has variance $2\cdot\Delta^2/12=\Delta^2/6$, i.e.\
+    a std of $n^2\Delta/\sqrt6$: \SI{14.7}{rpm} for \texttt{micros()}, \SI{1.8}{rpm}
+    for Timer1.
+\end{itemize}
+\[ \sigma_{\text{micros}}\approx\sqrt{21.2^2+14.7^2}=\SI{25.8}{rpm},\qquad
+   \sigma_{\text{Timer1}}\approx\sqrt{21.2^2+1.8^2}=\SI{21.3}{rpm}, \]
+in good agreement with 25.7 and \SI{21.7}{rpm}. With Timer1 almost all of the
+``jitter'' is information. With \texttt{micros()}, the measurement error is of
+the same size as the information. The plotted dump shows a clean sine with 2
+periods per 58 teeth for Timer1, and a staircase-like, noisy version for
+\texttt{micros()}. The gap lines (\texttt{tooth} = 255) are already
+converted with $3/T$ in the dump, so they do not show up as outliers.
+
+\textbf{d) \SI{7000}{rpm}.} Use the same steps with $T_k=\SI{142.9}{\micro s}$.
+\texttt{micros()} gives periods $140\dots\SI{148}{\micro s}$, i.e.\
+$7142.9\dots\SI{6756.8}{rpm}$. The predicted std is
+$\sqrt{(70/\sqrt2)^2+(196/\sqrt6)^2}=\sqrt{49.5^2+80.0^2}=\SI{94}{rpm}$
+for \texttt{micros()} and $\sqrt{49.5^2+10.0^2}=\SI{50.5}{rpm}$ for Timer1. The model gives:
+\begin{lstlisting}[style=shell,numbers=none]
+$ ./tooth_sim 7000 4
+rpm 7000, tick 4.00 us: per-tooth rpm mean 7002.1 std 94.2 min 6756.8 max 7142.9 (11286 teeth)
+  per-revolution rpm 6999.53..7002.80
+$ ./tooth_sim 7000 0.5
+rpm 7000, tick 0.50 us: per-tooth rpm mean 7001.2 std 51.3 min 6920.4 max 7092.2 (11286 teeth)
+  per-revolution rpm 6999.53..6999.94
+\end{lstlisting}
+With \texttt{micros()} the measurement error is now larger than the ripple
+($\pm\SI{70}{rpm}$). The per-revolution value stays within $\pm\SI{3}{rpm}$
+(one tick out of $\SI{8.57}{ms}/\SI{4}{\micro s}=2143$ ticks) resp.\
+\SI{0.5}{rpm}. When the slider is moved, the speed changes abruptly in the
+simulator. The gap is still found (ratio 3 vs.\ 1, see a)) as long as the jump
+does not fall exactly into the gap.
+
+\emph{UART load:}
+\begin{align*}
+  \text{edges/s} &= \frac{7000}{60}\cdot58 \approx 6770\ \text{s}^{-1},\\
+  \text{chars/s} &\approx 6770\cdot20 \approx 135\,000\ \text{s}^{-1}
+    \quad(\text{line \texttt{1234,57,286,6993.0} + CR/LF}),\\
+  \text{UART capacity} &= \frac{\SI{115200}{bit/s}}{10\ \text{bit/char}}
+    = 11\,520\ \text{chars/s}.
+\end{align*}
+Printing one line per tooth would need almost $12\times$ the UART capacity.
+One line per revolution ($\approx50$ chars, $117$ rev/s) needs
+$\approx5800$ chars/s, i.e.\ half the capacity. Hence statistics per
+revolution, and a block dump from RAM that is printed after the recording
+(120 lines of $\approx16$ chars take $\approx\SI{170}{ms}$).
 \end{solution}
 
 %-------------------------------------------------------------------------
@@ -426,35 +634,59 @@ signal (\texttt{eng:CAM}, HIGH for $0^\circ\le\theta<180^\circ$).
 \end{exercise}
 
 \begin{solution}
-a) The cam edge at $\theta=0^\circ$ coincides with the reference edge of the
-crank signal (in the simulator both are written in the same event, on a real
-engine the cam edge has a tolerance of several degrees and drifts with cam
-phasing). Reading the level there is a race. The level must be read in the
-middle of a cam state, e.g.\ at tooth 10 ($60^\circ$ or $420^\circ$): HIGH $\Rightarrow$
-first revolution (phase $0^\circ$), LOW $\Rightarrow$ second revolution (phase
-$360^\circ$). Any tooth with $\ge 10^\circ$ distance to $0^\circ$ and $180^\circ$ works.
+\textbf{a) Where to read the cam level.} The cam edge at $\theta=0^\circ$
+coincides with the reference edge of the crank signal. In the simulator both
+are written in the same event. On a real engine the cam edge has a tolerance
+of several degrees and drifts with cam phasing. Reading the level at the
+reference edge is therefore a race: the result depends on which edge comes
+first. The level must be read in the \emph{middle} of a cam state, far from
+both cam edges ($0^\circ$ and $180^\circ$), e.g.\ at tooth~10 ($60^\circ$ or
+$420^\circ$):
+\[ \text{HIGH at tooth 10}\Rightarrow\theta=60^\circ\ (\text{phase }0^\circ),
+   \qquad
+   \text{LOW at tooth 10}\Rightarrow\theta=420^\circ\ (\text{phase }360^\circ). \]
+Any tooth whose distance to $0^\circ$ and $180^\circ$ is $\ge10^\circ$ works,
+i.e.\ teeth $2\dots28$.
 
-b) See the listing in Exercise~1.2 (line 21 and lines 43--48): at every gap
-\texttt{phase = 360 - phase}, at tooth 10 the cam level is compared with the
-predicted phase; \texttt{cam\_err} stays 0 and the printed \texttt{phase}
-alternates 0, 360, 0, \dots{} The green LED is on only every second time
-the red TDC LED lights up, i.e.\ once per engine cycle (every \SI{40}{ms} at
-\SI{3000}{rpm}).
+\textbf{b) Implementation.} The phase logic consists of two parts.
+Step 1: \emph{predict}. Every gap starts a new revolution, so the phase
+toggles between 0 and $360^\circ$ (inside the gap branch of the ISR):
+\inputcode[firstline=72,lastline=72,firstnumber=72]{solutions/wokwi/sheet01_crank/sketch.ino}
+Step 2: \emph{measure and check}. At tooth 10 the cam level gives the phase
+directly. If a prediction exists and the two disagree, \texttt{cam\_err} is
+incremented. The measured value always wins, which also does the first
+synchronisation (\texttt{phase} $=-1$ before):
+\inputcode[firstline=94,lastline=99,firstnumber=94]{solutions/wokwi/sheet01_crank/sketch.ino}
+Step 3: \emph{use it}. The cylinder-1 LED is switched together with the TDC
+LED, but only at tooth 20 \emph{and} phase $0^\circ$, i.e.\ at $\theta=120^\circ$
+(line 87 in the listing of Exercise~1.2\,b).
 
-c) $\theta=\text{phase}+6^\circ k$; firing order 1-3-4-2:
+Expected result: \texttt{cam\_err} stays 0 and the printed \texttt{phase}
+alternates 0, 360, 0, \dots{} The green LED (D4) is on only every second time
+the red TDC LED lights up at tooth 20, i.e.\ once per engine cycle (every
+\SI{40}{ms} at \SI{3000}{rpm}). It always lies inside the cam HIGH phase on
+D1 (at $120^\circ$, cam HIGH for $0\dots180^\circ$).
+
+\textbf{c) Cylinder assignment.} The crank angle of an edge is
+$\theta=\text{phase}+6^\circ k$. Insert the two TDC teeth and the two phases,
+then use the TDC positions of the model (cylinders 1, 3, 4, 2 at 120, 300,
+480, $660^\circ$, firing order 1-3-4-2):
 \begin{center}
 \small
 \begin{tabular}{@{}cccc@{}}
 \toprule
 phase & tooth & crank angle & cylinder \\
 \midrule
-$0^\circ$   & 20 & $120^\circ$ & 1 \\
-$0^\circ$   & 50 & $300^\circ$ & 3 \\
-$360^\circ$ & 20 & $480^\circ$ & 4 \\
-$360^\circ$ & 50 & $660^\circ$ & 2 \\
+$0^\circ$   & 20 & $0+6\cdot20=120^\circ$ & 1 \\
+$0^\circ$   & 50 & $0+6\cdot50=300^\circ$ & 3 \\
+$360^\circ$ & 20 & $360+120=480^\circ$ & 4 \\
+$360^\circ$ & 50 & $360+300=660^\circ$ & 2 \\
 \bottomrule
 \end{tabular}
 \end{center}
+In code this is a small lookup, e.g.\
+\lstinline!const byte cyl[2][2] = {{1, 3}, {4, 2}};! indexed with
+\lstinline!cyl[phase == 360][tooth == 50]!.
 \end{solution}
 
 \begin{deliverables}
@@ -500,7 +732,13 @@ signal during a speed ramp \SIrange{2000}{4000}{rpm} is generated.
 \end{exercise}
 
 \begin{solution}
-a) Output of the reference solution \codefile{solutions/bonus/jslinux/sheet01/signal\_zoo.c}:
+\textbf{a) Statistics.} \texttt{stats()} needs only one loop over the
+samples. It accumulates $\sum x$ and $\sum x^2$ and tracks the extremes. Then
+$\bar x=\frac1N\sum x[n]$ and
+$x_{\text{rms}}=\sqrt{\frac1N\sum x[n]^2}$ (reference solution
+\codefile{solutions/bonus/jslinux/sheet01/signal\_zoo.c}):
+\inputcode[firstline=30,lastline=43,firstnumber=30]{solutions/bonus/jslinux/sheet01/signal_zoo.c}
+Output:
 \begin{lstlisting}[style=shell,numbers=none]
 signal              mean       rms       min       max
 crank             0.4808    0.6934    0.0000    1.0000
@@ -509,18 +747,58 @@ knock             0.0433    0.1234   -1.1454    1.5144
 ion               0.0993    0.2399   -0.1269    1.0440
 lambda            0.5004    0.6195    0.1000    0.9000
 \end{lstlisting}
-For a 0/1 signal with duty cycle $d$: mean $=d$, RMS $=\sqrt{d}$.
-Crank: $d=58\cdot3^\circ/360^\circ=0.4833$ (measured 0.4808 because a HIGH
-phase of $3^\circ=\SI{167}{\micro s}$ is only 4.17 samples long, sampling
-rounds), RMS $=\sqrt{0.4808}=0.6934$. Cam: $d=180/720=0.25$, RMS $=0.5$.
-The knock signal contains the low-frequency combustion vibration, a positive
-half sine of amplitude \SI{0.2}{V} over $60^\circ$ after every TDC:
-$0.2\cdot\frac{2}{\pi}\cdot\frac{60}{180}=\SI{0.042}{V}$ -- this is the measured
-mean. (A real piezo sensor is AC-coupled; the model represents the signal
-after a high-pass with a cut-off far below the combustion frequency.)
-The large extremes ($-1.15/+1.51$\,V) stem from knock events.
+\emph{Binary signals, analytically.} Let $x\in\{0,1\}$ with duty cycle $d$
+(fraction of samples that are 1). Then $\bar x=d$. Because $x^2=x$, also
+$\overline{x^2}=d$, so $x_{\text{rms}}=\sqrt d$.
+\begin{itemize}[itemsep=1pt]
+  \item Crank: 58 teeth with $3^\circ$ HIGH each per $360^\circ$, so
+    $d=58\cdot3/360=0.4833$. Measured: 0.4808 and
+    $\sqrt{0.4808}=0.6934$. The small deviation (0.0025, i.e.\ about 10 of
+    4000 samples) is a sampling effect. One sample is
+    $\SI{18000}{\degree/s}/\SI{25}{kHz}=0.72^\circ$, so a HIGH phase of
+    $3^\circ$ lasts only 4.17 sampling intervals and is represented by 4 or 5
+    samples, depending on where the sampling grid lies. Over the short record
+    these roundings do not average out exactly.
+  \item Cam: $d=180/720=0.25$, RMS $=\sqrt{0.25}=0.5$ -- exact.
+\end{itemize}
+\emph{Knock mean.} The knock signal contains a low-frequency combustion
+vibration: a positive half sine of amplitude $A=\SI{0.2}{V}$ during $60^\circ$
+after every TDC, i.e.\ during $60^\circ$ of every $180^\circ$. The mean of a
+half sine over its own duration is $2A/\pi$, so
+\[ \bar x = A\cdot\frac{2}{\pi}\cdot\frac{60^\circ}{180^\circ}
+   = 0.2\cdot0.637\cdot0.333 = \SI{0.042}{V}, \]
+which is the measured mean. (The noise, the valve bursts and the knock
+oscillations have zero mean.) A real piezo sensor is AC-coupled. The model
+represents the signal after a high-pass whose cut-off is far below the
+combustion frequency, so this component survives. The large extremes
+($-1.15/+1.51$\,V) come from knock events.
 
-b), c) Result of the period search:
+\emph{Lambda RMS.} The mean of 0.50 matches a signal that is lean and rich
+half of the time each. A pure two-level signal (0.1/0.9\,V) would have
+RMS $\sqrt{0.5\cdot0.1^2+0.5\cdot0.9^2}=0.640$. The measured value is
+lower (0.6195) because the sensor curve
+$V=0.5+0.4\tanh\bigl((1-\lambda)/0.005\bigr)$ with
+$\lambda=1+0.02\sin\varphi$ spends some time in the transition region:
+$\overline{V^2}=0.25+0.16\,\overline{\tanh^2(4\sin\varphi)}=0.25+0.16\cdot0.836=0.384$,
+so $\sqrt{0.384}=0.6195$.
+
+\textbf{b) Autocorrelation and period search.}
+\emph{Small example by hand:} $x=[1,1,0,0,1,1,0,0]$ (period 4), $\bar x=0.5$,
+deviations $\pm0.5$. At lag 2 every product is $(+0.5)(-0.5)$, at lag 4 every
+product is $(\pm0.5)^2$, so $\hat R[0]=0.25$, $\hat R[2]=-0.25$,
+$\hat R[4]=0.25$, and $r[2]=-1$, $r[4]=1$. The division by $N-m$ (not $N$) is
+what makes $r[4]$ exactly 1, although only 4 products exist at that lag.
+
+\texttt{autocorr()} implements the formula literally. First it removes the
+mean, then it averages $N-m$ products per lag and normalises by $\hat R[0]$:
+\inputcode[firstline=48,lastline=61,firstnumber=48]{solutions/bonus/jslinux/sheet01/signal_zoo.c}
+\texttt{period\_lag()} takes three steps. (1) It skips the main lobe around
+$m=0$ (every signal resembles itself for small shifts) up to the first zero
+crossing. (2) It finds the largest value $r_{\max}$ beyond. (3) It returns the
+\emph{first} local maximum with $r\ge0.9\,r_{\max}$. Taking the first one
+avoids picking a multiple of the period, whose peak is almost as high:
+\inputcode[firstline=67,lastline=80,firstnumber=67]{solutions/bonus/jslinux/sheet01/signal_zoo.c}
+Result:
 \begin{lstlisting}[style=shell,numbers=none]
 crank 3000   first peak: lag  250 =   10.00 ms r = 0.929 | max: lag  500 r = 0.988
 crank ramp   first peak: lag    8 =    0.32 ms r = 0.348 | max: lag    8 r = 0.348
@@ -529,37 +807,56 @@ knock        first peak: lag  244 =    9.76 ms r = 0.418 | max: lag  500 r = 0.4
 ion          first peak: lag  250 =   10.00 ms r = 0.992 | max: lag  250 r = 0.992
 lambda       first peak: lag  251 = 1255.00 ms r = 0.981 | max: lag  500 r = 0.982
 \end{lstlisting}
+Expected lags at $f_s=\SI{25}{kHz}$: $180^\circ=\SI{10}{ms}=250$ samples,
+revolution $=500$, engine cycle $=1000$. For lambda at \SI{200}{Hz}:
+$1/\SI{0.8}{Hz}=\SI{1.25}{s}=250$ samples.
+
+\textbf{c) Interpretation.}
 \begin{itemize}
   \item \emph{Cam}: exactly periodic, $r=1.000$ at \SI{40}{ms} = one engine cycle.
-  \item \emph{Crank}: the true period is one revolution (\SI{20}{ms}, $r=0.988$;
-    not exactly 1 because of the speed ripple and because the period is
-    500.03 samples, not an integer). A shift by $180^\circ$ maps 58 teeth onto
-    teeth except near the gap, therefore $r(250)=0.929$ is almost as high:
-    the gap, which carries the position information, is only a small part of
-    the signal energy. With the 90\,\% rule the detector reports
-    $180^\circ$ -- a reminder that a period detector must be designed for the
-    feature of interest. (Small peaks at multiples of 8.33 samples come from
-    the teeth.)
-  \item \emph{Crank during the ramp}: the tooth period shrinks from 12.5 to
-    6.25 samples; no long-lag peak survives; only the tooth-scale peak at lag
-    8 ($r=0.35$) remains. In time the signal is not periodic -- in the
-    angle domain it would be (Sheet~4).
-  \item \emph{Knock}: $r\approx0.42$ at $\approx\SI{10}{ms}$
-    ($180^\circ$): only the deterministic parts (combustion vibration, valve
-    impacts at $8$\,kHz) repeat; noise and the random knock bursts
-    (random onset and phase) do not correlate. Quasi-periodic, cyclostationary.
-  \item \emph{Ion current}: $r=0.992$ at $180^\circ$ -- in the model all
-    cylinders produce the same deterministic ion curve; on a real engine
+  \item \emph{Crank}: the true period is one revolution (\SI{20}{ms}, $r=0.988$).
+    It is not exactly 1 because of the speed ripple and because the period is
+    500.03 samples, not an integer. Why is $r(250)$ almost as high? Shift the
+    wheel by $180^\circ$: all teeth fall onto teeth, except that the two missing teeth
+    (58, 59 at $348^\circ$, $354^\circ$) meet the real teeth 28, 29 at
+    $168^\circ$, $174^\circ$, and vice versa. So $x$ and its shifted copy $y$ differ on
+    $2\cdot2\cdot3^\circ=12^\circ$ of $360^\circ$. With
+    $\overline{(x-y)^2}=12/360=0.033$ and
+    $\overline{xy}-\bar x^2=\sigma^2-\frac12\overline{(x-y)^2}$, where
+    $\sigma^2=d(1-d)=0.250$:
+    \[ r(250)\approx1-\frac{0.033/2}{0.250}=0.933 \quad(\text{measured }0.929). \]
+    The gap, which carries the position information, is only a small part of
+    the signal energy. With the 90\,\% rule the detector therefore reports
+    $180^\circ$, a reminder that a period detector must be designed for the
+    feature of interest. The peaks are very narrow: one sample less
+    ($0.72^\circ$) shifts every tooth edge and gives $r(249)=0.48$. (Small
+    peaks at multiples of 8.33 samples come from the teeth.)
+  \item \emph{Crank during the ramp}: the tooth period $6^\circ/\omega$
+    shrinks from \SI{0.5}{ms} (\SI{2000}{rpm}) to \SI{0.25}{ms}
+    (\SI{4000}{rpm}), i.e.\ from 12.5 to 6.25 samples (mean $\approx8.3$). No long-lag peak survives, and only the tooth-scale
+    peak at lag 8 ($r=0.35$) remains. In time the signal is not periodic. In
+    the angle domain it would be (Sheet~4).
+  \item \emph{Knock}: $r\approx0.42$ at $\approx\SI{10}{ms}$ ($180^\circ$).
+    Only the deterministic parts (combustion vibration, valve impacts at
+    $8$\,kHz) repeat. Noise and the random knock bursts (random onset and
+    phase) do not correlate. So the signal is quasi-periodic, i.e.\
+    cyclostationary. The lag 244 instead of 250 is a side effect of the
+    \SI{8}{kHz} valve bursts: their period is only 3.1 samples, so $r[m]$
+    jumps between 0.30 and 0.44 from lag to lag around $m=250$. The first
+    local maximum above the threshold is then at 244.
+  \item \emph{Ion current}: $r=0.992$ at $180^\circ$. In the model all
+    cylinders produce the same deterministic ion curve. On a real engine
     cycle-to-cycle variations make each event an individual (aperiodic)
     transient.
-  \item \emph{Lambda}: period \SI{1.25}{s} = $1/\SI{0.8}{Hz}$, $r=0.98$; the
+  \item \emph{Lambda}: period \SI{1.25}{s} = $1/\SI{0.8}{Hz}$, $r=0.98$. The
     switching sensor turns the small $\lambda$ oscillation into an almost
-    rectangular signal.
+    rectangular signal. Noise shifts the switching instants slightly, hence
+    251 instead of 250.
 \end{itemize}
-The biased estimator ($1/N$ instead of $1/(N-m)$) multiplies $r[m]$ by
-$(N-m)/N$; at lag 1000 of a 4000-sample record this is a factor $0.75$, so the
-cam signal would show $r=0.75$ although it is perfectly periodic, and shorter
-lags would always be favoured. Key part of the solution:
-\inputcode[firstline=48,lastline=80]{solutions/bonus/jslinux/sheet01/signal_zoo.c}
+\emph{Biased estimator.} With $1/N$ instead of $1/(N-m)$, every $r[m]$ is
+multiplied by $(N-m)/N$. At lag 1000 of a 4000-sample record this is a factor
+of $3000/4000=0.75$, so the cam signal would show $r=0.75$ although it is
+perfectly periodic. The factor also decreases with $m$, so shorter lags would
+always be favoured: the crank peak at lag 500 would drop to $0.988\cdot0.875=0.86$.
 \end{solution}
 \endgroup

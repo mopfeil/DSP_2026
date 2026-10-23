@@ -91,7 +91,7 @@ void crank_isr(void)
         digitalWrite(CYL1_LED, LOW);
     }
 
-    /* Ex 1.4: cam level in the middle of a cam state (60 or 420 deg) */
+    /* Ex 1.3: cam level in the middle of a cam state (60 or 420 deg) */
     if (tooth == CAM_TOOTH) {
         int16_t p = digitalRead(CAM_PIN) ? 0 : 360;
         if (phase >= 0 && p != phase) cam_errors++;

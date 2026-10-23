@@ -19,7 +19,7 @@
 const byte CRANK_PIN = 2, CAM_PIN = 4, BTN_PIN = 7, TDC_LED = 12, CYL1_LED = 11;
 const byte TDC_TOOTH_A = 0, TDC_TOOTH_B = 0;     /* TODO (b): TDC teeth   */
 const byte LED_TEETH = 5;                         /* LED on for 30 deg     */
-const byte CAM_TOOTH = 0;                         /* TODO (Ex 1.4)         */
+const byte CAM_TOOTH = 0;                         /* TODO (Ex 1.3)         */
 #define DUMP_N 120
 
 #if TIMEBASE_TIMER1
@@ -79,7 +79,7 @@ void crank_isr(void)
        Switch TDC_LED on at the TDC teeth (TDC_TOOTH_A/B -- check the
        values above!) and off LED_TEETH teeth later.                          */
 
-    /* TODO (Ex 1.4, challenge): read CAM_PIN at tooth CAM_TOOTH and set
+    /* TODO (Ex 1.3, challenge): read CAM_PIN at tooth CAM_TOOTH and set
        phase = 0 (cam HIGH) or 360 (cam LOW); toggle phase at every gap;
        count cam_errors; light CYL1_LED only at the TDC of cylinder 1.  */
 
