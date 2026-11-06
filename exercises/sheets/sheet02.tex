@@ -124,6 +124,22 @@ all inputs and all constants.
     $y_2(t)=|x(t-t_0)|=y(t-t_0)$.
 \end{enumerate}
 
+\emph{How a time-invariance proof works.} The shifted input
+$x_2[n]=x[n-n_0]$ is not derived -- you \emph{choose} it, because the test
+requires it. Time invariance means: the system behaves today as it did
+yesterday; the same input applied $n_0$ samples later gives the same output,
+$n_0$ samples later. So compare two experiments:
+\begin{enumerate}[label=(\roman*),leftmargin=*,itemsep=1pt]
+  \item original: input $x[n]$, output $y[n]=S\{x\}[n]$;
+  \item delayed: the same signal fed in $n_0$ samples later. What $x$ had at
+    time $m$, $x_2$ must have at time $m+n_0$. With $n=m+n_0$, i.e.\
+    $m=n-n_0$: $x_2[n]=x[n-n_0]$ (the minus sign means a delay, a shift to
+    the right).
+\end{enumerate}
+The system is time-invariant if the response to the delayed input equals
+the delayed original response, $S\{x_2\}[n]=y[n-n_0]$, for every $x$ and
+every $n_0$.
+
 \emph{S8, time invariance.}
 \begin{enumerate}[label=Step \arabic*:,leftmargin=*,itemsep=1pt]
   \item Shifted input: $x_2[n]=x[n-n_0]$.
@@ -131,6 +147,11 @@ all inputs and all constants.
   \item Shifted output: $y[n-n_0]=(n-n_0)\,x[n-n_0]$.
   \item The two differ by $n_0\,x[n-n_0]\neq0$ for $n_0\neq0$
     $\Rightarrow$ time-variant. The gain $n$ depends on the absolute time.
+    The signal $x$ is shifted, the factor $n$ is not.
+  \item \emph{Example.} Impulse at $n=2$: $x[2]=1$, so $y[2]=2\cdot1=2$.
+    Feed it $n_0=3$ samples later: $x_2[5]=1$, so $y_2[5]=5\cdot1=5$. The
+    delayed original response is $y[5-3]=y[2]=2\neq5$: the same impulse is
+    amplified more strongly when it arrives later.
   \item S8 is nevertheless linear:
     $n\,(ax_1[n]+bx_2[n])=a\,n x_1[n]+b\,n x_2[n]$.
 \end{enumerate}
