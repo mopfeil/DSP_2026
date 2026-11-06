@@ -1,5 +1,5 @@
 /*
- * Sheet 2, Exercise 2.2 -- generator for mystery.h (INSTRUCTOR ONLY)
+ * Sheet 2, Bonus Exercise 2.B1 -- generator for mystery.h (INSTRUCTOR ONLY)
  *
  * Build and run:   gcc -O2 -o mystery_gen mystery_gen.c && ./mystery_gen > mystery.h
  *
@@ -43,7 +43,7 @@ static uint32_t rotl(uint32_t v, int r) { return (v << r) | (v >> (32 - r)); }
 int main(void)
 {
     int k, i;
-    printf("/*\n * mystery.h -- five unknown systems S1..S5 for Exercise 2.2\n"
+    printf("/*\n * mystery.h -- five unknown systems S1..S5 for Bonus Exercise 2.B1\n"
            " *\n *   void Sk(const double *x, double *y, int N);   k = 1..5\n"
            " *   x: input x[0..N-1] (x[n] = 0 outside), y: output y[0..N-1]\n"
            " *\n * Treat the systems as black boxes: do NOT try to read this file,\n"

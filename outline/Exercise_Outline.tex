@@ -70,8 +70,9 @@ from these signals. Sheet 12 (knock detection) assembles all parts.
     pre-recorded data files (crank, knock with/without knock, lambda).
   \item Sheet 0 (\emph{Getting started}, 45\,min): blink + serial CSV and
     the engine simulator chip on Wokwi; compile/run/upload/download on
-    JSLinux as an optional bonus exercise. Sheet 2 repeats the JSLinux
-    setup in a short section for everybody.
+    JSLinux as an optional bonus exercise. The JSLinux bonus of Sheet 2
+    repeats the setup in a short section; Sheet 3 (first mandatory
+    JSLinux sheet) starts with the same setup section for everybody.
 \end{itemize}
 
 \subsection*{Sheet format}
@@ -89,7 +90,7 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \# & Chapter & Lab core & \W & \J\\
 \midrule
 1 & ECU and Signals & 60-2 crank signal, RPM from tooth timing (bonus: signal zoo) & x & (x)\\
-2 & Systems & Black-box property tests, lambda loop with delay & x & x\\
+2 & Systems & Lambda loop with delay (bonus: black-box property tests, engine dynamics) & x & (x)\\
 3 & LTI Systems & Convolution, impulse/step response, moving-average RPM & x & x\\
 4 & Sampling & ADC sampling, quantisation SNR, time vs.\ angle domain & x & x\\
 5 & Nyquist & Aliasing of knock frequencies, anti-aliasing filter & x & x\\
@@ -103,8 +104,8 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \bottomrule
 \end{tabularx}
 \end{center}
-(x) = optional bonus exercise only. Sheets 0 and 1 (the first lab days) are
-Wokwi-only; JSLinux becomes mandatory from Sheet~2 on.
+(x) = optional bonus exercise only. Sheets 0--2 (the first lab days) are
+Wokwi-only; JSLinux becomes mandatory from Sheet~3 on.
 
 %=====================================================================
 \section{Sheet 1 -- The ECU Sees Only Signals}
@@ -143,8 +144,9 @@ first piece of information (engine speed) from a raw signal.
 \begin{sheetinfo}
 Goals: the operator view $y=S\{x\}$; static/dynamic, causal/non-causal,
 memoryless/with memory; first contact with linearity and time invariance.
-First sheet with mandatory JSLinux exercises: starts with a short JSLinux
-setup section (for students who skipped the bonus exercises of Sheets 0--1).
+Wokwi-only; the JSLinux exercises are an optional bonus at the end, with a
+short JSLinux setup section (for students who skipped the bonus exercises of
+Sheets 0--1). Exercise 2.2 explains the two-point controller in detail.
 \end{sheetinfo}
 
 \exercise{2.1}{Properties by hand}{\Pap}{
@@ -153,20 +155,20 @@ setup section (for students who skipped the bonus exercises of Sheets 0--1).
     $y[n]=n\,x[n]$) decide static/dynamic, causal, memory, linear,
     time-invariant.}
 
-\exercise{2.2}{Black-box system identification}{\J}{
+\exercise{2.B1}{Black-box system identification (bonus)}{\J}{
   \item Provided object file with five unknown systems
     \texttt{S1..S5(x, y, N)}. Students write test harnesses: superposition
     test, shifted-input test, causality test (impulse at $n_0$), memory
     test.
   \item Report: property table with numerical evidence.}
 
-\exercise{2.3}{Engine as a dynamic system}{\J}{
+\exercise{2.B2}{Engine as a dynamic system (bonus)}{\J}{
   \item Simulate crankshaft speed as first-order system (inertia) driven
     by fuel quantity; step in fuel $\rightarrow$ gradual RPM change.
   \item Lambda path: fuel $\rightarrow$ engine $\rightarrow$ transport
     delay $\rightarrow$ switching lambda sensor (non-linear, static).}
 
-\exercise{2.4}{Closed lambda loop}{\W}{
+\exercise{2.2}{Closed lambda loop}{\W}{
   \item ESP32 + \texttt{lambda-probe} chip: implement a two-point
     (bang-bang) controller with integrator; observe the limit cycle of
     Fig.~1.3 in the Serial Monitor; vary the transport delay and explain

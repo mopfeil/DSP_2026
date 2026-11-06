@@ -1,5 +1,5 @@
 /*
- * mystery.h -- five unknown systems S1..S5 for Exercise 2.2
+ * mystery.h -- five unknown systems S1..S5 for Bonus Exercise 2.B1
  *
  *   void Sk(const double *x, double *y, int N);   k = 1..5
  *   x: input x[0..N-1] (x[n] = 0 outside), y: output y[0..N-1]

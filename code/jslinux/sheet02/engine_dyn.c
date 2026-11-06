@@ -1,5 +1,5 @@
 /*
- * Sheet 2, Exercise 2.3 -- the engine as a dynamic system
+ * Sheet 2, Bonus Exercise 2.B2 -- the engine as a dynamic system
  * (student template)
  *
  * Build and run:   gcc -O2 -o engine_dyn engine_dyn.c -lm
@@ -11,7 +11,7 @@
  *     sensor lag -> switching characteristic (same model as the Wokwi
  *     chip "lambda-probe", 1 ms time step)
  * (c) closed loop with a two-point controller with integrator
- *     (prediction for Exercise 2.4)
+ *     (offline model of Exercise 2.2)
  */
 #include <stdio.h>
 #include <stdlib.h>

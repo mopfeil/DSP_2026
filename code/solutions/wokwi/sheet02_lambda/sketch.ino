@@ -1,5 +1,5 @@
 /*
- * Sheet 2, Exercise 2.4 -- closed lambda control loop
+ * Sheet 2, Exercise 2.2 -- closed lambda control loop
  * (REFERENCE SOLUTION, Arduino Uno + lambda-probe chip)
  *
  *   D9  -> lam:INJ   fuel command as PWM (analogWrite, 490 Hz),

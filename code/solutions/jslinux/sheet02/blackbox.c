@@ -1,5 +1,5 @@
 /*
- * Sheet 2, Exercise 2.2 -- black-box system identification
+ * Sheet 2, Bonus Exercise 2.B1 -- black-box system identification
  * (REFERENCE SOLUTION)
  *
  * Build and run:   gcc -O2 -o blackbox blackbox.c -lm

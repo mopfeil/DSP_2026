@@ -3,14 +3,14 @@
 \begin{goals}
 \begin{itemize}
   \item Use the operator view $y=S\{x\}$ and decide for a given system whether it
-    is static or dynamic (memory), causal, linear and time-invariant -- by proof
-    and by experiment.
-  \item Design numerical test harnesses that \emph{reveal} a property and know
-    their pitfalls (impulse-only tests, small amplitudes, boundary effects).
-  \item Model engine subsystems as dynamic systems: inertia (first-order
-    lag), wall film, transport delay, switching sensor.
-  \item Understand the limit cycle of a two-point lambda controller and predict
-    its period from the loop dead time.
+    is static or dynamic (memory), causal, linear and time-invariant.
+  \item Understand how a two-point lambda controller with integrator works,
+    why it produces a limit cycle, and predict its period from the loop dead
+    time.
+  \item \emph{Bonus (optional):} design numerical test harnesses that
+    \emph{reveal} a property and know their pitfalls (impulse-only tests, small
+    amplitudes, boundary effects); model engine subsystems as dynamic systems:
+    inertia (first-order lag), wall film, transport delay, switching sensor.
 \end{itemize}
 \end{goals}
 
@@ -111,10 +111,168 @@ period domain (sum of the $T_k$) and inverting once gives it exactly.
 \end{solution}
 
 %-------------------------------------------------------------------------
-\section*{Setup: JSLinux}
-From this sheet on, most lab exercises run in JSLinux, a Linux system in the
-browser. If you have not done Bonus Exercise~0.B1, set it up now (about
-\SI{10}{min}):
+\begin{exercise}{Closed lambda loop}{\Wokwi}
+Project \codefile{wokwi/sheet02\_lambda/}: Arduino Uno and the custom chip
+\texttt{lambda-probe}. Pin 9 sends the fuel command as PWM
+(\texttt{analogWrite}, \SI{490}{Hz}, duty $=q/2$), A0 reads the sensor voltage
+\texttt{O2}, A1 the ground truth \texttt{LAM} $=\lambda/2$. The chip's sliders set
+the unmetered air ($\text{slider}-10$ in \%, default $+5\,\%$) and the transport
+delay (default \SI{200}{ms}).
+
+\medskip\noindent\textbf{How a two-point controller works.}
+The goal is the stoichiometric mixture $\lambda=1$. The ECU does not know the
+fuel quantity $q^*$ that achieves it, because part of the air is not
+measured (leaks, sensor and injector tolerances, ageing): with unmetered air
+$a$, $\lambda=(1+a)/q$ and $q^*=1+a$. The switching sensor
+(S12 of Exercise~2.1) delivers only \emph{one bit} of information:
+$U>\SI{0.45}{V}$ means ``rich'' ($\lambda<1$, too much fuel), $U<\SI{0.45}{V}$
+means ``lean'' ($\lambda>1$, too little fuel) -- but not \emph{how} rich or lean.
+The controller therefore uses the simplest possible rule. In every controller
+period $T_s=\SI{10}{ms}$:
+\begin{itemize}
+  \item sensor rich $\Rightarrow$ decrease $q$ by $rT_s$ (ramp down with slope $-r$),
+  \item sensor lean $\Rightarrow$ increase $q$ by $rT_s$ (ramp up with slope $+r$),
+  \item optionally, at the moment the sensor \emph{switches}, an additional jump
+    of $q$ by $P$ towards the other side ($-P$ on lean$\to$rich, $+P$ on
+    rich$\to$lean).
+\end{itemize}
+``Two-point'' means that the controller output (here the slope $\dot q$) takes
+only two values, $\pm r$, like a relay or a thermostat. ``With integrator''
+means that $q$ is the integral of this output: as long as the sensor reports
+the same state, $q$ keeps moving in the same direction, so it always moves
+towards $q^*$, whatever the value of $a$. On average the controller therefore
+finds $q^*$ by itself (integral action).
+
+\emph{Why it oscillates.} The sensor sees a change of $q$ only after the
+transport delay $T_d$ and the two lags (wall film $\tau_f=\SI{20}{ms}$, sensor
+$\tau_s=\SI{30}{ms}$), i.e.\ after an effective dead time
+$T_l\approx T_d+\tau_f+\tau_s$. When $q$ crosses $q^*$, the sensor still reports
+the old state for $T_l$, and $q$ keeps ramping in the wrong direction: it
+overshoots by $rT_l$. After the switching, $q$ needs another $T_l$ to return to
+$q^*$, and the sensor sees this crossing only $T_l$ later. Each half period
+therefore lasts $2T_l$:
+\[ T_{\text{period}}\approx4\,T_l,\qquad q=q^*\pm rT_l,\qquad
+   \lambda\approx1\mp\frac{rT_l}{q^*}. \]
+The oscillation neither grows nor decays -- a \emph{limit cycle}. The jump $P$
+removes part of the overshoot immediately after each switching, so $q$ reaches
+$q^*$ earlier (by $P/r$); the period shortens to $4T_l-2P/r$.
+\begin{center}
+\begin{tikzpicture}[x=1.35cm,y=1cm,font=\footnotesize,>={Stealth[length=4pt]}]
+  \foreach \x in {2,4,6} \draw[dotted] (\x,0) -- (\x,3.3);
+  \draw[dotted] (1,2.4) -- (1,3.65);
+  % fuel quantity
+  \draw[dashed,dspgray] (0,2.4) -- (8.2,2.4);
+  \node[left,dspgray] at (0,2.4) {$q^*$};
+  \draw[thick,dspblue] (0,1.6) -- (2,3.2) -- (4,1.6) -- (6,3.2) -- (8,1.6);
+  \node[left,dspblue] at (0,1.6) {$q(t)$};
+  \node[below right,dspblue] at (0.6,1.95) {slope $+r$};
+  \node[below left,dspblue] at (7.4,1.95) {slope $-r$};
+  \draw[<->] (1,3.65) -- (2,3.65) node[midway,above] {$T_l$};
+  \draw[<->] (8.15,1.6) -- (8.15,2.4) node[midway,right] {$rT_l$};
+  % sensor voltage
+  \draw[thick] (0,0.1) -- (2,0.1) -- (2,0.9) -- (4,0.9) -- (4,0.1)
+    -- (6,0.1) -- (6,0.9) -- (8,0.9);
+  \node[left] at (0,0.5) {$U(t)$};
+  \foreach \x/\t in {1/lean,3/rich,5/lean,7/rich} \node at (\x,0.5) {\t};
+  \draw[<->] (2,-0.25) -- (6,-0.25) node[midway,below] {period $4T_l$};
+\end{tikzpicture}
+
+Limit cycle without jump ($P=0$): $U$ is the sign of $q-q^*$, delayed by $T_l$.
+\end{center}
+
+\begin{tasks}
+  \item Implement the two-point controller with integrator ($r=0.2$/s) in
+    \texttt{loop()}. Start the simulation and observe the limit cycle in the
+    Serial Monitor (\texttt{u\_o2}, \texttt{lambda}, \texttt{q}). Copy
+    \SI{5}{s} of data into a spreadsheet (or into JSLinux, see the bonus
+    section) and plot $\lambda$ and $U$; compare with Fig.~1.3 of the script
+    and with the sketch above. Predict period and $\lambda$ range for
+    $T_d=\SI{200}{ms}$ and check them.
+  \item Measure the oscillation period (column \texttt{period\_ms}) for transport
+    delays of 100, 200, 400 and \SI{800}{ms} and plot period over $T_d$. Determine
+    slope and intercept and interpret them.
+  \item Move the air slider from $+5\,\%$ to $-10\,\%$ and to $+10\,\%$. Describe
+    the transient and the new mean value of $q$.
+  \item Add the jump \texttt{PJUMP} $=0.03$, then reduce \texttt{RATE} to 0.1 with
+    \texttt{PJUMP} $=0.025$. Compare period and $\lambda$ amplitude. Why can no
+    two-point controller make the oscillation disappear, and what would a
+    continuous (PI) lambda controller need?
+\end{tasks}
+\end{exercise}
+
+\begin{solution}
+a) Controller (\codefile{solutions/wokwi/sheet02\_lambda/sketch.ino}):
+\inputcode[firstline=41,lastline=57]{solutions/wokwi/sheet02_lambda/sketch.ino}
+The sensor voltage switches between $\approx\SI{0.1}{V}$ and \SI{0.9}{V} (ADC
+values $\approx$20 and 184), almost rectangular as in Fig.~1.3, while $\lambda$
+oscillates triangularly (ramps of $q$, smoothed by the wall film) between about
+0.96 and 1.05; $q$ is a triangle around $1.05$ with steps of
+$2/255=0.0078$ (8-bit PWM). The ground-truth $\lambda$ read via A1 has a
+resolution of only $2\cdot\SI{4.9}{mV}\approx0.01$, so its extreme values
+scatter by $\pm0.01$. Expected period at $T_d=\SI{200}{ms}$: \SI{1.0}{s}
+($4T_l=4\cdot(200+50)\,\text{ms}$; the offline simulation of Bonus
+Exercise~2.B2\,c) with the same model as the chip gives \SI{0.98}{s}), and
+$\lambda\approx1\mp0.2\cdot0.25/1.05=1\mp0.048$. The first
+period after the start is longer, because $q$ starts at 1.0 and must first
+ramp to $q^*=1.05$.
+
+b) Expected values (the reference sketch run on the PC against a replica of
+the chip model): \SI{0.58}{s}, \SI{1.00}{s}, \SI{1.80}{s}, \SI{3.40}{s} for
+$T_d=100$, 200, 400, \SI{800}{ms}, with $\lambda$ (from A1) in 0.978\dots1.026,
+0.958\dots1.046, 0.919\dots1.095, 0.860\dots1.193. The offline model of
+Bonus Exercise~2.B2 gives up to \SI{20}{ms} less, because there the controller sees
+the sensor value of the current millisecond (no extra sampling delay).
+Period over $T_d$ is a straight line with slope $4.0$ (each
+switching needs the signal to travel through the delay twice per half
+period) and intercept $\approx\SI{0.18}{s} = 4\cdot\SI{45}{ms}$ (the two lags,
+\SI{20}{ms} wall film + \SI{30}{ms} sensor, minus the early switching of the
+sensor). In Wokwi the values may deviate by one controller period (\SI{10}{ms})
+per switching.
+
+c) At $-10\,\%$ air the stoichiometric quantity drops to $q^*=0.90$: the mixture
+is suddenly rich ($\lambda=0.9/1.05$), the sensor stays at \SI{0.9}{V} and the
+integrator ramps $q$ down with \SI{0.2}{/s}, i.e.\ it needs
+$\approx(1.05-0.90)/0.2=\SI{0.75}{s}$ plus the dead time before the limit cycle
+resumes around $q=0.90$. Simulation (\texttt{air\_step()} in the reference
+solution of Bonus 2.B2): rich is reported \SI{0.21}{s} after the step (dead time), lean
+again after \SI{1.25}{s}, afterwards mean $q=0.9000$. At $+10\,\%$ the
+mixture becomes lean, $q$ ramps up and settles around mean $q=1.098$. The amplitude of the limit cycle in $\lambda$ is unchanged. Integral
+action removes any constant disturbance -- this is the purpose of the lambda loop
+(adaptation of fuel metering errors, air leaks, ageing).
+
+d) $P=0.03$, $r=0.2$: period \SI{0.70}{s}, $\lambda$ 0.958\dots1.045;
+$P=0.025$, $r=0.1$: period \SI{0.58}{s}, $\lambda$ 0.978\dots1.027 (model values).
+The jump immediately undoes most of the overshoot that accumulated during the dead
+time; therefore a smaller ramp suffices and the amplitude halves while the
+period even decreases. The oscillation cannot disappear: the sensor delivers
+only the \emph{sign} of $\lambda-1$ (relay characteristic), so the controller
+must keep moving to find out where $\lambda=1$ is -- relay + integrator + dead
+time always yield a limit cycle of period $\approx4T_l$. A PI controller with a
+fixed operating point would need a \emph{proportional} measure of $\lambda-1$:
+a wide-band (linear) lambda sensor. With the switching sensor, the catalytic
+converter's oxygen storage tolerates the small, fast oscillation -- one reason
+why the period and amplitude must be kept small, i.e.\ why $T_d$ matters.
+\end{solution}
+
+\begin{deliverables}
+2.1: property table, proofs. 2.2: sketch, plot of
+$\lambda$ and $U$ over \SI{5}{s}, period over $T_d$ (table + plot), results of
+c) and d). Bonus 2.B1 (optional): test program, property table with
+numerical evidence, $h[n]$ of the LTI systems. Bonus 2.B2 (optional): program,
+values of $\tau$, response times, prediction formula and comparison table.
+\end{deliverables}
+
+%=========================================================================
+\section*{Bonus: JSLinux (optional)}
+\begingroup
+\setcounter{exercise}{0}\renewcommand{\theexercise}{B\arabic{exercise}}
+For interested students: the following exercises identify unknown systems by
+experiment and simulate the lambda path offline in C. Bonus Exercise~2.B2\,c)
+derives the limit cycle of Exercise~2.2 in detail.
+
+\subsection*{Setup}
+The following exercises run in JSLinux, a Linux system in the browser. If
+you have not done Bonus Exercise~0.B1, set it up now (about \SI{10}{min}):
 \begin{enumerate}
   \item Open \url{https://bellard.org/jslinux}, start the \emph{x86 Alpine
     Linux} (console) virtual machine and check the compiler with
@@ -257,7 +415,7 @@ Program: \codefile{jslinux/sheet02/engine\_dyn.c}.
     and measure the time until $U$ crosses \SI{0.45}{V}. Which observations prove
     that the chain is nonlinear? Under which operating condition is it not
     time-invariant on a real engine?
-  \item \emph{Closed loop -- prediction for Exercise~2.4.} A two-point controller
+  \item \emph{Closed loop -- offline model of Exercise~2.2.} A two-point controller
     with integrator changes $q$ with slope $-r$ while the sensor reports rich
     ($U>\SI{0.45}{V}$) and $+r$ while lean (period \SI{10}{ms}, 8-bit PWM).
     Derive the period and the $\lambda$ amplitude of the resulting oscillation as
@@ -341,88 +499,4 @@ ramp, i.e.\ a smaller amplitude at the same or a higher frequency.
 \inputcode[firstline=80,lastline=93]{solutions/jslinux/sheet02/engine_dyn.c}
 \end{solution}
 
-%-------------------------------------------------------------------------
-\begin{exercise}{Closed lambda loop}{\Wokwi}
-Project \codefile{wokwi/sheet02\_lambda/}: Arduino Uno and the custom chip
-\texttt{lambda-probe}. Pin 9 sends the fuel command as PWM
-(\texttt{analogWrite}, \SI{490}{Hz}, duty $=q/2$), A0 reads the sensor voltage
-\texttt{O2}, A1 the ground truth \texttt{LAM} $=\lambda/2$. The chip's sliders set
-the unmetered air ($\text{slider}-10$ in \%, default $+5\,\%$) and the transport
-delay (default \SI{200}{ms}).
-\begin{tasks}
-  \item Implement the two-point controller with integrator ($r=0.2$/s) in
-    \texttt{loop()}. Start the simulation and observe the limit cycle in the
-    Serial Monitor (\texttt{u\_o2}, \texttt{lambda}, \texttt{q}). Copy
-    \SI{5}{s} of data into JSLinux and plot $\lambda$ and $U$; compare with
-    Fig.~1.3 of the script and with your simulation of Exercise~2.3\,c).
-  \item Measure the oscillation period (column \texttt{period\_ms}) for transport
-    delays of 100, 200, 400 and \SI{800}{ms} and plot period over $T_d$. Determine
-    slope and intercept and interpret them.
-  \item Move the air slider from $+5\,\%$ to $-10\,\%$ and to $+10\,\%$. Describe
-    the transient and the new mean value of $q$.
-  \item Add the jump \texttt{PJUMP} $=0.03$, then reduce \texttt{RATE} to 0.1 with
-    \texttt{PJUMP} $=0.025$. Compare period and $\lambda$ amplitude. Why can no
-    two-point controller make the oscillation disappear, and what would a
-    continuous (PI) lambda controller need?
-\end{tasks}
-\end{exercise}
-
-\begin{solution}
-a) Controller (\codefile{solutions/wokwi/sheet02\_lambda/sketch.ino}):
-\inputcode[firstline=41,lastline=57]{solutions/wokwi/sheet02_lambda/sketch.ino}
-The sensor voltage switches between $\approx\SI{0.1}{V}$ and \SI{0.9}{V} (ADC
-values $\approx$20 and 184), almost rectangular as in Fig.~1.3, while $\lambda$
-oscillates triangularly (ramps of $q$, smoothed by the wall film) between about
-0.96 and 1.05; $q$ is a triangle around $1.05$ with steps of
-$2/255=0.0078$ (8-bit PWM). The ground-truth $\lambda$ read via A1 has a
-resolution of only $2\cdot\SI{4.9}{mV}\approx0.01$, so its extreme values
-scatter by $\pm0.01$. Expected period at $T_d=\SI{200}{ms}$: \SI{1.0}{s}
-(Exercise~2.3\,c): \SI{0.98}{s}, the chip uses the same model). The first
-period after the start is longer, because $q$ starts at 1.0 and must first
-ramp to $q^*=1.05$.
-
-b) Expected values (the reference sketch run on the PC against a replica of
-the chip model): \SI{0.58}{s}, \SI{1.00}{s}, \SI{1.80}{s}, \SI{3.40}{s} for
-$T_d=100$, 200, 400, \SI{800}{ms}, with $\lambda$ (from A1) in 0.978\dots1.026,
-0.958\dots1.046, 0.919\dots1.095, 0.860\dots1.193. The offline model of
-Exercise~2.3 gives up to \SI{20}{ms} less, because there the controller sees
-the sensor value of the current millisecond (no extra sampling delay).
-Period over $T_d$ is a straight line with slope $4.0$ (each
-switching needs the signal to travel through the delay twice per half
-period) and intercept $\approx\SI{0.18}{s} = 4\cdot\SI{45}{ms}$ (the two lags,
-\SI{20}{ms} wall film + \SI{30}{ms} sensor, minus the early switching of the
-sensor). In Wokwi the values may deviate by one controller period (\SI{10}{ms})
-per switching.
-
-c) At $-10\,\%$ air the stoichiometric quantity drops to $q^*=0.90$: the mixture
-is suddenly rich ($\lambda=0.9/1.05$), the sensor stays at \SI{0.9}{V} and the
-integrator ramps $q$ down with \SI{0.2}{/s}, i.e.\ it needs
-$\approx(1.05-0.90)/0.2=\SI{0.75}{s}$ plus the dead time before the limit cycle
-resumes around $q=0.90$. Simulation (\texttt{air\_step()} in the reference
-solution of 2.3): rich is reported \SI{0.21}{s} after the step (dead time), lean
-again after \SI{1.25}{s}, afterwards mean $q=0.9000$. At $+10\,\%$ the
-mixture becomes lean, $q$ ramps up and settles around mean $q=1.098$. The amplitude of the limit cycle in $\lambda$ is unchanged. Integral
-action removes any constant disturbance -- this is the purpose of the lambda loop
-(adaptation of fuel metering errors, air leaks, ageing).
-
-d) $P=0.03$, $r=0.2$: period \SI{0.70}{s}, $\lambda$ 0.958\dots1.045;
-$P=0.025$, $r=0.1$: period \SI{0.58}{s}, $\lambda$ 0.978\dots1.027 (model values).
-The jump immediately undoes most of the overshoot that accumulated during the dead
-time; therefore a smaller ramp suffices and the amplitude halves while the
-period even decreases. The oscillation cannot disappear: the sensor delivers
-only the \emph{sign} of $\lambda-1$ (relay characteristic), so the controller
-must keep moving to find out where $\lambda=1$ is -- relay + integrator + dead
-time always yield a limit cycle of period $\approx4T_l$. A PI controller with a
-fixed operating point would need a \emph{proportional} measure of $\lambda-1$:
-a wide-band (linear) lambda sensor. With the switching sensor, the catalytic
-converter's oxygen storage tolerates the small, fast oscillation -- one reason
-why the period and amplitude must be kept small, i.e.\ why $T_d$ matters.
-\end{solution}
-
-\begin{deliverables}
-2.1: property table, proofs. 2.2: test program, property table with
-numerical evidence, $h[n]$ of the LTI systems. 2.3: program, values of $\tau$,
-response times, prediction formula and comparison table. 2.4: sketch, plot of
-$\lambda$ and $U$ over \SI{5}{s}, period over $T_d$ (table + plot), results of
-c) and d).
-\end{deliverables}
+\endgroup
