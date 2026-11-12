@@ -71,9 +71,9 @@ from these signals. Sheet 12 (knock detection) assembles all parts.
   \item Sheet 0 (\emph{Getting started}, 45\,min): blink + serial CSV and
     the engine simulator chip on Wokwi; compile/run/upload/download on
     JSLinux as an optional bonus exercise. The JSLinux bonus of Sheet 2
-    repeats the setup in a short section; Sheet 4 (first mandatory
+    repeats the setup in a short section; Sheet 5 (first mandatory
     JSLinux sheet) starts with the same setup section for everybody.
-    Sheet 3 runs its C programs on a Wokwi ESP32 without circuit.
+    Sheets 3 and 4 run their C programs on a Wokwi ESP32 without circuit.
 \end{itemize}
 
 \subsection*{Sheet format}
@@ -93,7 +93,7 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 1 & ECU and Signals & 60-2 crank signal, RPM from tooth timing (bonus: signal zoo) & x & (x)\\
 2 & Systems & Lambda loop with delay (bonus: black-box property tests, engine dynamics) & x & (x)\\
 3 & LTI Systems & Convolution, impulse/step response, moving-average RPM & x & \\
-4 & Sampling & ADC sampling, quantisation SNR, time vs.\ angle domain & x & x\\
+4 & Sampling & ADC sampling, quantisation SNR, time vs.\ angle domain & x & \\
 5 & Nyquist & Aliasing of knock frequencies, anti-aliasing filter & x & x\\
 6 & Fourier & Fourier series of crank signal, engine orders & & x\\
 7 & Laplace & Knock sensor as resonator, RC filter, step responses & & x\\
@@ -105,9 +105,9 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \bottomrule
 \end{tabularx}
 \end{center}
-(x) = optional bonus exercise only. Sheets 0--3 are
-Wokwi-only (Sheet~3 runs its C programs on an ESP32 without circuit);
-JSLinux becomes mandatory from Sheet~4 on.
+(x) = optional bonus exercise only. Sheets 0--4 are
+Wokwi-only (Sheets~3 and 4 run their C programs on an ESP32 without circuit);
+JSLinux becomes mandatory from Sheet~5 on.
 
 %=====================================================================
 \section{Sheet 1 -- The ECU Sees Only Signals}
@@ -219,15 +219,16 @@ time-based vs.\ crank-angle-based sampling.
   \item Note: Wokwi runs in simulated time; timing is measured in
     simulated time, not wall-clock time.}
 
-\exercise{4.3}{Quantisation noise and jitter}{\J}{
+\exercise{4.3}{Quantisation noise and jitter}{\W}{
   \item Quantise a sine with $N=4\ldots16$ bits; measure SNR, compare with
     the formula; add sampling jitter and observe the SNR drop vs.\
-    frequency.}
+    frequency. ESP32 program without circuit.}
 
-\exercise{4.4}{Time domain vs.\ angle domain}{\J}{
+\exercise{4.4}{Time domain vs.\ angle domain}{\W}{
   \item Resample a time-sampled signal during an RPM ramp onto a
     crank-angle grid (linear interpolation using crank edges); show that
-    crank-synchronous components become stationary in the angle domain.}
+    crank-synchronous components become stationary in the angle domain.
+    ESP32 program without circuit.}
 
 %=====================================================================
 \section{Sheet 5 -- Nyquist}

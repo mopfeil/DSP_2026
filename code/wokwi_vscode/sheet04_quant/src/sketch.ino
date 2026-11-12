@@ -2,9 +2,9 @@
  * Sheet 4, Exercise 4.3 -- Quantisation noise and sampling jitter
  * (student template -- complete the parts marked TODO)
  *
- * Build and run:   gcc -O2 -o quant quant.c -lm
- *                  ./quant
- * (engine_signals.h, asciiplot.h, csvio.h in the same directory)
+ * ESP32 used as a plain C computer: no circuit, the program runs once in
+ * setup() and prints its results (and ASCII plots) to the Serial Monitor.
+ * (asciiplot.h in the same folder)
  *
  * a) quantise a full-scale sine with N = 4..16 bits, measure the SNR and
  *    compare with 6.02 N + 1.76 dB
@@ -12,14 +12,20 @@
  * c) ideal (unquantised) sampling with Gaussian timing jitter sigma_j:
  *    SNR versus signal frequency, compare with -20 log10(2 pi f sigma_j)
  * d) ADC with 12 bit AND jitter: effective number of bits (ENOB)
+ *
+ * The sample arrays are float (on the heap) to fit into the RAM of the
+ * ESP32; all computations and sums are done in double. float is exact
+ * enough here: its rounding error (~1e-7 relative) is far below the
+ * smallest error measured (16 bit: ~1e-5).
+ * The ESP32 computes double in software: the run takes a while.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
 #include "asciiplot.h"
-#include "csvio.h"
 
 #define FS   50000.0       /* sampling rate, Hz                         */
-#define NS   100000        /* number of samples (2 s)                   */
+#define NS   10000         /* number of samples (0.2 s)                 */
 #define F0   1234.5        /* test frequency, not commensurate with FS  */
 
 /* ---------------- small Gaussian random generator ------------------ */
@@ -47,22 +53,23 @@ static double quantise(double x, int nbits)
 }
 
 /* SNR in dB of x (reference) and its distorted version y */
-static double snr_db(const double *x, const double *y, int n)
+static double snr_db(const float *x, const float *y, int n)
 {
-    /* TODO (a): signal power sum x^2, error power sum (y-x)^2, ratio in dB */
+    /* TODO (a): signal power sum x^2, error power sum (y-x)^2, ratio in dB
+       (accumulate in double)                                            */
     (void)x; (void)y; (void)n;
     return 0.0;
 }
 
-static double x[NS], y[NS];
+static float *x, *y;                         /* NS samples each (heap) */
 
 /* quantised sine of amplitude A: returns measured SNR */
 static double run_quant(double A, int nbits)
 {
     int n;
     for (n = 0; n < NS; n++) {
-        x[n] = A * sin(2.0 * M_PI * F0 * n / FS + 0.3);
-        y[n] = quantise(x[n], nbits);
+        x[n] = (float)(A * sin(2.0 * M_PI * F0 * n / FS + 0.3));
+        y[n] = (float)quantise(x[n], nbits);
     }
     return snr_db(x, y, NS);
 }
@@ -71,24 +78,29 @@ static double run_quant(double A, int nbits)
    if nbits > 0 the jittered sample is also quantised */
 static double run_jitter(double f, double sj, int nbits)
 {
-    double A = 0.999;
+    double A = 0.999, v;
     int n;
     for (n = 0; n < NS; n++) {
         double t = n / FS;
-        x[n] = A * sin(2.0 * M_PI * f * t + 0.3);              /* ideal  */
+        x[n] = (float)(A * sin(2.0 * M_PI * f * t + 0.3));     /* ideal  */
         /* TODO (c): sample at the jittered instant t + sj * grand()     */
-        y[n] = x[n]; (void)sj; (void)grand;
-        if (nbits > 0) y[n] = quantise(y[n], nbits);
+        v = x[n]; (void)sj; (void)grand;
+        if (nbits > 0) v = quantise(v, nbits);
+        y[n] = (float)v;
     }
     return snr_db(x, y, NS);
 }
 
-int main(void)
+static void run(void)
 {
-    static double nb[13], snr_fs[13], snr_th[13], dev[13];
+    static double dev[13];
     static const double fj[] = {100, 1000, 3000, 6500, 10500, 20000};
     static const double sj[] = {0.1e-6, 1e-6, 4e-6};
     int i, k;
+
+    x = (float *)malloc(NS * sizeof(float));
+    y = (float *)malloc(NS * sizeof(float));
+    if (!x || !y) { printf("out of memory\n"); return; }
 
     /* ---------------- a) + b) quantisation ---------------- */
     printf("a/b) quantised sine, f0 = %.1f Hz, fs = %.0f Hz, %d samples\n",
@@ -99,15 +111,14 @@ int main(void)
         double delta = 2.0 / (double)(1L << N);
         double s1 = run_quant(1.0 - delta / 2, N);   /* full scale, no clip */
         double s2 = run_quant(0.1, N);
-        nb[i] = N; snr_fs[i] = s1; snr_th[i] = 6.02 * N + 1.76;
-        dev[i] = s1 - snr_th[i];
+        double th = 6.02 * N + 1.76;
+        dev[i] = s1 - th;
         printf(" %2d   %8.2f dB     %8.2f dB    %8.2f dB   %8.2f dB\n",
-               N, s1, snr_th[i], s2, snr_th[i] - 20.0);
+               N, s1, th, s2, th - 20.0);
     }
     ap_size(52, 12);
     ap_stem(dev, 13, "SNR(measured) - (6.02N+1.76) [dB] for N = 4..16");
     ap_size(72, 20);
-    csv_write("quant_snr.csv", "N,snr_meas,snr_formula", 13, 3, nb, snr_fs, snr_th);
 
     /* ---------------- c) jitter ---------------- */
     printf("\nc) ideal sampling with Gaussian timing jitter\n");
@@ -132,5 +143,15 @@ int main(void)
     printf("  frequency where jitter noise = 12-bit quantisation noise, "
            "sigma_j = 1 us: %.1f Hz\n",
            pow(10.0, -(6.02 * 12 + 1.76) / 20.0) / (2.0 * M_PI * 1e-6));
-    return 0;
+    free(x); free(y);
 }
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(100);
+    run();
+    printf("\ndone.\n");
+}
+
+void loop() {}

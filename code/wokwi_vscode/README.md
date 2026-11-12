@@ -33,8 +33,8 @@ code/wokwi_vscode/
 
 | Board | PlatformIO environment | Firmware for Wokwi |
 |-------|------------------------|--------------------|
-| Arduino Uno (`sheet00`–`02`, `sheet03_rpmfilter`, `sheet04`, `*_uno`, `sheet08_unofft`, `sheet09`) | `uno`, platform `atmelavr` | `.pio/build/uno/firmware.hex` |
-| ESP32 DevKit v1 (`sheet03_conv`, `sheet03_rpmoffline`, `*_esp32`, `sheet08_knockfft`) | `esp32`, platform pioarduino 55.03.312 (Arduino-ESP32 core 3.3) | `.pio/build/esp32/firmware.bin` |
+| Arduino Uno (`sheet00`–`02`, `sheet03_rpmfilter`, `sheet04_adc`, `*_uno`, `sheet08_unofft`, `sheet09`) | `uno`, platform `atmelavr` | `.pio/build/uno/firmware.hex` |
+| ESP32 DevKit v1 (`sheet03_conv`, `sheet03_rpmoffline`, `sheet04_quant`, `sheet04_angle`, `*_esp32`, `sheet08_knockfft`) | `esp32`, platform pioarduino 55.03.312 (Arduino-ESP32 core 3.3) | `.pio/build/esp32/firmware.bin` |
 
 The ESP32 sketches use the core-3 API (`ledcAttach`, ...), which the official PlatformIO
 `espressif32` platform does not provide yet; therefore `platformio.ini` uses the community
@@ -169,6 +169,7 @@ wokwi-cli --timeout 5000 .  # simulate 5 s (needs WOKWI_CLI_TOKEN from https://w
 | Wokwi asks for a license | `F1` → **Wokwi: Request a New License** |
 | Simulation stalls | Simulator tab hidden: bring it to the front |
 | No `wokwi.vcd` | The file is written only when the simulation is stopped |
+| ESP32: `IncompatiblePlatform: ... not compatible with PlatformIO Core v6.2.0-post.1 and depends on PlatformIO Core >=6.2.0` | A development build of PlatformIO Core is installed (`6.2.0-post.1` counts as *older* than 6.2.0). In the VS Code settings switch off **PlatformIO IDE: Use Development PIO Core** (`platformio-ide.useDevelopmentPIOCore`), then in a PlatformIO terminal (*PlatformIO: New Terminal*) run `python -m pip install platformio==6.2.0` (`pio upgrade` does not downgrade a development build), restart VS Code and check with `pio --version` |
 | ESP32: `'ledcAttach' was not declared` | Old Arduino-ESP32 core 2.x: the `platform` line in `platformio.ini` must point to pioarduino |
 | Wrong project simulated in the multi-folder workspace | `F1` → **Wokwi: Select Config File** |
 | `fft.h: No such file` | Extra headers belong in `src/` next to `sketch.ino` |

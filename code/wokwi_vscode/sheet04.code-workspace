@@ -1,6 +1,8 @@
 {
   "folders": [
-    { "path": "sheet04_adc" }
+    { "path": "sheet04_adc" },
+    { "path": "sheet04_angle" },
+    { "path": "sheet04_quant" }
   ],
   "settings": {
     "files.watcherExclude": { "**/.pio/**": true },

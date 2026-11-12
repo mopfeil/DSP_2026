@@ -14,30 +14,29 @@
 \end{itemize}
 \end{goals}
 
-\section*{Setup: JSLinux}
-From this sheet on, the lab exercises also run in JSLinux, a Linux system in
-the browser. If you have not done the JSLinux bonus exercises of Sheets~0--2,
-set it up now (about \SI{10}{min}):
+\section*{Setup: C programs on the simulated ESP32}
+Exercises~4.3 and 4.4 are plain C programs without any circuit, like
+Exercises~3.2 and 3.3\,a): they run in Wokwi on an ESP32 that is used as a
+small C computer.
+\begingroup\sloppy
 \begin{enumerate}
-  \item Open \url{https://bellard.org/jslinux}, start the \emph{x86 Alpine
-    Linux} (console) virtual machine and check the compiler with
-    \texttt{gcc --version} (or \texttt{tcc -v}).
-  \item Upload the course headers \texttt{engine\_signals.h},
-    \texttt{asciiplot.h}, \texttt{csvio.h} (\codefile{common/}) and the
-    files of the exercise (e.g.\ \codefile{jslinux/sheet04/}) with the
-    upload button below the terminal; check with \texttt{ls} that they arrived.
-    Headers and program must be in the same directory.
-  \item Compile and run, e.g.
-\begin{lstlisting}[style=shell]
-gcc -O2 -o quant quant.c -lm
-./quant
-\end{lstlisting}
-  \item The VM forgets all files when the page is reloaded: keep your sources
-    on your own computer and upload them again. Text from Wokwi (Serial
-    Monitor) gets into the VM with \texttt{cat > data.csv}, paste,
-    \texttt{Ctrl-D}; \texttt{export\_file data.csv} downloads a file from
-    the VM to your computer.
+  \item In VS Code open the workspace \texttt{sheet04.code-workspace} in
+    \codefile{wokwi\_vscode/}. It contains the three projects of this sheet:
+    \texttt{sheet04\_adc} (Exercise~4.2, Arduino Uno), \texttt{sheet04\_quant}
+    (Exercise~4.3) and \texttt{sheet04\_angle} (Exercise~4.4, both ESP32).
+    The programs are in \texttt{src/sketch.ino}; the headers they need are
+    copies in \texttt{src/}.
+  \item Complete the \texttt{TODO}s, build (\emph{PlatformIO: Build}) and start
+    the simulator (\texttt{F1} $\to$ \emph{Wokwi: Start Simulator}; in the
+    workspace choose the project's \texttt{wokwi.toml}). The program runs once
+    in \texttt{setup()} and writes everything to the Serial Monitor; the last
+    line is \texttt{done.}
+  \item The ESP32 has about \SI{300}{KB} of RAM and computes \texttt{double}
+    in software. The programs therefore use shorter records than a PC
+    program would, store long sample arrays as \texttt{float} or 16-bit
+    integers (on the heap), and need some seconds in the simulator.
 \end{enumerate}
+\endgroup
 
 \section*{Background}
 
@@ -218,9 +217,9 @@ correlated and appears as distortion, not as white noise.
 \end{solution}
 
 %-------------------------------------------------------------------------
-\begin{exercise}{Quantisation noise and jitter}{\JSLinux}
-\codefile{jslinux/sheet04/quant.c} generates a sine of
-$f_0=\SI{1234.5}{Hz}$ at $f_s=\SI{50}{kHz}$ ($10^5$ samples; $f_0/f_s$ is not
+\begin{exercise}{Quantisation noise and jitter}{\Wokwi}
+The ESP32 program \codefile{wokwi\_vscode/sheet04\_quant/} generates a sine of
+$f_0=\SI{1234.5}{Hz}$ at $f_s=\SI{50}{kHz}$ ($10^4$ samples; $f_0/f_s$ is not
 a simple fraction, so the error is not periodic). The full-scale range is
 $[-1,1)$.
 \begin{tasks}
@@ -241,21 +240,21 @@ $[-1,1)$.
 \end{exercise}
 
 \begin{solution}
-\inputcode[firstline=41,lastline=61]{solutions/jslinux/sheet04/quant.c}
+\inputcode[firstline=47,lastline=68]{solutions/wokwi/sheet04_quant/sketch.ino}
 Jittered sample: \lstinline|y[n] = A*sin(2*M_PI*f*(t + sj*grand()) + 0.3);|
 
-a/b) Program output (SNR in dB):
+a/b) Program output (SNR in dB, $10^4$ samples):
 \begin{center}\small
 \begin{tabular}{@{}rrrrr@{}}\toprule
 $N$ & full scale & $6.02N+1.76$ & \SI{-20}{dBFS} & expected\\\midrule
 4 & 24.74 & 25.84 & 5.27 & 5.84\\
-5 & 31.20 & 31.86 & 10.56 & 11.86\\
-6 & 37.47 & 37.88 & 18.80 & 17.88\\
-8 & 49.75 & 49.92 & 29.78 & 29.92\\
-10 & 61.89 & 61.96 & 42.18 & 41.96\\
-12 & 73.97 & 74.00 & 53.97 & 54.00\\
-14 & 86.03 & 86.04 & 66.10 & 66.04\\
-16 & 98.10 & 98.08 & 78.08 & 78.08\\\bottomrule
+5 & 31.21 & 31.86 & 10.57 & 11.86\\
+6 & 37.46 & 37.88 & 18.80 & 17.88\\
+8 & 49.77 & 49.92 & 29.79 & 29.92\\
+10 & 61.89 & 61.96 & 42.17 & 41.96\\
+12 & 73.95 & 74.00 & 53.98 & 54.00\\
+14 & 85.99 & 86.04 & 66.09 & 66.04\\
+16 & 98.14 & 98.08 & 78.08 & 78.08\\\bottomrule
 \end{tabular}
 \end{center}
 From 8 bits on, the formula holds within \SI{0.2}{dB}. For $N\le5$ the
@@ -273,21 +272,23 @@ c) Measured vs.\ theory (dB):
 $f$ [Hz] & \multicolumn{2}{c|}{$\sigma_j=\SI{0.1}{\micro s}$} &
 \multicolumn{2}{c|}{\SI{1}{\micro s}} & \multicolumn{2}{c}{\SI{4}{\micro s}}\\
  & meas. & theory & meas. & theory & meas. & theory\\\midrule
-100   & 84.03 & 84.04 & 64.07 & 64.04 & 52.02 & 52.00\\
-1000  & 64.04 & 64.04 & 44.03 & 44.04 & 31.99 & 32.00\\
-6500  & 47.76 & 47.78 & 27.79 & 27.78 & 15.75 & 15.74\\
-10500 & 43.65 & 43.61 & 23.63 & 23.61 & 11.60 & 11.57\\
-20000 & 38.03 & 38.02 & 18.01 & 18.02 &  6.20 &  5.97\\\bottomrule
+100   & 83.94 & 84.04 & 64.03 & 64.04 & 52.01 & 52.00\\
+1000  & 64.11 & 64.04 & 44.06 & 44.04 & 32.06 & 32.00\\
+6500  & 47.80 & 47.78 & 27.82 & 27.78 & 15.76 & 15.74\\
+10500 & 43.71 & 43.61 & 23.63 & 23.61 & 11.49 & 11.57\\
+20000 & 37.93 & 38.02 & 17.98 & 18.02 &  6.16 &  5.97\\\bottomrule
 \end{tabular}
 \end{center}
 The SNR drops by \SI{20}{dB} per decade of frequency and per decade of
-jitter. Only at \SI{20}{kHz} with \SI{4}{\micro s} ($2\pi f\sigma_j=0.5$) does the
-first-order approximation $e\approx\dot x\,\delta$ become inaccurate.
+jitter. The measured values scatter by about $\pm\SI{0.1}{dB}$ because
+only $10^4$ random jitter values enter each estimate. Only at \SI{20}{kHz}
+with \SI{4}{\micro s} ($2\pi f\sigma_j=0.5$) does the first-order
+approximation $e\approx\dot x\,\delta$ become inaccurate.
 
 d) 12 bit + jitter at \SI{6.5}{kHz}: $\sigma_j=\SI{0.1}{\micro s}$:
-\SI{47.8}{dB} (ENOB 7.6); \SI{1}{\micro s}: \SI{27.8}{dB} (ENOB 4.3);
+\SI{47.7}{dB} (ENOB 7.6); \SI{1}{\micro s}: \SI{27.8}{dB} (ENOB 4.3);
 \SI{4}{\micro s}: \SI{15.8}{dB} (ENOB 2.3). At \SI{100}{Hz} and
-\SI{0.1}{\micro s} the full 12 bits remain (ENOB 11.97). Equality of the two
+\SI{0.1}{\micro s} the full 12 bits remain (ENOB 11.98). Equality of the two
 noise sources: $2\pi f\sigma_j=10^{-74/20}\Rightarrow f=\SI{31.8}{Hz}$ for
 $\sigma_j=\SI{1}{\micro s}$. Conclusion: for kHz signals the sampling clock,
 not the number of bits, decides the effective resolution; ECUs therefore
@@ -296,13 +297,14 @@ fixed ADC clock.
 \end{solution}
 
 %-------------------------------------------------------------------------
-\begin{exercise}{Time domain vs.\ crank-angle domain}{\JSLinux}
-In \codefile{jslinux/sheet04/angle\_resample.c} the virtual engine
-accelerates from \SI{1500}{rpm} to \SI{4500}{rpm} within \SI{1}{s}
+\begin{exercise}{Time domain vs.\ crank-angle domain}{\Wokwi}
+In the ESP32 program \codefile{wokwi\_vscode/sheet04\_angle/} the virtual
+engine accelerates from \SI{1500}{rpm} to \SI{4500}{rpm} within \SI{0.5}{s}
 (\texttt{e.rpm} is changed during the simulation). The ion-current signal is
 sampled at $f_s=\SI{50}{kHz}$; the rising crank edges are time-stamped with a
-resolution of \SI{2}{\micro s} (``input capture'' as in a real ECU), and the
-cam level is latched at every edge.
+resolution of \SI{2}{\micro s} (``input capture'' as in a real ECU: the time
+stamp is the first timer tick at or after the edge), and the cam level is
+latched at every edge.
 \begin{tasks}
   \item Assign a crank angle to every edge: detect the gap (edge interval
     $>2\times$ the previous one), give the first edge after the first gap the
@@ -311,10 +313,11 @@ cam level is latched at every edge.
   \item Resample the signal onto the grid $\theta_m=\theta_0+m\cdot\SI{0.5}{\degree}$:
     for every $\theta_m$ interpolate the time $t(\theta_m)$ linearly between
     the two neighbouring edges, then the signal value $x(t(\theta_m))$
-    linearly between two time samples. The program compares the grid with the
-    true model angle: report the maximum and rms angle error and explain
-    its size. Rebuild with \texttt{-DDT\_CAP=20e-6} (edges only known at the
-    sample instants) and compare.
+    linearly between two time samples (function \texttt{x\_at()}). The
+    program compares the grid with the true model angle: report the maximum
+    and rms angle error and explain its size. Change \texttt{DT\_CAP} to
+    \texttt{20e-6} (edges only known at the sample instants), rebuild and
+    compare.
   \item The program correlates every engine cycle with the first one,
     (i) in the angle domain (1440 grid points per cycle) and (ii) in the time
     domain (segments with the sample count of the first cycle, each starting
@@ -333,17 +336,18 @@ cam level is latched at every edge.
 
 \begin{solution}
 a/b) Key part of the solution:
-\inputcode[firstline=104,lastline=138]{solutions/jslinux/sheet04/angle_resample.c}
-Output: 2899 crank edges, first reference edge \#57 at $t=\SI{38.52}{ms}$
-(angle \SI{360}{\degree}, cam LOW), 35245 grid points. Angle error of the grid:
-max \SI{0.054}{\degree}, rms \SI{0.022}{\degree}. The error is caused by the
+\inputcode[firstline=59,lastline=66]{solutions/wokwi/sheet04_angle/sketch.ino}
+\inputcode[firstline=191,lastline=223]{solutions/wokwi/sheet04_angle/sketch.ino}
+Output: 1449 crank edges, first reference edge \#57 at $t=\SI{37.23}{ms}$
+(angle \SI{360}{\degree}, cam LOW), 17245 grid points. Angle error of the grid:
+max \SI{0.054}{\degree}, rms \SI{0.023}{\degree}. The error is caused by the
 time stamp resolution: an edge is registered up to $\Delta t_\mathrm{cap}$
 late, i.e.\ $\omega\,\Delta t_\mathrm{cap}=27000\,\si{\degree/s}\cdot\SI{2}{\micro s}=\SI{0.054}{\degree}$
 at \SI{4500}{rpm} -- exactly the maximum found. The linear interpolation
 between edges (constant speed over \SI{6}{\degree}) is not the limit: the 1\,\%
 second-order speed ripple changes $\omega$ by only $\approx0.2\,\%$ over a
-tooth. With \texttt{-DDT\_CAP=20e-6}: max \SI{0.534}{\degree}, rms
-\SI{0.222}{\degree} (and \SI{0.027}{\degree}/\SI{0.011}{\degree} for
+tooth. With \texttt{DT\_CAP 20e-6}: max \SI{0.522}{\degree}, rms
+\SI{0.224}{\degree} (and \SI{0.027}{\degree}/\SI{0.011}{\degree} for
 \SI{1}{\micro s}): the error scales linearly with the capture resolution.
 This is why ECUs time-stamp crank edges with a hardware capture unit instead
 of the ADC sample clock.
@@ -352,20 +356,21 @@ c) Output (excerpt):
 \begin{center}\small
 \begin{tabular}{@{}rrrrr@{}}\toprule
 cycle & rpm (mean) & samples/cycle & corr.\ time domain & corr.\ angle domain\\\midrule
-1 & 1720 & 3488 & 1.000 & 1.0000\\
-2 & 1919 & 3127 & $-0.030$ & 0.9986\\
-5 & 2417 & 2482 & $-0.131$ & 0.9986\\
-13 & 3407 & 1761 & $-0.035$ & 0.9985\\
-22 & 4253 & 1411 & 0.043 & 0.9984\\\bottomrule
+1 & 1912 & 3139 & 1.000 & 1.0000\\
+2 & 2259 & 2656 & $-0.131$ & 0.9986\\
+3 & 2559 & 2345 & 0.046 & 0.9986\\
+5 & 3072 & 1953 & $-0.062$ & 0.9986\\
+7 & 3510 & 1710 & $-0.193$ & 0.9986\\
+10 & 4079 & 1471 & 0.035 & 0.9986\\\bottomrule
 \end{tabular}
 \end{center}
 In the angle domain every cycle is (up to the \SI{10}{mV} noise of the model)
-identical to the first one: correlation 0.998 for all 24 cycles. In the time
+identical to the first one: correlation 0.998 for all cycles. In the time
 domain the correlation collapses already in the second cycle, although the
 segments start exactly at the cycle start and the speed changed by only
-12\,\%: the ion peaks (width a few degrees) at $120^\circ$, $300^\circ$, \dots{}
-arrive \SIrange{1}{3}{ms} earlier and are narrower. The time plot shows the
-last cycle compressed to 40\,\% (2.5 cycles in the window of the first
+18\,\%: the ion peaks (width a few degrees) at $120^\circ$, $300^\circ$, \dots{}
+arrive \SIrange{1.6}{9}{ms} earlier and are narrower. The time plot shows the
+last cycle compressed to 47\,\% (about 2 cycles in the window of the first
 one), the angle plot shows two congruent curves. Crank-synchronous signals
 are \emph{stationary in the angle domain} and non-stationary in the time
 domain during speed changes; angle-based processing (synchronous averaging,

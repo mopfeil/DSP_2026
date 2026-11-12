@@ -75,8 +75,14 @@ ATTR_rpm=6000 ./run 0.05      # prints t_ns,pin,value of digital edges
 * Sheet 3 needs no JSLinux (2026-11-12): its C programs (convolution,
   offline RPM filtering) run as ESP32 projects without circuit
   (`sheet03_conv`, `sheet03_rpmoffline`); built with PlatformIO
-  (pioarduino 55.03.312), results checked natively with g++. The JSLinux
-  setup section moved to Sheet 4.
+  (pioarduino 55.03.312), results checked natively with g++.
+* Sheet 4 needs no JSLinux either (2026-11-12): quantisation/jitter and
+  angle-domain resampling are ESP32 projects without circuit
+  (`sheet04_quant`, `sheet04_angle`). To fit the ~300 KB RAM: 10^4 samples
+  in `quant`; in `angle` a 0.5 s ramp, samples as int16, crank-edge time
+  stamps computed from the exact crossing time instead of 2 us steps.
+  Results checked natively with g++. The JSLinux setup section moved to
+  Sheet 5.
 * Numbers in the solutions come from running the reference code. For the
   Wokwi exercises they come from PC emulations of the sketches against the
   same engine model, not from the Wokwi simulator itself.
@@ -99,6 +105,9 @@ ATTR_rpm=6000 ./run 0.05      # prints t_ns,pin,value of digital edges
 * Sheet 3 ESP32 programs: runtime of `sheet03_rpmoffline` in the simulator
   (5.4 s engine time with software double, dt = 10 us) and that `printf`
   output appears in the Serial Monitor.
+* Sheet 4 ESP32 programs: heap allocation of `sheet04_angle` (~190 KB in six
+  blocks, largest 72 KB) succeeds, runtime of `sheet04_quant` (~1.2 million
+  software-double sin/log calls).
 * JSLinux: confirm gcc (or tcc) is available in the chosen VM image.
 
 ## Ideas for later

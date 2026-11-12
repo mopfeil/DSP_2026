@@ -7,6 +7,8 @@
     { "path": "sheet03_rpmfilter" },
     { "path": "sheet03_rpmoffline" },
     { "path": "sheet04_adc" },
+    { "path": "sheet04_angle" },
+    { "path": "sheet04_quant" },
     { "path": "sheet05_alias_esp32" },
     { "path": "sheet05_alias_uno" },
     { "path": "sheet08_knockfft" },
