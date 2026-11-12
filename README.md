@@ -75,7 +75,7 @@ ATTR_rpm=6000 ./run 0.05      # prints t_ns,pin,value of digital edges
 * Sheet 3 needs no JSLinux (2026-11-12): its C programs (convolution,
   offline RPM filtering) run as ESP32 projects without circuit
   (`sheet03_conv`, `sheet03_rpmoffline`); built with PlatformIO
-  (pioarduino 55.03.312), results checked natively with g++.
+  (pioarduino 55.03.311), results checked natively with g++.
 * Sheet 4 needs no JSLinux either (2026-11-12): quantisation/jitter and
   angle-domain resampling are ESP32 projects without circuit
   (`sheet04_quant`, `sheet04_angle`). To fit the ~300 KB RAM: 10^4 samples

@@ -24,7 +24,10 @@ status=0
 
 # Pinned pioarduino release = Arduino-ESP32 core 3.3.x (the sketches use the
 # core-3 API, e.g. ledcAttach; the official espressif32 platform ships core 2).
-ESP32_PLATFORM="https://github.com/pioarduino/platform-espressif32/releases/download/55.03.312/platform-espressif32.zip"
+# 55.03.311 (core 3.3.11), not 55.03.312: 55.03.312 requires PlatformIO Core
+# ">=6.2.0", which rejects pioarduino's own core fork 6.2.0.post1 (semver reads
+# it as the pre-release 6.2.0-post.1). 55.03.311 requires ">=6.1.19".
+ESP32_PLATFORM="https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip"
 
 # put <content> <file> <label>: write if different (or report with --check)
 put() {
