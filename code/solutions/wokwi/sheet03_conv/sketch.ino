@@ -1,9 +1,11 @@
 /*
- * Sheet 3, Exercise 3.2 -- convolution engine (student template)
+ * Sheet 3, Exercise 3.2 -- convolution engine (REFERENCE SOLUTION)
  *
- * Build and run:   gcc -O2 -o conv conv.c -lm
- *                  ./conv
- * (asciiplot.h in the same directory)
+ * ESP32 used as a plain C computer: no circuit, the program runs once in
+ * setup() and prints its results (and ASCII plots) to the Serial Monitor.
+ * Why the ESP32 and not the Uno: 320 KB RAM instead of 2 KB, and "double"
+ * is a real 64-bit double (on the Uno double = float).
+ * (asciiplot.h in the same folder)
  *
  * (a) linear convolution y = x * h, check with the example of Ex. 3.1
  * (b) commutativity, associativity, distributivity, numerically
@@ -15,16 +17,20 @@
 #include <math.h>
 #include "asciiplot.h"
 
-#define MAXN 4096
+#define MAXN 1200          /* long sequences: 1000 + 160 - 1 samples   */
+#define MAXH 256           /* short sequences (h, g, intermediate results) */
 
 /* ---- (a) y[n] = sum_k x[k] h[n-k],  n = 0 .. nx+nh-2 ------------------ */
 static int conv(const double *x, int nx, const double *h, int nh, double *y)
 {
-    int n, ny = nx + nh - 1;
-    (void)x; (void)h;
-    /* TODO (a): y[n] = sum_k x[k] h[n-k] for n = 0..ny-1; let k run only
-       over the indices where both x[k] and h[n-k] exist.               */
-    for (n = 0; n < ny; n++) y[n] = 0.0;
+    int n, k, ny = nx + nh - 1;
+    for (n = 0; n < ny; n++) {
+        int k0 = n - nh + 1 > 0 ? n - nh + 1 : 0;    /* h index n-k < nh  */
+        int k1 = n < nx - 1 ? n : nx - 1;            /* x index k < nx    */
+        double s = 0.0;
+        for (k = k0; k <= k1; k++) s += x[k] * h[n - k];
+        y[n] = s;
+    }
     return ny;
 }
 
@@ -56,15 +62,18 @@ static void print_seq(const char *name, const double *v, int n)
 static void exp_smooth(const double *x, int n, double a, double *y)
 {
     int i;
-    (void)a;
-    /* TODO (c): recursion y[n] = a y[n-1] + (1-a) x[n], initially at rest */
-    for (i = 0; i < n; i++) y[i] = x[i];
+    double s = 0.0;                       /* initially at rest */
+    for (i = 0; i < n; i++) {
+        s = a * s + (1.0 - a) * x[i];
+        y[i] = s;
+    }
 }
 
-int main(void)
+static void run(void)
 {
-    static double x[MAXN], h[MAXN], g[MAXN], y1[MAXN], y2[MAXN], t1[MAXN], t2[MAXN];
-    static double xh[MAXN];
+    /* static RAM of the ESP32 is limited (~100 KB): only x, y1, y2 are long */
+    static double x[MAXN], y1[MAXN], y2[MAXN];
+    static double h[MAXH], g[MAXH], t1[MAXH], t2[MAXH], xh[MAXH];
     int i, n, L;
 
     /* (a) example of Exercise 3.1 a) */
@@ -102,8 +111,7 @@ int main(void)
         printf("\n(c) exponential smoother a = %.2f, %d samples\n", a, nx);
         printf("      L   max|recursive - conv|   a^L      mult./sample\n");
         for (L = 10; L <= 160; L *= 2) {
-            /* TODO (c): h[i] = impulse response of the smoother, i < L */
-            for (i = 0; i < L; i++) h[i] = (i == 0);
+            for (i = 0; i < L; i++) h[i] = (1.0 - a) * pow(a, i);
             conv(x, nx, h, L, y2);
             printf("    %3d   %.3e           %.3e   %d (recursion: 2)\n",
                    L, maxdiff(y1, y2, nx), pow(a, L), L);
@@ -139,5 +147,14 @@ int main(void)
                    "(one MA8: %.2f)\n", s, c / s, (N - 1) / 2.0);
         }
     }
-    return 0;
 }
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(100);
+    run();
+    printf("\ndone.\n");
+}
+
+void loop() {}

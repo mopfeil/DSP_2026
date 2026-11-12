@@ -15,30 +15,33 @@
 \end{itemize}
 \end{goals}
 
-\section*{Setup: JSLinux}
-From this sheet on, the lab exercises also run in JSLinux, a Linux system in
-the browser. If you have not done the JSLinux bonus exercises of Sheets~0--2,
-set it up now (about \SI{10}{min}):
+\section*{Setup: C programs on the simulated ESP32}
+Exercises~3.2 and 3.3\,a) are plain C programs without any circuit: they
+compute, print tables and draw ASCII plots. They run in Wokwi on an ESP32
+that is used as a small C computer -- no second environment is needed.
+\begingroup\sloppy
 \begin{enumerate}
-  \item Open \url{https://bellard.org/jslinux}, start the \emph{x86 Alpine
-    Linux} (console) virtual machine and check the compiler with
-    \texttt{gcc --version} (or \texttt{tcc -v}).
-  \item Upload the course headers \texttt{engine\_signals.h},
-    \texttt{asciiplot.h}, \texttt{csvio.h} (\codefile{common/}) and the
-    files of the exercise (e.g.\ \codefile{jslinux/sheet03/}) with the
-    upload button below the terminal; check with \texttt{ls} that they arrived.
-    Headers and program must be in the same directory.
-  \item Compile and run, e.g.
-\begin{lstlisting}[style=shell]
-gcc -O2 -o conv conv.c -lm
-./conv
-\end{lstlisting}
-  \item The VM forgets all files when the page is reloaded: keep your sources
-    on your own computer and upload them again. Text from Wokwi (Serial
-    Monitor) gets into the VM with \texttt{cat > data.csv}, paste,
-    \texttt{Ctrl-D}; \texttt{export\_file data.csv} downloads a file from
-    the VM to your computer.
+  \item Open the project folder \texttt{sheet03\_conv} (Exercise~3.2) or
+    \texttt{sheet03\_rpmoffline} (Exercise~3.3\,a) in
+    \codefile{wokwi\_vscode/} in VS Code (both are also in the workspace
+    \texttt{wokwi\_vscode.code-workspace}). The program is in
+    \texttt{src/sketch.ino}; the headers it needs (\texttt{asciiplot.h},
+    \texttt{engine\_signals.h}) are copies in \texttt{src/}.
+  \item Complete the \texttt{TODO}s, build (\emph{PlatformIO: Build}) and start
+    the simulator (\texttt{F1} $\to$ \emph{Wokwi: Start Simulator}). The
+    program runs once in \texttt{setup()} and writes everything to the Serial
+    Monitor; the last line is \texttt{done.} Copy the results from there.
+  \item Why the ESP32 and not the Uno: the programs need tens of kilobytes of
+    RAM (the Uno has \SI{2}{KB}), and on the Uno \texttt{double} is only a
+    32-bit \texttt{float} -- the rounding errors of Exercise~3.2\,b) would be
+    those of single precision. The ESP32 computes \texttt{double} in software:
+    correct, but slow, so Exercise~3.3\,a) needs a while in the simulator.
+  \item The first ESP32 build downloads the toolchain, about \SI{1}{GB}
+    (see the README in \codefile{wokwi\_vscode/}). In the browser the same
+    projects are in \codefile{wokwi/}: create an ESP32 project and add the
+    header files as extra tabs.
 \end{enumerate}
+\endgroup
 
 \section*{Background}
 A discrete-time LTI system is completely described by its impulse response
@@ -139,8 +142,8 @@ These values are confirmed by the simulation in Exercise~3.3\,a).
 \end{solution}
 
 %-------------------------------------------------------------------------
-\begin{exercise}{Convolution engine}{\JSLinux}
-Program: \codefile{jslinux/sheet03/conv.c}.
+\begin{exercise}{Convolution engine}{\Wokwi}
+Program: project \texttt{sheet03\_conv} (ESP32 without circuit, see Setup).
 \begin{tasks}
   \item Implement \texttt{conv(x, nx, h, nh, y)} (full linear convolution, output
     length $n_x+n_h-1$, no out-of-range accesses) and check it with the example of
@@ -160,9 +163,9 @@ Program: \codefile{jslinux/sheet03/conv.c}.
 \end{exercise}
 
 \begin{solution}
-a) Key part of \codefile{solutions/jslinux/sheet03/conv.c} -- the summation
+a) Key part of \codefile{solutions/wokwi/sheet03\_conv/sketch.ino} -- the summation
 limits make sure that both $x[k]$ and $h[n-k]$ exist:
-\inputcode[firstline=21,lastline=32]{solutions/jslinux/sheet03/conv.c}
+\inputcode[firstline=24,lastline=35]{solutions/wokwi/sheet03_conv/sketch.ino}
 Output: \texttt{y = 1 1 -1.5 0 1 -0.5} (as by hand).
 
 b), c) Output:
@@ -211,8 +214,9 @@ in the \emph{tooth domain} (one sample per tooth). Three ways to treat the gap
 1 -- correct it to $3/T_{\text{gap}}$ (one sample);
 2 -- insert $3/T_{\text{gap}}$ three times (one sample per $6^\circ$).
 \begin{tasks}
-  \item \emph{Offline prediction} (\JSLinux, \codefile{jslinux/sheet03/rpm\_offline.c}).
-    The program simulates the crank edges with \SI{0.5}{\micro s} time stamps.
+  \item \emph{Offline prediction} (ESP32 without circuit, see Setup;
+    project \texttt{sheet03\_rpmoffline}). The program simulates the
+    crank edges of the virtual engine with \SI{0.5}{\micro s} time stamps.
     Implement the gap handling, \texttt{moving\_average()} (running sum) and
     \texttt{exp\_smoother()}. Report: at constant \SI{3000}{rpm} mean, standard
     deviation and min/max of raw, MA$_{16}$, MA$_{30}$, EMA$_{2/17}$ for all
@@ -241,30 +245,30 @@ in the \emph{tooth domain} (one sample per tooth). Three ways to treat the gap
 \end{exercise}
 
 \begin{solution}
-a) Key parts of \codefile{solutions/jslinux/sheet03/rpm\_offline.c}:
-\inputcode[firstline=75,lastline=78]{solutions/jslinux/sheet03/rpm_offline.c}
-\inputcode[firstline=92,lastline=112]{solutions/jslinux/sheet03/rpm_offline.c}
+a) Key parts of \codefile{solutions/wokwi/sheet03\_rpmoffline/sketch.ino}:
+\inputcode[firstline=80,lastline=83]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
+\inputcode[firstline=95,lastline=117]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
 Results (constant \SI{3000}{rpm}, after settling):
 \begin{lstlisting}[style=shell,numbers=none]
  gap handling: naive gap (2842 samples)
-  raw        mean  2966.4  std 260.19  min   996.5  max  3030.3
-  MA16       mean  2966.4  std  58.09  min  2859.7  max  3017.8
+  raw        mean  2966.4  std 260.20  min   996.5  max  3030.3
+  MA16       mean  2966.4  std  58.10  min  2859.7  max  3017.8
   MA30       mean  2966.3  std  32.88  min  2932.2  max  3000.0
-  EMA 2/17   mean  2966.4  std  57.58  min  2750.7  max  3014.3
+  EMA 2/17   mean  2966.4  std  57.60  min  2750.7  max  3014.3
  gap handling: gap once (2842 samples)
-  raw        mean  3000.3  std  21.53  min  2967.4  max  3030.3
-  MA16       mean  3000.3  std  12.19  min  2982.0  max  3017.8
-  MA30       mean  3000.4  std   1.06  min  2998.7  max  3002.7
-  EMA 2/17   mean  3000.3  std  10.73  min  2984.8  max  3015.5
+  raw        mean  3000.3  std  21.56  min  2967.4  max  3030.3
+  MA16       mean  3000.3  std  12.22  min  2982.0  max  3017.8
+  MA30       mean  3000.4  std   1.07  min  2998.7  max  3002.7
+  EMA 2/17   mean  3000.3  std  10.75  min  2984.8  max  3015.5
  gap handling: gap x3 (2940 samples)
-  raw        mean  2999.9  std  21.27  min  2967.4  max  3030.3
-  MA16       mean  3000.0  std  12.55  min  2982.0  max  3017.8
-  MA30       mean  3000.0  std   0.04  min  2999.9  max  3000.1
-  EMA 2/17   mean  3000.0  std  10.85  min  2984.8  max  3015.5
+  raw        mean  2999.9  std  21.30  min  2967.4  max  3030.3
+  MA16       mean  3000.0  std  12.57  min  2982.0  max  3017.8
+  MA30       mean  3000.0  std   0.04  min  2999.9  max  3000.2
+  EMA 2/17   mean  3000.0  std  10.87  min  2984.8  max  3015.5
 \end{lstlisting}
 With correct gap handling the raw std ($21.3$\,rpm) is the ripple
-($30/\sqrt2$). The attenuation factors $12.55/21.27=0.59$ (MA$_{16}$) and
-$10.85/21.27=0.51$ (EMA) agree with $|H|=0.595$ and $0.514$ of Exercise~3.1\,d);
+($30/\sqrt2$). The attenuation factors $12.57/21.30=0.59$ (MA$_{16}$) and
+$10.87/21.30=0.51$ (EMA) agree with $|H|=0.595$ and $0.514$ of Exercise~3.1\,d);
 MA$_{30}$ in mode 2 leaves $0.04$\,rpm (timer quantisation only).
 Step and ramp (mode 2):
 \begin{lstlisting}[style=shell,numbers=none]
@@ -323,7 +327,7 @@ lasting 16 teeth (min 2860), the EMA a dip of $\alpha\cdot2000=235$\,rpm (min
 worst value (\SI{3000}{rpm}: MA 2860, EMA 2751; \SI{7000}{rpm}: 6674, 6418).
 Mode 1 removes the bias, but the sample covering $18^\circ$ has the same weight as
 those covering $6^\circ$; MA$_{30}$ then spans $30$ samples $\neq180^\circ$ for
-half of the windows: residual std 1.06\,rpm. Mode 2 makes the sample index
+half of the windows: residual std 1.07\,rpm. Mode 2 makes the sample index
 proportional to the crank angle ($6^\circ$ per sample, 60 per revolution); MA$_{30}$
 spans exactly $180^\circ$ and cancels the 2nd order completely (std 0.04).
 Time invariance: in the tooth domain the operator ``tooth period $\to$ speed''
@@ -351,7 +355,7 @@ and (iii) compensate the known lag by prediction ($\hat n=n_{\text{filt}}+\dot n
 \begin{deliverables}
 3.1: convolution table, derivations of $h$, $s$, noise gain, $D$, $|H|$. 3.2:
 program and output, explanation of the rounding and truncation errors, plot of
-the triangular impulse response. 3.3: completed \texttt{rpm\_offline.c} with
+the triangular impulse response. 3.3: completed \texttt{sheet03\_rpmoffline} sketch with
 result tables; sketch; capture of a step for all three gap modes (plot in
-JSLinux), 50/90\,\% points and ramp lag; answer to d).
+any tool, e.g.\ a spreadsheet), 50/90\,\% points and ramp lag; answer to d).
 \end{deliverables}

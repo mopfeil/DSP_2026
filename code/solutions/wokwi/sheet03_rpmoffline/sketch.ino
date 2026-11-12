@@ -2,9 +2,9 @@
  * Sheet 3, Exercise 3.3 a) -- smoothing the per-tooth engine speed,
  * offline prediction (REFERENCE SOLUTION)
  *
- * Build and run:   gcc -O2 -o rpm_offline rpm_offline.c -lm
- *                  ./rpm_offline
- * (engine_signals.h, asciiplot.h and csvio.h in the same directory)
+ * ESP32 used as a plain C computer: no circuit, the program runs once in
+ * setup() and prints its results (and ASCII plots) to the Serial Monitor.
+ * (engine_signals.h and asciiplot.h in the same folder)
  *
  * The rising crank edges of the virtual engine are time-stamped with
  * 0.5 us resolution (Timer1 of the Uno, as in Exercise 1.3). From the
@@ -13,22 +13,27 @@
  *   - a moving average over N samples        (FIR, LTI)
  *   - an exponential smoother, alpha         (IIR, LTI)
  * Scenarios: constant speed, speed step, speed ramp.
+ *
+ * The sample arrays are float to fit into the RAM of the ESP32; sums
+ * and statistics are computed in double. The whole run takes a while
+ * in the simulator (about 5 simulated seconds of engine time).
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include "engine_signals.h"
 #include "asciiplot.h"
-#include "csvio.h"
 
 #define TICK   0.5e-6        /* s, timer resolution                         */
-#define MAXS   12000         /* max. number of speed samples                */
+#define MAXS   6000          /* max. number of speed samples                */
 #define GAP_NAIVE  0         /* gap period used like a normal tooth period  */
 #define GAP_ONE    1         /* one sample 3/T_gap                          */
 #define GAP_THREE  2         /* three samples 3/T_gap (one per 6 deg)       */
 
-static double r[MAXS], rt[MAXS], yma[MAXS], yema[MAXS];
-static int    isgap[MAXS];
+/* MAXS samples each, allocated in run(): together ~100 KB, more than the
+   static RAM segment of the ESP32 holds, but fine on the heap          */
+static float  *r, *rt, *yma, *yema;
+static char   *isgap;
 
 /* ---- speed profiles ------------------------------------------------ */
 static double profile(int scen, double t)
@@ -48,7 +53,7 @@ static double profile(int scen, double t)
 static int make_speed(int scen, double tend, int gap_mode)
 {
     es_engine_t e;
-    double dt = 1e-6, th_prev, t_prev;
+    double dt = 1e-5, th_prev, t_prev;
     long stamp, last = -1, T, Tprev = 0;
     int ns = 0, synced = 0;
     es_init(&e, profile(scen, 0.0), 99u);
@@ -89,7 +94,7 @@ static int make_speed(int scen, double tend, int gap_mode)
 /* ---- (b) filters ------------------------------------------------------ */
 /* moving average over N samples, running sum; the first N-1 outputs
    use the first sample as "history" (filter pre-loaded, no start-up)  */
-static void moving_average(const double *x, int n, int N, double *y)
+static void moving_average(const float *x, int n, int N, float *y)
 {
     double s = N * x[0];
     int k;
@@ -101,7 +106,7 @@ static void moving_average(const double *x, int n, int N, double *y)
 
 /* exponential smoother y[k] = y[k-1] + alpha (x[k] - y[k-1]),
    pre-loaded with x[0]                                                 */
-static void exp_smoother(const double *x, int n, double alpha, double *y)
+static void exp_smoother(const float *x, int n, double alpha, float *y)
 {
     double s = x[0];
     int k;
@@ -111,22 +116,33 @@ static void exp_smoother(const double *x, int n, double alpha, double *y)
     }
 }
 
+/* ASCII plot of two float sequences (asciiplot.h expects double) */
+static void plot2f(const float *a, const float *b, int n, const char *title)
+{
+    static double da[200], db[200];
+    int i;
+    if (n > 200) n = 200;
+    for (i = 0; i < n; i++) { da[i] = a[i]; db[i] = b[i]; }
+    ap_plot2(da, db, n, title);
+}
+
 /* ---- evaluation ------------------------------------------------------ */
-static void stat_const(const char *name, const double *y, int n)
+static void stat_const(const char *name, const float *y, int n)
 {
     double m = 0, s2 = 0, mn = 1e9, mx = -1e9;
     int k, cnt = 0;
     for (k = 200; k < n; k++) {                     /* skip settling */
-        m += y[k]; s2 += y[k] * y[k]; cnt++;
+        m += y[k]; cnt++;
         if (y[k] < mn) mn = y[k];
         if (y[k] > mx) mx = y[k];
     }
     m /= cnt;
+    for (k = 200; k < n; k++) s2 += (y[k] - m) * (y[k] - m);   /* in double */
     printf("  %-10s mean %7.1f  std %6.2f  min %7.1f  max %7.1f\n", name, m,
-           sqrt(s2 / cnt - m * m), mn, mx);
+           sqrt(s2 / cnt), mn, mx);
 }
 
-static void stat_step(const char *name, const double *y, int n)
+static void stat_step(const char *name, const float *y, int n)
 {
     int k0, k, k50 = -1, k90 = -1;
     for (k0 = 0; k0 < n && rt[k0] < 4000.0; k0++) {}   /* first sample at 5000 */
@@ -138,7 +154,7 @@ static void stat_step(const char *name, const double *y, int n)
            k50 - k0, k90 - k0);
 }
 
-static void stat_ramp(const char *name, const double *y, int n)
+static void stat_ramp(const char *name, const float *y, int n)
 {
     double err = 0.0, slope = 0.0, rpm = 0.0;
     int k, cnt = 0, k0 = -1, k1 = -1;
@@ -154,11 +170,18 @@ static void stat_ramp(const char *name, const double *y, int n)
            rpm);
 }
 
-int main(void)
+static void run(void)
 {
     static const char *gname[3] = {"naive gap", "gap once", "gap x3"};
     int n, g, N;
     double alpha16 = 2.0 / 17.0;
+
+    r = (float *)malloc(MAXS * sizeof(float));
+    rt = (float *)malloc(MAXS * sizeof(float));
+    yma = (float *)malloc(MAXS * sizeof(float));
+    yema = (float *)malloc(MAXS * sizeof(float));
+    isgap = (char *)malloc(MAXS);
+    if (!r || !rt || !yma || !yema || !isgap) { printf("out of memory\n"); return; }
 
     printf("(b) constant 3000 rpm, 1 s\n");
     for (g = 0; g < 3; g++) {
@@ -172,12 +195,12 @@ int main(void)
             moving_average(r, n, 16, yma);
             exp_smoother(r, n, alpha16, yema);
             ap_size(72, 14);
-            ap_plot2(yma + 400, yema + 400, 180,
+            plot2f(yma + 400, yema + 400, 180,
                      "naive gap: MA16 (*) and EMA 2/17 (o), 180 samples");
         }
         if (g == GAP_THREE) {
             moving_average(r, n, 30, yma);
-            ap_plot2(r + 400, yma + 400, 180,
+            plot2f(r + 400, yma + 400, 180,
                      "gap x3: raw (*) and MA30 (o), 180 samples = 3 revolutions");
         }
     }
@@ -196,7 +219,7 @@ int main(void)
         for (k0 = 0; k0 < n && rt[k0] < 4000.0; k0++) {}
         moving_average(r, n, 16, yma);
         exp_smoother(r, n, alpha16, yema);
-        ap_plot2(yma + k0 - 10, yema + k0 - 10, 60,
+        plot2f(yma + k0 - 10, yema + k0 - 10, 60,
                  "step: MA16 (*) and EMA 2/17 (o), samples -10..49");
     }
 
@@ -209,8 +232,14 @@ int main(void)
         sprintf(nm, "EMA 2/%d", N + 1);
         exp_smoother(r, n, 2.0 / (N + 1), yema); stat_ramp(nm, yema, n);
     }
-    exp_smoother(r, n, alpha16, yema);
-    csv_write("rpm_ramp.csv", "true,raw,ema16", n, 3, rt, r, yema);
-    printf("wrote rpm_ramp.csv\n");
-    return 0;
 }
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(100);
+    run();
+    printf("\ndone.\n");
+}
+
+void loop() {}

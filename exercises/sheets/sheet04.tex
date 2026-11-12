@@ -14,6 +14,31 @@
 \end{itemize}
 \end{goals}
 
+\section*{Setup: JSLinux}
+From this sheet on, the lab exercises also run in JSLinux, a Linux system in
+the browser. If you have not done the JSLinux bonus exercises of Sheets~0--2,
+set it up now (about \SI{10}{min}):
+\begin{enumerate}
+  \item Open \url{https://bellard.org/jslinux}, start the \emph{x86 Alpine
+    Linux} (console) virtual machine and check the compiler with
+    \texttt{gcc --version} (or \texttt{tcc -v}).
+  \item Upload the course headers \texttt{engine\_signals.h},
+    \texttt{asciiplot.h}, \texttt{csvio.h} (\codefile{common/}) and the
+    files of the exercise (e.g.\ \codefile{jslinux/sheet04/}) with the
+    upload button below the terminal; check with \texttt{ls} that they arrived.
+    Headers and program must be in the same directory.
+  \item Compile and run, e.g.
+\begin{lstlisting}[style=shell]
+gcc -O2 -o quant quant.c -lm
+./quant
+\end{lstlisting}
+  \item The VM forgets all files when the page is reloaded: keep your sources
+    on your own computer and upload them again. Text from Wokwi (Serial
+    Monitor) gets into the VM with \texttt{cat > data.csv}, paste,
+    \texttt{Ctrl-D}; \texttt{export\_file data.csv} downloads a file from
+    the VM to your computer.
+\end{enumerate}
+
 \section*{Background}
 
 An ADC with $N$ bits and full-scale range $V_\mathrm{FS}$ has the step size

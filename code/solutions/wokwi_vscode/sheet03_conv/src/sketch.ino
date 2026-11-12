@@ -1,9 +1,11 @@
 /*
  * Sheet 3, Exercise 3.2 -- convolution engine (REFERENCE SOLUTION)
  *
- * Build and run:   gcc -O2 -o conv conv.c -lm
- *                  ./conv
- * (asciiplot.h in the same directory)
+ * ESP32 used as a plain C computer: no circuit, the program runs once in
+ * setup() and prints its results (and ASCII plots) to the Serial Monitor.
+ * Why the ESP32 and not the Uno: 320 KB RAM instead of 2 KB, and "double"
+ * is a real 64-bit double (on the Uno double = float).
+ * (asciiplot.h in the same folder)
  *
  * (a) linear convolution y = x * h, check with the example of Ex. 3.1
  * (b) commutativity, associativity, distributivity, numerically
@@ -15,7 +17,8 @@
 #include <math.h>
 #include "asciiplot.h"
 
-#define MAXN 4096
+#define MAXN 1200          /* long sequences: 1000 + 160 - 1 samples   */
+#define MAXH 256           /* short sequences (h, g, intermediate results) */
 
 /* ---- (a) y[n] = sum_k x[k] h[n-k],  n = 0 .. nx+nh-2 ------------------ */
 static int conv(const double *x, int nx, const double *h, int nh, double *y)
@@ -66,10 +69,11 @@ static void exp_smooth(const double *x, int n, double a, double *y)
     }
 }
 
-int main(void)
+static void run(void)
 {
-    static double x[MAXN], h[MAXN], g[MAXN], y1[MAXN], y2[MAXN], t1[MAXN], t2[MAXN];
-    static double xh[MAXN];
+    /* static RAM of the ESP32 is limited (~100 KB): only x, y1, y2 are long */
+    static double x[MAXN], y1[MAXN], y2[MAXN];
+    static double h[MAXH], g[MAXH], t1[MAXH], t2[MAXH], xh[MAXH];
     int i, n, L;
 
     /* (a) example of Exercise 3.1 a) */
@@ -143,5 +147,14 @@ int main(void)
                    "(one MA8: %.2f)\n", s, c / s, (N - 1) / 2.0);
         }
     }
-    return 0;
 }
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(100);
+    run();
+    printf("\ndone.\n");
+}
+
+void loop() {}

@@ -32,8 +32,8 @@ code/wokwi_vscode/
 
 | Board | PlatformIO environment | Firmware for Wokwi |
 |-------|------------------------|--------------------|
-| Arduino Uno (`sheet00`–`04`, `*_uno`, `sheet08_unofft`, `sheet09`) | `uno`, platform `atmelavr` | `.pio/build/uno/firmware.hex` |
-| ESP32 DevKit v1 (`*_esp32`, `sheet08_knockfft`) | `esp32`, platform pioarduino 55.03.312 (Arduino-ESP32 core 3.3) | `.pio/build/esp32/firmware.bin` |
+| Arduino Uno (`sheet00`–`02`, `sheet03_rpmfilter`, `sheet04`, `*_uno`, `sheet08_unofft`, `sheet09`) | `uno`, platform `atmelavr` | `.pio/build/uno/firmware.hex` |
+| ESP32 DevKit v1 (`sheet03_conv`, `sheet03_rpmoffline`, `*_esp32`, `sheet08_knockfft`) | `esp32`, platform pioarduino 55.03.312 (Arduino-ESP32 core 3.3) | `.pio/build/esp32/firmware.bin` |
 
 The ESP32 sketches use the core-3 API (`ledcAttach`, ...), which the official PlatformIO
 `espressif32` platform does not provide yet; therefore `platformio.ini` uses the community

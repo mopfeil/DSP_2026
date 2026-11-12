@@ -71,8 +71,9 @@ from these signals. Sheet 12 (knock detection) assembles all parts.
   \item Sheet 0 (\emph{Getting started}, 45\,min): blink + serial CSV and
     the engine simulator chip on Wokwi; compile/run/upload/download on
     JSLinux as an optional bonus exercise. The JSLinux bonus of Sheet 2
-    repeats the setup in a short section; Sheet 3 (first mandatory
+    repeats the setup in a short section; Sheet 4 (first mandatory
     JSLinux sheet) starts with the same setup section for everybody.
+    Sheet 3 runs its C programs on a Wokwi ESP32 without circuit.
 \end{itemize}
 
 \subsection*{Sheet format}
@@ -91,7 +92,7 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \midrule
 1 & ECU and Signals & 60-2 crank signal, RPM from tooth timing (bonus: signal zoo) & x & (x)\\
 2 & Systems & Lambda loop with delay (bonus: black-box property tests, engine dynamics) & x & (x)\\
-3 & LTI Systems & Convolution, impulse/step response, moving-average RPM & x & x\\
+3 & LTI Systems & Convolution, impulse/step response, moving-average RPM & x & \\
 4 & Sampling & ADC sampling, quantisation SNR, time vs.\ angle domain & x & x\\
 5 & Nyquist & Aliasing of knock frequencies, anti-aliasing filter & x & x\\
 6 & Fourier & Fourier series of crank signal, engine orders & & x\\
@@ -104,8 +105,9 @@ optional challenge. Solutions in the same \texttt{.tex} file, switched by
 \bottomrule
 \end{tabularx}
 \end{center}
-(x) = optional bonus exercise only. Sheets 0--2 (the first lab days) are
-Wokwi-only; JSLinux becomes mandatory from Sheet~3 on.
+(x) = optional bonus exercise only. Sheets 0--3 are
+Wokwi-only (Sheet~3 runs its C programs on an ESP32 without circuit);
+JSLinux becomes mandatory from Sheet~4 on.
 
 %=====================================================================
 \section{Sheet 1 -- The ECU Sees Only Signals}
@@ -186,7 +188,7 @@ equations; LTI systems as the workhorse of DSP.
     impulse/step response of moving average and of
     $y[n]=a\,y[n-1]+(1-a)\,x[n]$.}
 
-\exercise{3.2}{Convolution engine}{\J}{
+\exercise{3.2}{Convolution engine}{\W}{
   \item Implement \texttt{conv()} and verify commutativity, associativity
     and distributivity numerically; compare with recursive implementation
     of the exponential smoother.
