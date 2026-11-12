@@ -5,7 +5,8 @@
 #   code/solutions/wokwi/<proj>/  -> code/solutions/wokwi_vscode/<proj>/
 #
 # Copied:    sketch.ino and *.h -> src/, diagram.json
-# Generated: platformio.ini (board from diagram.json), wokwi.toml (chips from diagram.json)
+# Generated: platformio.ini (board from diagram.json), wokwi.toml (chips from diagram.json),
+#            sheetNN.code-workspace (one per sheet) and wokwi_vscode.code-workspace (all)
 # Not copied: *.chip.c/json (VS Code uses the prebuilt chips/*.chip.wasm),
 #             other *.c files (PC helper programs, e.g. tooth_sim.c)
 #
@@ -103,8 +104,48 @@ sync_tree() {  # <src root> <dst root> <chips dir relative to a project in dst>
   done
 }
 
+workspace() {  # <project names...>: .code-workspace with these folders
+  local p
+  echo '{'
+  echo '  "folders": ['
+  for p in "$@"; do
+    echo "    { \"path\": \"$p\" }$([[ "$p" == "${@: -1}" ]] || echo ,)"
+  done
+  echo '  ],'
+  echo '  "settings": {'
+  echo '    "files.watcherExclude": { "**/.pio/**": true },'
+  echo '    "search.exclude": { "**/.pio": true }'
+  echo '  },'
+  echo '  "extensions": {'
+  echo '    "recommendations": ["wokwi.wokwi-vscode", "platformio.platformio-ide"]'
+  echo '  }'
+  echo '}'
+}
+
+# workspaces <dst root> <name of the all-projects workspace or "">:
+# one sheetNN.code-workspace per sheet (only that sheet's projects -> loads fast),
+# optionally one with all projects
+make_workspaces() {
+  local dst_root="$1" all="$2" projs sheets s
+  projs=$(cd "$dst_root" && for d in sheet*/; do [[ -f "$d/platformio.ini" ]] && echo "${d%/}"; done)
+  sheets=$(sed 's/_.*//' <<<"$projs" | sort -u)
+  for s in $sheets; do
+    # shellcheck disable=SC2046
+    put "$(workspace $(grep "^${s}_" <<<"$projs"))" "$dst_root/$s.code-workspace" "${dst_root#$code/}/$s.code-workspace"
+  done
+  for f in "$dst_root"/sheet*.code-workspace; do
+    [[ -f "$f" ]] || continue
+    s="$(basename "$f" .code-workspace)"
+    grep -qx "$s" <<<"$sheets" || { echo "stale: ${f#$code/}" >&2; status=1; }
+  done
+  # shellcheck disable=SC2086
+  [[ -z "$all" ]] || put "$(workspace $projs)" "$dst_root/$all" "${dst_root#$code/}/$all"
+}
+
 sync_tree "$code/wokwi"           "$code/wokwi_vscode"           "../chips"
 sync_tree "$code/solutions/wokwi" "$code/solutions/wokwi_vscode" "../../../wokwi_vscode/chips"
+make_workspaces "$code/wokwi_vscode"           wokwi_vscode.code-workspace
+make_workspaces "$code/solutions/wokwi_vscode" ""
 
 # prebuilt chips up to date with the generated chip sources?
 for c in engine-sim lambda-probe; do

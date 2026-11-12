@@ -1,0 +1,13 @@
+{
+  "folders": [
+    { "path": "sheet12_knock_esp32" },
+    { "path": "sheet12_knock_uno" }
+  ],
+  "settings": {
+    "files.watcherExclude": { "**/.pio/**": true },
+    "search.exclude": { "**/.pio": true }
+  },
+  "extensions": {
+    "recommendations": ["wokwi.wokwi-vscode", "platformio.platformio-ide"]
+  }
+}

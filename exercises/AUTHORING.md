@@ -23,6 +23,7 @@ code/wokwi/chips/              engine-sim + lambda-probe custom chips (generated
 code/wokwi_vscode/             generated Wokwi for VS Code copies of code/wokwi/
                                (and code/solutions/wokwi_vscode/); after changing a
                                Wokwi project run code/wokwi_vscode/sync.sh
+                               (also writes one sheetNN.code-workspace per sheet)
 code/solutions/jslinux/sheetNN/        complete reference solutions
 code/solutions/wokwi/sheetNN_<name>/   complete reference solutions
 tools/wokwi_mock/              PC mock of the Wokwi chip API (for chip testing)

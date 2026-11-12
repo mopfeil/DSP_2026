@@ -1,0 +1,13 @@
+{
+  "folders": [
+    { "path": "sheet05_alias_esp32" },
+    { "path": "sheet05_alias_uno" }
+  ],
+  "settings": {
+    "files.watcherExclude": { "**/.pio/**": true },
+    "search.exclude": { "**/.pio": true }
+  },
+  "extensions": {
+    "recommendations": ["wokwi.wokwi-vscode", "platformio.platformio-ide"]
+  }
+}

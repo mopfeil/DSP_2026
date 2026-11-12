@@ -1,0 +1,13 @@
+{
+  "folders": [
+    { "path": "sheet10_esp32_filter" },
+    { "path": "sheet10_uno_q15" }
+  ],
+  "settings": {
+    "files.watcherExclude": { "**/.pio/**": true },
+    "search.exclude": { "**/.pio": true }
+  },
+  "extensions": {
+    "recommendations": ["wokwi.wokwi-vscode", "platformio.platformio-ide"]
+  }
+}

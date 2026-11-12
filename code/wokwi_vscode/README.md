@@ -26,7 +26,8 @@ code/wokwi_vscode/
     diagram.json            copy of the circuit (board, engine-sim chip, logic analyzer, ...)
     platformio.ini          build settings (Arduino Uno or ESP32)
     wokwi.toml              firmware path, logic analyzer file, custom chips
-  wokwi_vscode.code-workspace   all student projects in one VS Code window
+  sheetNN.code-workspace        the projects of one sheet in one VS Code window (loads fast)
+  wokwi_vscode.code-workspace   all student projects in one VS Code window (slow to load)
   sync.sh                   regenerates the copies from code/wokwi/ and code/solutions/wokwi/
 ```
 
@@ -61,8 +62,13 @@ You do **not** need a C/WebAssembly compiler: the chips are prebuilt.
 
 ### 1. Open a project
 
-Either open one project folder directly (*File → Open Folder… → `sheet01_crank`*),
-or open all of them at once with *File → Open Workspace from File… → `wokwi_vscode.code-workspace`*.
+Recommended: open the workspace of the sheet you are working on,
+*File → Open Workspace from File… → `sheet03.code-workspace`* (for Sheet 3).
+It contains only the projects of that sheet, so VS Code and PlatformIO load quickly.
+
+Alternatively open one project folder directly (*File → Open Folder… → `sheet01_crank`*),
+or all projects at once with `wokwi_vscode.code-workspace`. The latter is slow:
+PlatformIO initializes every project (and its IntelliSense index) when the workspace opens.
 
 Wokwi and PlatformIO look for their config files (`wokwi.toml`, `platformio.ini`) in the root of a workspace folder,
 so do not open `code/` or the whole repository as a folder. In the multi-folder workspace:
@@ -178,7 +184,9 @@ code/wokwi_vscode/sync.sh --check   # only list differences (exit code 1 if any)
 ```
 
 A new project in `code/wokwi/` gets its VS Code copy automatically on the next `sync.sh`
-(board and chips are read from its `diagram.json`); add it to `wokwi_vscode.code-workspace`.
+(board and chips are read from its `diagram.json`). `sync.sh` also regenerates the workspaces:
+one `sheetNN.code-workspace` per sheet (projects named `sheetNN_*`) and `wokwi_vscode.code-workspace`
+with all projects; do not edit them by hand.
 
 After changing `code/common/engine_signals.h` or a chip source:
 
@@ -191,8 +199,8 @@ The Makefile needs [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) 
 and downloads `wokwi-api.h` from wokwi.com. `sync.sh` reports an outdated `.wasm`
 (it compares the MD5 of the chip source with `*.chip.src.md5`).
 
-Solutions: `code/solutions/wokwi_vscode/` has the same structure and uses the chips from
-`code/wokwi_vscode/chips/`. Do not hand it out.
+Solutions: `code/solutions/wokwi_vscode/` has the same structure (including one
+`sheetNN.code-workspace` per sheet) and uses the chips from `code/wokwi_vscode/chips/`. Do not hand it out.
 
 Status: all projects build with `pio run` (PlatformIO Core 6.2). Not yet run in the
 Wokwi for VS Code extension itself; see the checklist in the top-level `README.md`.
