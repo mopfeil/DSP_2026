@@ -33,6 +33,7 @@ git clone git@github-dsp2026:mopfeil/DSP_2026.git
 | `code/wokwi/chips/` | Wokwi custom chips `engine-sim` and `lambda-probe` (generated) |
 | `code/wokwi_vscode/` | the Wokwi projects as PlatformIO projects for **Wokwi for VS Code**, prebuilt chips, tutorial (`README.md`) |
 | `code/solutions/` | reference solutions (do not hand out) |
+| `slides/convolution/Faltung_LTI.html` | interactive companion page to Sheet 3 (German): impulse response, Fourier, convolution, measuring h; published at <https://claude.ai/artifact/EAoZ2MJx2TeUcwUd38kTHN> |
 | `tools/make_chips.sh` | regenerates the chips after changing `engine_signals.h` |
 | `tools/wokwi_mock/` | PC stand-in for the Wokwi chip API to test chips with gcc |
 
