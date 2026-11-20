@@ -13,7 +13,9 @@
  *   - one CSV line per revolution: rev,t_ms,rpm_raw,rpm_ma,rpm_ema
  *   - a capture block of NREC samples (NPRE before the trigger) whenever
  *     the raw speed jumps by more than TRIG_RPM between two teeth
- *     (click the rpm slider at a new position): k,raw,ma,ema,gap
+ *     (click the rpm slider at a new position): k,raw,ma,ema,gap,
+ *     followed by the step-response evaluation of both filters
+ *     (50 % / 90 % points and ramp lag D = sum (1 - s[k]))
  */
 #define N_MA      16                /* moving-average length (<= 64)        */
 #define GAP_MODE  2                 /* 0 naive, 1 one sample, 2 three samples */
@@ -101,6 +103,32 @@ void process(float r, bool gap)
     }
 }
 
+/* ---- step-response evaluation of a capture ------------------------------- */
+/* rec[] is the ring buffer, record i (oldest = 0) is rec[(rec_w + i) % NREC],
+   the trigger is at i = NPRE. Normalised step response
+     s[k] = (y[NPRE + k] - base) / (final - base),  k = 0 .. NREC-NPRE-1
+   base = mean of the NPRE pre-trigger samples, final = mean of the last 36. */
+#define NFIN 36
+void step_metrics(const __FlashStringHelper *name, const int16_t *rec)
+{
+    float base = 0.0f, fin = 0.0f, D = 0.0f;
+    int16_t k50 = -1, k90 = -1, i;
+    for (i = 0; i < NPRE; i++) base += rec[(rec_w + i) % NREC];
+    base /= NPRE;
+    for (i = NREC - NFIN; i < NREC; i++) fin += rec[(rec_w + i) % NREC];
+    fin /= NFIN;
+    /* TODO (b): for the records i = NPRE .. NREC-1 (k = i - NPRE): the
+       normalised step response s, the first k with s >= 0.5 (k50) and
+       with s >= 0.9 (k90), and D = sum of (1 - s)                       */
+    Serial.print(F("# "));        Serial.print(name);
+    Serial.print(F(": base "));   Serial.print(base, 1);
+    Serial.print(F(", final "));  Serial.print(fin, 1);
+    Serial.print(F(", 50% at k = ")); Serial.print(k50);
+    Serial.print(F(", 90% at k = ")); Serial.print(k90);
+    Serial.print(F(", D = sum(1-s) = ")); Serial.print(D, 2);
+    Serial.println(F(" samples"));
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -155,6 +183,8 @@ void loop()
             Serial.println((rec_gap[j >> 3] >> (j & 7)) & 1);
         }
         Serial.println("# end of capture");
+        step_metrics(F("MA "), rec_ma);
+        step_metrics(F("EMA"), rec_ema);
         /* the FIFO overflowed while printing: drop it and re-arm */
         noInterrupts();
         fifo_rd = fifo_wr;

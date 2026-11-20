@@ -183,10 +183,13 @@ Goals: impulse response, convolution, step response, difference
 equations; LTI systems as the workhorse of DSP.
 \end{sheetinfo}
 
-\exercise{3.1}{Convolution by hand}{\Pap}{
-  \item Graphical and tabular convolution of short sequences;
-    impulse/step response of moving average and of
-    $y[n]=a\,y[n-1]+(1-a)\,x[n]$.}
+\exercise{3.1}{Convolution and smoothers in numbers}{\W}{
+  \item ESP32 program without circuit (no calculation by hand): table of
+    products $x[k]h[n-k]$; impulse/step response of moving average and of
+    $y[n]=a\,y[n-1]+(1-a)\,x[n]$ by iteration, closed forms checked by the
+    program; noise gain, mean delay, ramp lag, EMA with equal noise gain
+    (bisection); $\mathrm{e}^{\mathrm{j}\Omega n}$ as eigenfunction, $|H|$ at the engine
+    orders.}
 
 \exercise{3.2}{Convolution engine}{\W}{
   \item Implement \texttt{conv()} and verify commutativity, associativity
@@ -199,7 +202,10 @@ equations; LTI systems as the workhorse of DSP.
     smoother; trade-off noise vs.\ delay during an RPM ramp; measure the
     lag in teeth.
   \item Why must the gap tooth be treated separately (violation of time
-    invariance in the tooth domain)?}
+    invariance in the tooth domain)?
+  \item Step-response evaluation of the capture in the sketch; design
+    question (5000\,rpm/s at 1000\,rpm) answered numerically: MA in the
+    tooth domain vs.\ segment time with prediction.}
 
 %=====================================================================
 \section{Sheet 4 -- Sampling}

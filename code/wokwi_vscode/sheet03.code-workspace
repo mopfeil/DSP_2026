@@ -2,7 +2,8 @@
   "folders": [
     { "path": "sheet03_conv" },
     { "path": "sheet03_rpmfilter" },
-    { "path": "sheet03_rpmoffline" }
+    { "path": "sheet03_rpmoffline" },
+    { "path": "sheet03_smoothers" }
   ],
   "settings": {
     "files.watcherExclude": { "**/.pio/**": true },

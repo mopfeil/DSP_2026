@@ -12,7 +12,10 @@
  * of handling the gap) and smoothed with
  *   - a moving average over N samples        (FIR, LTI)
  *   - an exponential smoother, alpha         (IIR, LTI)
- * Scenarios: constant speed, speed step, speed ramp.
+ * Scenarios: constant speed, speed step, speed ramp, and the design
+ * case of (e): 5000 rpm/s through 1000 rpm -- MA/EMA in the tooth domain,
+ * MA with an LTI lag compensation, and the segment-time speed of an ECU
+ * with a prediction in the time domain.
  *
  * The sample arrays are float to fit into the RAM of the ESP32; sums
  * and statistics are computed in double. The whole run takes a while
@@ -43,6 +46,8 @@ static double profile(int scen, double t)
     case 2:  if (t < 0.2) return 2000.0;                        /* ramp */
              if (t < 1.2) return 2000.0 + 3000.0 * (t - 0.2);
              return 5000.0;
+    case 3:  if (t < 0.2) return 400.0;           /* (e) 5000 rpm/s ramp */
+             return 400.0 + 5000.0 * (t - 0.2);
     default: return 3000.0;                                     /* const */
     }
 }
@@ -116,6 +121,52 @@ static void exp_smoother(const float *x, int n, double alpha, float *y)
     }
 }
 
+/* (e) lag compensation of an MA_N in a ramp: the MA lags (N-1)/2 samples
+   plus half a sample (1/T_k is the mean speed over the tooth), N/2 in
+   total. The slope is estimated from the MA output itself,
+   (y[k] - y[k-N]) / N per sample, so
+     y_c[k] = y[k] + N/2 * (y[k] - y[k-N]) / N = 1.5 y[k] - 0.5 y[k-N]
+   -- again an FIR filter (LTI), with the same zeros of the ripple.     */
+static void lag_compensate(const float *y, int n, int N, float *yc)
+{
+    int k;
+    for (k = 0; k < n; k++)
+        yc[k] = k >= N ? 1.5f * y[k] - 0.5f * y[k - N] : y[k];
+}
+
+/* (e) segment speed: N tooth samples (N = 30: 180 deg) measured as ONE
+   time interval, n_seg[k] = N / T_seg[k] with T_seg[k] = sum of the
+   last N sample durations (one sample of r rpm lasts 1/r s, a gap
+   sample Tgap/3) -- the MA in the period domain                       */
+static void segment_speed(const float *x, int n, int N, float *nseg)
+{
+    double T = N / (double)x[0];                 /* pre-loaded with x[0] */
+    int k;
+    for (k = 0; k < n; k++) {
+        T += 1.0 / x[k] - 1.0 / (k >= N ? x[k - N] : x[0]);
+        nseg[k] = N / T;
+    }
+}
+
+/* (e) prediction: n_seg[k] is the mean speed over the last T_seg, i.e.
+   (for a ramp in time) the speed at the middle of the segment, T_seg/2
+   ago. Acceleration from two adjacent segments, whose middles are
+   (T_seg[k] + T_seg[k-N]) / 2 apart:
+     dn/dt = (n_seg[k] - n_seg[k-N]) / ((T_seg[k] + T_seg[k-N]) / 2)
+     n_hat = n_seg[k] + dn/dt * T_seg[k] / 2                           */
+static void predict(const float *nseg, int n, int N, float *y)
+{
+    int k;
+    for (k = 0; k < n; k++) {
+        double Tk, Tp, dndt;
+        if (k < N) { y[k] = nseg[k]; continue; }
+        Tk = N / (double)nseg[k];                /* T_seg = N / n_seg   */
+        Tp = N / (double)nseg[k - N];
+        dndt = (nseg[k] - nseg[k - N]) / (0.5 * (Tk + Tp));
+        y[k] = nseg[k] + dndt * 0.5 * Tk;
+    }
+}
+
 /* ASCII plot of two float sequences (asciiplot.h expects double) */
 static void plot2f(const float *a, const float *b, int n, const char *title)
 {
@@ -168,6 +219,23 @@ static void stat_ramp(const char *name, const float *y, int n)
     printf("  %-10s lag error %6.1f rpm = %5.2f samples = %5.2f ms at %4.0f rpm\n",
            name, err, err / slope, err / slope * 1e3 / rpm,   /* 1 sample = 1/rpm s */
            rpm);
+}
+
+/* (e) relative error y - rt in a window rt = 925..1075 rpm (= 30 samples,
+   one ripple period): mean (lag) and max. |error|                       */
+static void stat_design(const char *name, const float *y, int n)
+{
+    double m = 0.0, mx = 0.0;
+    int k, cnt = 0;
+    for (k = 0; k < n; k++) {
+        double e;
+        if (rt[k] < 925.0 || rt[k] > 1075.0) continue;
+        e = 100.0 * (y[k] - rt[k]) / rt[k];
+        m += e; cnt++;
+        if (fabs(e) > mx) mx = fabs(e);
+    }
+    printf("  %-16s mean error %+6.2f %%  max |error| %5.2f %%  %s\n", name,
+           m / cnt, mx, mx < 0.5 ? "ok" : "too large");
 }
 
 static void run(void)
@@ -231,6 +299,30 @@ static void run(void)
         moving_average(r, n, N, yma); stat_ramp(nm, yma, n);
         sprintf(nm, "EMA 2/%d", N + 1);
         exp_smoother(r, n, 2.0 / (N + 1), yema); stat_ramp(nm, yema, n);
+    }
+
+    printf("\n(e) design: 5000 rpm/s through 1000 rpm, error at 925..1075 rpm, gap x3\n");
+    n = make_speed(3, 0.37, GAP_THREE);
+    {
+        static const int Ns[7] = {1, 2, 4, 8, 16, 30, 60};
+        int i;
+        for (i = 0; i < 7; i++) {
+            char nm[32];
+            sprintf(nm, "MA%d", Ns[i]);
+            moving_average(r, n, Ns[i], yma); stat_design(nm, yma, n);
+        }
+        exp_smoother(r, n, 2.0 / 31.0, yema); stat_design("EMA 2/31", yema, n);
+        moving_average(r, n, 30, yma);
+        lag_compensate(yma, n, 30, yema);  stat_design("MA30 + comp.", yema, n);
+        segment_speed(r, n, 30, yema);     stat_design("segment 180", yema, n);
+        predict(yema, n, 30, yma);         stat_design("segment + pred.", yma, n);
+        {
+            int k0;
+            for (k0 = 0; k0 < n && rt[k0] < 925.0; k0++) {}
+            moving_average(r, n, 30, yema);
+            plot2f(yema + k0 - 60, yma + k0 - 60, 120,
+                   "(e) MA30 (*) and segment speed + prediction (o)");
+        }
     }
 }
 

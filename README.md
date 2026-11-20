@@ -76,6 +76,13 @@ ATTR_rpm=6000 ./run 0.05      # prints t_ns,pin,value of digital edges
   offline RPM filtering) run as ESP32 projects without circuit
   (`sheet03_conv`, `sheet03_rpmoffline`); built with PlatformIO
   (pioarduino 55.03.311), results checked natively with g++.
+* Sheet 3 has no paper exercise any more (2026-11-20): Exercise 3.1 is the
+  ESP32 project `sheet03_smoothers` (product table, h/s by iteration, noise
+  gain, mean delay, eigenfunction); `sheet03_rpmfilter` evaluates its captures
+  itself (50/90 % points, D = sum(1-s)); the design question 3.3 d) is part (e)
+  of `sheet03_rpmoffline` (segment time + prediction). Compiled with
+  arduino-cli (esp32 core 3.3.12, avr 1.8.8); results from native g++ runs
+  (the Uno sketch with a PC stand-in for INT0/Timer1 fed by engine_signals.h).
 * Sheet 4 needs no JSLinux either (2026-11-12): quantisation/jitter and
   angle-domain resampling are ESP32 projects without circuit
   (`sheet04_quant`, `sheet04_angle`). To fit the ~300 KB RAM: 10^4 samples
@@ -103,8 +110,9 @@ ATTR_rpm=6000 ./run 0.05      # prints t_ns,pin,value of digital edges
   (wasi-sdk 34) load, chip sliders are shown, ESP32 `firmware.bin` from
   pioarduino boots.
 * Sheet 3 ESP32 programs: runtime of `sheet03_rpmoffline` in the simulator
-  (5.4 s engine time with software double, dt = 10 us) and that `printf`
-  output appears in the Serial Monitor.
+  (5.8 s engine time with software double, dt = 10 us) and that `printf`
+  output appears in the Serial Monitor; `sheet03_rpmfilter`: the capture
+  evaluation (`step_metrics`) after a slider click.
 * Sheet 4 ESP32 programs: heap allocation of `sheet04_angle` (~190 KB in six
   blocks, largest 72 KB) succeeds, runtime of `sheet04_quant` (~1.2 million
   software-double sin/log calls).

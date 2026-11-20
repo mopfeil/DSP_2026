@@ -2,13 +2,16 @@
 
 \begin{goals}
 \begin{itemize}
-  \item Compute convolutions by hand (graphically and in tables) and in C; verify
-    the algebraic properties of convolution numerically.
-  \item Derive impulse and step responses of the two workhorse smoothers --
-    moving average (FIR) and exponential smoother (IIR) -- from their
-    difference equations.
+  \item Compute convolutions in C -- as a table of products and as an
+    efficient routine -- and verify the algebraic properties of convolution
+    numerically.
+  \item Obtain impulse and step responses of the two workhorse smoothers --
+    moving average (FIR) and exponential smoother (IIR) -- by iterating their
+    difference equations, and identify the closed forms.
   \item Quantify the noise-versus-lag trade-off of a smoother (noise gain,
-    mean delay, ramp lag) and relate it to the step response.
+    mean delay, ramp lag) numerically and relate it to the step response.
+  \item Measure the frequency response of an LTI system with a complex
+    exponential input (eigenfunction).
   \item Apply LTI filters to the per-tooth engine speed in real time and
     understand why the missing-tooth gap must be handled \emph{before} the
     filter (time invariance in the tooth domain).
@@ -16,22 +19,26 @@
 \end{goals}
 
 \section*{Setup: C programs on the simulated ESP32}
-Exercises~3.2 and 3.3\,a) are plain C programs without any circuit: they
-compute, print tables and draw ASCII plots. They run in Wokwi on an ESP32
-that is used as a small C computer -- no second environment is needed.
+Exercises~3.1, 3.2 and 3.3\,a)/d) are plain C programs without any circuit:
+they compute, print tables and draw ASCII plots. They run in Wokwi on an ESP32
+that is used as a small C computer -- no second environment and no calculation
+by hand is needed. Exercise~3.3\,b)/c) runs on an Arduino Uno with the
+engine simulator.
 \begingroup\sloppy
 \begin{enumerate}
-  \item Open the project folder \texttt{sheet03\_conv} (Exercise~3.2) or
-    \texttt{sheet03\_rpmoffline} (Exercise~3.3\,a) in
-    \codefile{wokwi\_vscode/} in VS Code (or open the workspace
-    \texttt{sheet03.code-workspace} there, which contains all projects of
-    this sheet). The program is in
-    \texttt{src/sketch.ino}; the headers it needs (\texttt{asciiplot.h},
-    \texttt{engine\_signals.h}) are copies in \texttt{src/}.
+  \item Open the project folder \texttt{sheet03\_smoothers} (Exercise~3.1),
+    \texttt{sheet03\_conv} (Exercise~3.2) or \texttt{sheet03\_rpmoffline}
+    (Exercise~3.3\,a/d) in \codefile{wokwi\_vscode/} in VS Code (or open the
+    workspace \texttt{sheet03.code-workspace} there, which contains all
+    projects of this sheet). The program is in \texttt{src/sketch.ino}; the
+    headers it needs (\texttt{asciiplot.h}, \texttt{engine\_signals.h}) are
+    copies in \texttt{src/}.
   \item Complete the \texttt{TODO}s, build (\emph{PlatformIO: Build}) and start
     the simulator (\texttt{F1} $\to$ \emph{Wokwi: Start Simulator}). The
     program runs once in \texttt{setup()} and writes everything to the Serial
     Monitor; the last line is \texttt{done.} Copy the results from there.
+    Before the \texttt{TODO}s are done the programs run, too, but print
+    trivial numbers (zeros, or the input passed through).
   \item Why the ESP32 and not the Uno: the programs need tens of kilobytes of
     RAM (the Uno has \SI{2}{KB}), and on the Uno \texttt{double} is only a
     32-bit \texttt{float} -- the rounding errors of Exercise~3.2\,b) would be
@@ -61,85 +68,215 @@ $r[k]$, but valid for any sequence):
 called moving average and exponential smoother (exponential moving average).
 Useful characteristics of a smoother with $\sum_n h[n]=1$: the \emph{noise gain}
 $\sum_n h^2[n]$ (variance reduction for white noise) and the \emph{mean delay}
-$D=\sum_n n\,h[n]$.
+$D=\sum_n n\,h[n]$. The step response is $s[n]=\sum_{k\le n}h[k]$, the
+frequency response $H(\Omega)=\sum_k h[k]\,\e^{-\jj\Omega k}$.
 
 %-------------------------------------------------------------------------
-\begin{exercise}{Convolution and smoothers by hand}{\Paper}
+\begin{exercise}{Convolution and smoothers in numbers}{\Wokwi}
+Program: project \texttt{sheet03\_smoothers} (ESP32 without circuit, see
+Setup). Both smoothers are implemented as ``one sample in, one sample out''
+functions \texttt{ma\_step()} and \texttt{ema\_step()}, exactly as they would
+run in a real-time loop; the program feeds them test signals.
 \begin{tasks}
-  \item Compute $y=x*h$ for $x[n]=\{\underline{1},2,0,-1\}$ and
-    $h[n]=\{\underline{1},-1,0.5\}$ (underlined: $n=0$) twice: graphically
-    (flip and shift $h$) and with a table of products $x[k]h[n-k]$. Check the
-    result with $\sum_n y[n]=\sum_n x[n]\cdot\sum_n h[n]$ and explain why this
-    identity holds.
-  \item Determine impulse response $h[n]$ and step response $s[n]$ of the MA of
-    length $N$ and of the EMA (from the difference equation by iteration and
-    from $s[n]=\sum_{k\le n}h[k]$). After how many samples does each reach 50\,\%
-    and 90\,\% of a step for $N=16$ and $a=15/17$?
-  \item Compute noise gain and mean delay $D$ of both smoothers. Show that for a
-    ramp input $x[n]=c\,n$ every smoother with $\sum h=1$ has the steady-state
-    output $y[n]=c\,(n-D)$, and that $D=\sum_{n\ge0}(1-s[n])$, i.e.\ the ramp lag
-    can be read off the step response. Which $a$ gives the EMA the same noise
-    gain as the MA of length $N$? Compare the mean delays.
-  \item Show that $x[n]=\e^{\jj\Omega n}$ is an eigenfunction of every LTI system,
-    $y[n]=H(\Omega)\,x[n]$ with $H(\Omega)=\sum_k h[k]\e^{-\jj\Omega k}$. Evaluate
-    $|H|$ for MA$_{16}$, MA$_{30}$ and the EMA with $a=15/17$ at
-    $\Omega=2\pi/30$. (On the 60-tooth wheel, sampled once per $6^\circ$, this
-    is the 2nd engine order -- the speed ripple caused by the combustions.)
+  \item \emph{Convolution as a table.} Complete the table loop in \texttt{run()}:
+    for $x[n]=\{\underline{1},2,0,-1\}$ and $h[n]=\{\underline{1},-1,0.5\}$
+    (underlined: $n=0$) the program prints every product $x[k]\,h[n-k]$
+    (row $k$, column $n$) and the column sums $y[n]$. Relate the table to the
+    graphical method (flip and shift $h$). The program also prints
+    $\sum_n y[n]$ and $\sum_n x[n]\cdot\sum_n h[n]$ -- explain why the two
+    must agree.
+  \item \emph{Impulse and step response by iteration.} Implement
+    \texttt{ma\_step()} (running sum with a ring buffer) and
+    \texttt{ema\_step()}. The program feeds $\delta[n]$ and $u[n]$ into MA$_{16}$
+    and into the EMA with $a=15/17$ and prints $h[n]$ and $s[n]$. Read the
+    closed forms of $h[n]$ and $s[n]$ off the table, justify them from the
+    difference equations, and enter them in \texttt{h\_ma\_formula()} \dots\
+    \texttt{s\_ema\_formula()} -- the program prints the largest deviation
+    between iteration and formula. Report the 50\,\% and 90\,\% points the
+    program finds and explain the different shapes of the two step responses.
+  \item \emph{Noise gain and lag.} Complete \texttt{characteristics()}
+    ($\sum h^2$, $D=\sum n\,h[n]$ and $\sum_{n\ge0}(1-s[n])$). The program
+    compares the noise gain with the variance ratio measured with white noise,
+    and $D$ with the lag $n-y[n]$ for the ramp $x[n]=n$. Explain why the three
+    lag numbers coincide: show that every smoother with $\sum h=1$ answers a
+    ramp $x[n]=c\,n$ with $y[n]=c\,(n-D)$, and that $D=\sum_{n\ge0}(1-s[n])$.
+    Then complete the bisection that finds the EMA coefficient $a$ with the
+    same noise gain as MA$_N$ ($N=4\dots32$). Which law $a(N)$ do you recognise
+    in the table, and how do the mean delays compare?
+  \item \emph{Eigenfunction.} Complete \texttt{freq\_resp()}. The program feeds
+    $x[n]=\e^{\jj\Omega n}$ (real and imaginary part through two copies of the
+    filter -- why is that allowed?) with $\Omega=2\pi/30$ and prints
+    $y[n]/x[n]$ for five consecutive $n$. Show that $\e^{\jj\Omega n}$ is an
+    eigenfunction of every LTI system, $y[n]=H(\Omega)\,x[n]$, and compare the
+    measured ratios with $H(\Omega)$ for MA$_{16}$, MA$_{30}$ and the EMA.
+    (On the 60-tooth wheel, sampled once per $6^\circ$, $\Omega=2\pi/30$ is the
+    2nd engine order -- the speed ripple caused by the combustions.) The
+    program finally prints $|H|$ at the engine orders 1--6: explain the zeros
+    of MA$_{30}$.
 \end{tasks}
 \end{exercise}
 
 \begin{solution}
-a) Table ($y[n]=\sum_k x[k]h[n-k]$; rows $k$, columns $n$):
-\begin{center}
-\small
-\begin{tabular}{@{}c|rrrrrr@{}}
-\toprule
-$x[k]\,h[n-k]$ & $n=0$ & 1 & 2 & 3 & 4 & 5 \\
-\midrule
-$k=0$, $x=1$  & 1 & $-1$ & 0.5 &      &     &   \\
-$k=1$, $x=2$  &   & 2    & $-2$ & 1   &     &   \\
-$k=2$, $x=0$  &   &      & 0    & 0   & 0   &   \\
-$k=3$, $x=-1$ &   &      &      & $-1$& 1   & $-0.5$ \\
-\midrule
-$y[n]$ & 1 & 1 & $-1.5$ & 0 & 1 & $-0.5$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-Graphically: $h[n-k]$ is $h$ flipped and moved to position $n$; $y[n]$ is the
-sum of the products where flipped $h$ and $x$ overlap. Length $4+3-1=6$.
-Check: $\sum y=1=(1+2+0-1)(1-1+0.5)=2\cdot0.5$. Reason:
-$\sum_n\sum_k x[k]h[n-k]=\sum_k x[k]\sum_m h[m]$ (substitute $m=n-k$). The program
-of Exercise~3.2 prints \texttt{y = 1 1 -1.5 0 1 -0.5}.
+Reference: \codefile{solutions/wokwi/sheet03\_smoothers/sketch.ino}. All numbers
+below are the output of this program.
 
-b) MA: $h[n]=1/N$ for $0\le n\le N-1$, else 0;
-$s[n]=(n+1)/N$ for $0\le n<N$, $s[n]=1$ for $n\ge N-1$ (linear ramp, finite).
-EMA: iterating $y[n]=a y[n-1]+(1-a)\delta[n]$ gives $h[n]=(1-a)a^n u[n]$;
-$s[n]=(1-a)\sum_{k=0}^{n}a^k=1-a^{n+1}$ (exponential, never exactly 1).
-For $N=16$: MA reaches 50\,\% at $n=7$ ($8/16$), 90\,\% at $n=14$ ($15/16$;
-$14/16<0.9$). EMA, $a=15/17$: $a^{n+1}\le0.5\Leftrightarrow n+1\ge\ln0.5/\ln a=5.55$,
-i.e.\ $n=5$; 90\,\%: $n+1\ge\ln0.1/\ln a=18.4$, $n=18$. The EMA reacts faster
-initially but needs longer to settle.
+a) The product is formed only where $h[n-k]$ exists, $0\le n-k<n_h$:
+\inputcode[firstline=216,lastline=220]{solutions/wokwi/sheet03_smoothers/sketch.ino}
+Output:
+\begin{lstlisting}[style=shell,numbers=none]
+(a) table of products x[k] h[n-k]
+      k  x[k] |  n=0    n=1    n=2    n=3    n=4    n=5
+      0     1 |   1.00  -1.00   0.50      .      .      .
+      1     2 |      .   2.00  -2.00   1.00      .      .
+      2     0 |      .      .   0.00   0.00   0.00      .
+      3    -1 |      .      .      .  -1.00   1.00  -0.50
+    y[n]       |   1.00   1.00  -1.50   0.00   1.00  -0.50
+    sum y = 1,  sum x * sum h = 2 * 0.5 = 1
+\end{lstlisting}
+\emph{Reading the table.} Row $k$ is the impulse response $h$ scaled by $x[k]$
+and shifted to start at $n=k$ -- the response of the system to the single
+input sample $x[k]\,\delta[n-k]$. The output is the superposition of these
+rows (linearity + time invariance). Column $n$ contains exactly the products
+of the graphical method: $h[n-k]$ as a function of $k$ is $h$ flipped and
+moved to position $n$; multiplying with $x[k]$ and summing over the overlap
+gives $y[n]$. Length $n_x+n_h-1=4+3-1=6$.
 
-c) MA: $\sum h^2=N\cdot\frac{1}{N^2}=\frac1N$, $D=\frac1N\sum_{n=0}^{N-1}n=\frac{N-1}{2}$.
-EMA: $\sum h^2=(1-a)^2\sum a^{2n}=\frac{(1-a)^2}{1-a^2}=\frac{1-a}{1+a}$,
-$D=(1-a)\sum n a^n=\frac{a}{1-a}$.
-Ramp: $y[n]=\sum_k h[k]\,c(n-k)=c\,n\sum_k h[k]-c\sum_k k h[k]=c(n-D)$ (for $n$ beyond
-the length of $h$; for the EMA asymptotically). With $1-s[n]=\sum_{k>n}h[k]$:
-$\sum_{n\ge0}(1-s[n])=\sum_{k}k\,h[k]=D$.
-Equal noise: $\frac{1-a}{1+a}=\frac1N\Rightarrow a=\frac{N-1}{N+1}$, $\alpha=\frac{2}{N+1}$
-(the usual ``$N$-period EMA''). Then $D_{\text{EMA}}=\frac{(N-1)/(N+1)}{2/(N+1)}=\frac{N-1}{2}=D_{\text{MA}}$:
-\emph{for equal white-noise reduction both smoothers have exactly the same ramp lag}.
-They differ in the shape of the step response (b) and in how they suppress
-periodic disturbances (d). For $N=16$: $a=15/17$, $D=7.5$ samples.
+\emph{Sum check.} Summing the whole table row by row gives
+$\sum_n y[n]=\sum_k x[k]\sum_n h[n-k]=\sum_k x[k]\cdot\sum_m h[m]$ (substitute
+$m=n-k$): every row sums to $x[k]\sum h$. Here $1=2\cdot0.5$. In frequency
+terms this is $Y(0)=X(0)\,H(0)$: the DC gain of a cascade is the product of
+the DC gains. The check is cheap but weak -- it catches a missing or doubled
+term, not a term in the wrong column.
 
-d) $y[n]=\sum_k h[k]\e^{\jj\Omega(n-k)}=\e^{\jj\Omega n}\sum_k h[k]\e^{-\jj\Omega k}$.
-MA: geometric sum, $|H|=\left|\frac{\sin(N\Omega/2)}{N\sin(\Omega/2)}\right|$;
-EMA: $H=\frac{1-a}{1-a\e^{-\jj\Omega}}$. At $\Omega=2\pi/30$:
-MA$_{16}$: $\frac{\sin(16\pi/30)}{16\sin(\pi/30)}=\frac{0.9945}{1.6724}=0.595$;
-MA$_{30}$: $\sin(\pi)=0\Rightarrow|H|=0$ -- the MA over one full period removes the
-ripple \emph{completely} (the sum over a period of a zero-mean periodic signal
-vanishes); EMA: $\frac{0.1176}{|1-0.8824(0.9781-0.2079\jj)|}=\frac{0.1176}{0.2289}=0.514$.
-These values are confirmed by the simulation in Exercise~3.3\,a).
+b) Streaming implementations:
+\inputcode[firstline=45,lastline=62]{solutions/wokwi/sheet03_smoothers/sketch.ino}
+Iteration output (excerpt) and evaluation:
+\begin{lstlisting}[style=shell,numbers=none]
+     n    h_MA     s_MA     h_EMA    s_EMA
+     0  0.06250  0.06250  0.11765  0.11765
+     1  0.06250  0.12500  0.10381  0.22145
+     2  0.06250  0.18750  0.09159  0.31305
+     5  0.06250  0.37500  0.06292  0.52810
+     7  0.06250  0.50000  0.04899  0.63260
+    14  0.06250  0.93750  0.02040  0.84702
+    15  0.06250  1.00000  0.01800  0.86502
+    16  0.00000  1.00000  0.01588  0.88090
+    18  0.00000  1.00000  0.01236  0.90727
+    max |iteration - closed form| over n = 0..39: 2.22e-16
+    MA16      : 50% at n =  7, 90% at n = 14
+    EMA 15/17 : 50% at n =  5, 90% at n = 18
+\end{lstlisting}
+\emph{Closed forms.} MA: the impulse enters the window at $n=0$ and leaves it
+after $N$ samples, so $h[n]=1/N$ for $0\le n\le N-1$ and 0 otherwise
+($0.0625=1/16$ for $n=0\dots15$). The step response is the running sum,
+$s[n]=(n+1)/N$ for $0\le n<N$ and $s[n]=1$ for $n\ge N-1$: a linear ramp that
+is \emph{finished} after $N$ samples. EMA: iterating
+$y[n]=a\,y[n-1]+(1-a)\,\delta[n]$ from rest gives $y[0]=1-a$, $y[1]=a(1-a)$,
+$y[2]=a^2(1-a)$, \dots, i.e.\ $h[n]=(1-a)\,a^n\,u[n]$ (the table shows the
+constant ratio $h[n+1]/h[n]=0.88235=15/17$, and $h[0]=2/17=0.11765$). Its step
+response is the geometric sum $s[n]=(1-a)\sum_{k=0}^{n}a^k=1-a^{n+1}$: it
+approaches 1 exponentially and never reaches it. The deviation of
+$2.2\cdot10^{-16}$ (one unit of the last place of a double near 1) confirms
+the formulas:
+\inputcode[firstline=65,lastline=68]{solutions/wokwi/sheet03_smoothers/sketch.ino}
+\emph{50/90\,\% points.} MA$_{16}$: $s[7]=8/16=0.5$ exactly, $s[14]=15/16=0.94$
+(while $s[13]=14/16=0.875<0.9$). EMA: $a^{n+1}\le0.5\Leftrightarrow
+n+1\ge\ln0.5/\ln a=5.55$, i.e.\ $n=5$ ($s=0.528$); $a^{n+1}\le0.1
+\Leftrightarrow n+1\ge18.4$, i.e.\ $n=18$ ($s=0.907$). The EMA reacts
+faster at first (largest weight on the newest sample, $h[0]=0.118$ vs.\ $0.0625$),
+but its long tail makes it settle more slowly. The ASCII plot shows the
+straight line of the MA crossing the concave exponential of the EMA.
+
+c) Characteristics from the computed impulse responses
+(length $L=1000$; the EMA tail beyond, $a^{1000}$, is negligible):
+\inputcode[firstline=103,lastline=116]{solutions/wokwi/sheet03_smoothers/sketch.ino}
+\begin{lstlisting}[style=shell,numbers=none]
+    filter      sum h   noise gain  meas.(noise)  D=sum n h  sum(1-s)  ramp lag
+    MA16       1.0000    0.06250     0.06371        7.500     7.500     7.500
+    EMA 15/17  1.0000    0.06250     0.06242        7.500     7.500     7.500
+
+      N   NG(MA)    D(MA)   a (bisection)  (N-1)/(N+1)   D(EMA)
+      4   0.25000   1.500   0.60000000     0.60000000     1.500
+      8   0.12500   3.500   0.77777778     0.77777778     3.500
+     16   0.06250   7.500   0.88235294     0.88235294     7.500
+     32   0.03125  15.500   0.93939394     0.93939394    15.500
+\end{lstlisting}
+\emph{Noise gain.} For white noise of variance $\sigma^2$ the output variance is
+$\sigma^2\sum h^2$ (the samples are uncorrelated, so the variances of the
+weighted terms add). MA: $\sum h^2=N\cdot1/N^2=1/N=0.0625$. EMA:
+$\sum h^2=(1-a)^2\sum a^{2n}=(1-a)^2/(1-a^2)=(1-a)/(1+a)=(2/17)/(32/17)=0.0625$.
+The measured variance ratios (19\,500 samples) agree within the statistical
+uncertainty of about 2\,\%.
+
+\emph{Mean delay.} MA: $D=\frac1N\sum_{n=0}^{N-1}n=\frac{N-1}{2}=7.5$. EMA:
+$D=(1-a)\sum n\,a^n=(1-a)\frac{a}{(1-a)^2}=\frac{a}{1-a}=\frac{15/17}{2/17}=7.5$.
+
+\emph{Why the three lag numbers agree.} Ramp: for $n$ beyond the length of $h$
+(for the EMA asymptotically)
+$y[n]=\sum_k h[k]\,c\,(n-k)=c\,n\sum_k h[k]-c\sum_k k\,h[k]=c\,(n-D)$ -- the output
+is the input ramp shifted by $D$ samples; the program finds $n-y[n]=7.500$ at
+$n=400$. Step response: $1-s[n]=\sum_{k>n}h[k]$, hence
+$\sum_{n\ge0}(1-s[n])=\sum_{n\ge0}\sum_{k>n}h[k]=\sum_k h[k]\cdot\#\{n:0\le n<k\}
+=\sum_k k\,h[k]=D$. The ramp lag can thus be read off the step response as the
+area between the step and the response. (By linearity the ramp response is the
+running sum of the step response, which is the same statement.)
+
+\emph{Equal noise gain.} The bisection converges to
+$a=0.6, 0.7778, 0.88235, 0.93939$, which are exactly $(N-1)/(N+1)=3/5, 7/9, 15/17,
+31/33$ -- from $(1-a)/(1+a)=1/N$ one gets $a=(N-1)/(N+1)$, i.e.\
+$\alpha=2/(N+1)$ (the usual ``$N$-period EMA''). With this $a$ the mean delay is
+$D_{\text{EMA}}=a/(1-a)=(N-1)/2=D_{\text{MA}}$ -- in every row of the table:
+\emph{for equal white-noise reduction both smoothers have exactly the same
+ramp lag.} They differ in the shape of the step response (b) and in how they
+suppress periodic disturbances (d).
+
+d) The frequency response is the DTFT of the impulse response:
+\inputcode[firstline=164,lastline=174]{solutions/wokwi/sheet03_smoothers/sketch.ino}
+\begin{lstlisting}[style=shell,numbers=none]
+  MA16       y[n]/x[n] = 0.0000-0.5946j 0.0000-0.5946j ... (5 x the same)
+  MA30       y[n]/x[n] = 0.0000+0.0000j 0.0000+0.0000j ...
+  EMA 15/17  y[n]/x[n] = 0.3074-0.4118j 0.3074-0.4118j ...
+  MA16      H = 0.0000-0.5946j  |H| = 0.5946
+  MA30      H = 0.0000+0.0000j  |H| = 8.61e-17
+  EMA 15/17 H = 0.3074-0.4118j  |H| = 0.5139
+
+    order  Omega    MA16    MA30    EMA 15/17
+     1    0.1047   0.8875  0.6369  0.7673
+     2    0.2094   0.5946  0.0000  0.5139
+     3    0.3142   0.2348  0.2131  0.3716
+     4    0.4189   0.0625  0.0000  0.2884
+     5    0.5236   0.2091  0.1288  0.2352
+     6    0.6283   0.1924  0.0000  0.1986
+\end{lstlisting}
+\emph{Two real filters for one complex input:} the filters have real
+coefficients, so by linearity
+$S\{\cos\Omega n+\jj\sin\Omega n\}=S\{\cos\Omega n\}+\jj\,S\{\sin\Omega n\}$.
+
+\emph{Eigenfunction:}
+$y[n]=\sum_k h[k]\,\e^{\jj\Omega(n-k)}=\e^{\jj\Omega n}\sum_k h[k]\,\e^{-\jj\Omega k}
+=H(\Omega)\,x[n]$ -- the input comes out unchanged up to the complex factor
+$H(\Omega)$, which does not depend on $n$. The program shows this: after the
+start-up ($n\ge300$) the ratio $y[n]/x[n]$ is the same number for every $n$ and
+equals the DTFT sum. (Before the start-up has decayed the ratio is not constant:
+the eigenfunction property holds for an input that started at $n=-\infty$.)
+
+\emph{Closed forms as a check.} MA: geometric sum,
+$H=\frac{1}{N}\frac{1-\e^{-\jj\Omega N}}{1-\e^{-\jj\Omega}}
+=\e^{-\jj\Omega(N-1)/2}\,\frac{\sin(N\Omega/2)}{N\sin(\Omega/2)}$. MA$_{16}$:
+$\frac{\sin(16\pi/30)}{16\sin(\pi/30)}=\frac{0.9945}{1.6724}=0.5946$, with the
+linear phase $-\Omega\cdot7.5=-\pi/2$ -- hence the purely imaginary $-0.5946\jj$
+(phase delay = mean delay = 7.5 samples). EMA:
+$H=\frac{1-a}{1-a\e^{-\jj\Omega}}$, $|H|=0.1176/0.2289=0.5139$, phase
+$-53.3^\circ$ (not linear in $\Omega$). MA$_{30}$: $\sin(30\Omega/2)=\sin(\pi)=0$.
+
+\emph{Zeros of MA$_{30}$.} $|H_{\text{MA}N}|=0$ whenever $N\Omega/2=m\pi$, i.e.\ at
+$\Omega=2\pi m/N$. For $N=30$ and $\Omega=2\pi\cdot\text{order}/60$ these are the
+even orders 2, 4, 6, \dots: the window spans $30\cdot6^\circ=180^\circ$, an
+integer number of periods of every even order, and the sum of a sinusoid over
+whole periods vanishes. The 2nd-order speed ripple (one period per combustion,
+4 cylinders) is removed \emph{completely}; MA$_{16}$ (96$^\circ$) only damps it
+to 59\,\%, the EMA with the same noise gain to 51\,\%. These factors are
+confirmed by the simulation in Exercise~3.3\,a).
 \end{solution}
 
 %-------------------------------------------------------------------------
@@ -167,7 +304,10 @@ Program: project \texttt{sheet03\_conv} (ESP32 without circuit, see Setup).
 a) Key part of \codefile{solutions/wokwi/sheet03\_conv/sketch.ino} -- the summation
 limits make sure that both $x[k]$ and $h[n-k]$ exist:
 \inputcode[firstline=24,lastline=35]{solutions/wokwi/sheet03_conv/sketch.ino}
-Output: \texttt{y = 1 1 -1.5 0 1 -0.5} (as by hand).
+Instead of testing every product as in the table of Exercise~3.1\,a), the
+limits are computed once per output sample: $h[n-k]$ exists for
+$k\ge n-n_h+1$, $x[k]$ for $k\le n_x-1$, and both need $0\le k\le n$.
+Output: \texttt{y = 1 1 -1.5 0 1 -0.5} -- the column sums of the table of 3.1\,a).
 
 b), c) Output:
 \begin{lstlisting}[style=shell,numbers=none]
@@ -229,26 +369,41 @@ in the \emph{tooth domain} (one sample per tooth). Three ways to treat the gap
     pushes tooth periods into a FIFO; \texttt{loop()} computes and filters the
     speed. Implement the same three steps in the sketch. It prints one line per
     revolution and, whenever the raw speed jumps by more than \SI{150}{rpm} between
-    two teeth, a capture block of 128 samples (32 before the jump). Start at
-    \SI{3000}{rpm} and \emph{click} the speed slider at \SI{5000}{rpm}. Determine
-    the 50\,\%/90\,\% points of both filters from the capture and the ramp lag
-    $D=\sum(1-s[n])$. (Dragging the slider produces a staircase of steps, not a
-    ramp -- why is the step response sufficient anyway?)
-  \item Repeat with \texttt{GAP\_MODE} 0 and 1. Explain the per-revolution values and
-    the dips in the capture. Why does the gap violate the time invariance of the
-    tooth-domain processing, and why is only mode 2 compatible with the exact
-    ripple cancellation of MA$_{30}$?
-  \item Design: the injection timing needs the speed during an acceleration of
+    two teeth, a capture block of 128 samples (32 before the jump). Implement
+    \texttt{step\_metrics()}, which evaluates a capture for each filter: the
+    normalised step response $s[k]$, its 50\,\%/90\,\% points and the ramp lag
+    $D=\sum(1-s[k])$ of Exercise~3.1\,c). Start at \SI{3000}{rpm} and
+    \emph{click} the speed slider at \SI{5000}{rpm}. Compare the printed
+    evaluation with 3.1 and 3.3\,a). (Dragging the slider produces a staircase
+    of steps, not a ramp -- why is the step response sufficient anyway?)
+  \item Repeat with \texttt{GAP\_MODE} 0 and 1. Explain the per-revolution values,
+    the dips in the capture and what they do to the evaluation lines. Why does
+    the gap violate the time invariance of the tooth-domain processing, and why
+    is only mode 2 compatible with the exact ripple cancellation of MA$_{30}$?
+  \item \emph{Design} (program \texttt{sheet03\_rpmoffline}, part (e)): the
+    injection timing needs the speed during an acceleration of
     \SI{5000}{rpm/s} at \SI{1000}{rpm} with an error below 0.5\,\%, while the
-    2nd-order ripple should be suppressed. Is this possible with an MA in the
-    tooth domain? What do real ECUs do (keyword: \emph{segment time})?
+    2nd-order ripple should be suppressed. The program runs this ramp and
+    prints mean and maximum relative error between 925 and \SI{1075}{rpm}
+    (one ripple period) for MA$_N$, $N=1\dots60$, the EMA, MA$_{30}$ with the
+    lag compensation $y_c[k]=1.5\,y[k]-0.5\,y[k-30]$, and the \emph{segment
+    speed} of an ECU. Implement \texttt{segment\_speed()} (speed from the time
+    of the last 30 teeth $=180^\circ$) and \texttt{predict()} (extrapolation by
+    half a segment time with the acceleration from two adjacent segments, see
+    the comments in the code). Is the requirement achievable with an MA in the
+    tooth domain? Why does the LTI lag compensation over-correct, while the
+    segment speed with prediction works? What do real ECUs do?
 \end{tasks}
 \end{exercise}
 
 \begin{solution}
 a) Key parts of \codefile{solutions/wokwi/sheet03\_rpmoffline/sketch.ino}:
-\inputcode[firstline=80,lastline=83]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
-\inputcode[firstline=95,lastline=117]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
+\inputcode[firstline=85,lastline=88]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
+\inputcode[firstline=99,lastline=122]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
+The speed in rpm is simply $1/T$ with $T$ in seconds ($60$ teeth per
+revolution, 60 seconds per minute). The gap spans $18^\circ$, so its period is
+three normal periods: factor 3 for the speed, and in mode 2 three samples so
+that every sample again stands for $6^\circ$.
 Results (constant \SI{3000}{rpm}, after settling):
 \begin{lstlisting}[style=shell,numbers=none]
  gap handling: naive gap (2842 samples)
@@ -268,9 +423,11 @@ Results (constant \SI{3000}{rpm}, after settling):
   EMA 2/17   mean  3000.0  std  10.87  min  2984.8  max  3015.5
 \end{lstlisting}
 With correct gap handling the raw std ($21.3$\,rpm) is the ripple
-($30/\sqrt2$). The attenuation factors $12.57/21.30=0.59$ (MA$_{16}$) and
-$10.87/21.30=0.51$ (EMA) agree with $|H|=0.595$ and $0.514$ of Exercise~3.1\,d);
-MA$_{30}$ in mode 2 leaves $0.04$\,rpm (timer quantisation only).
+($30/\sqrt2$: amplitude 1\,\% of \SI{3000}{rpm}). The attenuation factors
+$12.57/21.30=0.59$ (MA$_{16}$) and $10.87/21.30=0.51$ (EMA) agree with
+$|H|=0.5946$ and $0.5139$ of Exercise~3.1\,d);
+MA$_{30}$ in mode 2 leaves $0.04$\,rpm (timer quantisation only), as predicted
+by its zero at the 2nd order.
 Step and ramp (mode 2):
 \begin{lstlisting}[style=shell,numbers=none]
   MA8        50% after   4 samples, 90% after   7 samples
@@ -287,48 +444,72 @@ Step and ramp (mode 2):
 \end{lstlisting}
 The step points match 3.1\,b) (MA$_{16}$ is exactly at 50\,\% at $n=7$; the
 ripple decides whether 7 or 8 is reported). The ramp lag is
-$D+0.5$: $(N-1)/2$ from the filter plus half a sample because $1/T_k$ is the mean
-speed over the tooth, i.e.\ the speed half a tooth \emph{before} the edge. MA and
-EMA with $\alpha=2/(N+1)$ have the same lag, as predicted in 3.1\,c).
+$D+0.5$: $(N-1)/2$ from the filter (3.1\,c) plus half a sample because $1/T_k$
+is the mean speed over the tooth, i.e.\ the speed half a tooth \emph{before}
+the edge. MA and EMA with $\alpha=2/(N+1)$ have the same lag, as predicted in
+3.1\,c). In time: one sample at \SI{3523}{rpm} lasts $1/3523\,\mathrm{s}=\SI{0.284}{ms}$,
+so 7.93 samples are \SI{2.25}{ms}.
 
 b) Sketch (\codefile{solutions/wokwi/sheet03\_rpmfilter/sketch.ino}), filter
 and gap handling:
-\inputcode[firstline=67,lastline=82]{solutions/wokwi/sheet03_rpmfilter/sketch.ino}
-\inputcode[firstline=129,lastline=138]{solutions/wokwi/sheet03_rpmfilter/sketch.ino}
-Expected capture (reference sketch run on the PC with simulated crank edges;
-step 3000$\to$5000\,rpm at $k=0$):
+\inputcode[firstline=78,lastline=84]{solutions/wokwi/sheet03_rpmfilter/sketch.ino}
+\inputcode[firstline=160,lastline=169]{solutions/wokwi/sheet03_rpmfilter/sketch.ino}
+Evaluation of a capture (baseline = mean of the 32 pre-trigger samples, final
+value = mean of the last 36):
+\inputcode[firstline=113,lastline=126]{solutions/wokwi/sheet03_rpmfilter/sketch.ino}
+Expected output (reference sketch run on the PC with simulated crank edges;
+step 3000$\to$5000\,rpm at an arbitrary crank angle, \texttt{GAP\_MODE 2}):
 \begin{lstlisting}[style=shell,numbers=none]
 k,raw,ma,ema,gap        k,raw,ma,ema,gap
--1,3012,3018,3014,0      7,4950,3994,4246,0
-0,4988,3143,3247,0       8,4950,4114,4329,0
-1,4988,3267,3451,0      14,4988,4846,4671,0
-4,4963,3633,3926,0      15,5013,4971,4711,0
-5,4950,3753,4046,0      18,5025,4978,4808,0
+-1,3026,3011,3015,0      7,4963,4001,4257,0
+0,4843,3127,3230,0       8,4963,4123,4340,0
+1,5025,3255,3441,0      14,4950,4844,4664,0
+4,5000,3633,3930,0      15,4975,4966,4700,0
+5,4988,3757,4055,0      19,5000,4970,4814,0
+# MA : base 3000.6, final 5004.6, 50% at k = 8, 90% at k = 14, D = sum(1-s) = 7.77 samples
+# EMA: base 3000.9, final 5003.4, 50% at k = 5, 90% at k = 19, D = sum(1-s) = 7.72 samples
 \end{lstlisting}
 The MA rises linearly by $2000/16=125$\,rpm per tooth and reaches the new
-value after 16 samples; the EMA jumps by $\alpha\cdot2000=235$\,rpm first and
-then approaches exponentially: 50\,\% after 5, 90\,\% after 18 samples
-(MA: 8 and 14). The ramp lag follows from the step response, because for an LTI
-system the response to a ramp is the running sum of the step response:
-$D=\sum_{k\ge0}(1-s[k])$ evaluated on the capture (baseline = mean of the 32
-pre-trigger samples, final value = mean of the last 36) gives 7.65 (MA) and
-7.56 (EMA) samples, close to 7.5; the extra half sample of the offline ramp
-(7.9) is hidden here because the time origin is the first \emph{measured} jump. A staircase is a sum of shifted
-steps -- by superposition its response is the sum of shifted step responses;
-nothing new is learned from it. Note: the per-revolution line samples the filters
-always at the same crank angle (at the gap), so the ripple appears there as a
-constant offset (e.g.\ MA$_{16}$ 2982, EMA 2986 at \SI{3000}{rpm}) --
-stroboscopic sampling of a crank-synchronous signal.
+value after 16 samples ($k=15$); the EMA jumps by $\alpha\cdot2000=235$\,rpm
+first and then approaches exponentially. The points (MA 8/14, EMA 5/19) agree
+with the ideal values of 3.1\,b) (7/14, 5/18) up to one sample, and
+$D\approx7.7$ with $7.5$. The small differences have two causes: (i) the
+step falls \emph{inside} tooth 0, whose period is partly at the old speed
+(raw 4843 instead of $\approx5000$), so the input itself is not an ideal
+step; (ii) the residual 2nd-order ripple ($0.59\cdot\SI{50}{rpm}$ for the MA at
+\SI{5000}{rpm}, 1.5\,\% of the step) does not cancel exactly in the sums over
+96 samples. The time origin is the first \emph{measured} jump, so the extra
+half sample of the offline ramp (7.93) is not visible here.
+A staircase is a sum of shifted steps -- by superposition its response is the
+sum of shifted step responses, and the ramp response is the running sum of the
+step response (3.1\,c); nothing new is learned from it. Note: the
+per-revolution line samples the filters always at the same crank angle (at the
+gap), so the ripple appears there as a constant offset (MA$_{16}$ 2982, EMA 2986
+at \SI{3000}{rpm}) -- stroboscopic sampling of a crank-synchronous signal.
 
 c) Mode 0: the gap value is $n/3$, i.e.\ a negative pulse of $-2n/3=-2000$\,rpm
 once per revolution. MA$_{16}$ shows a rectangular dip of $2000/16=125$\,rpm
 lasting 16 teeth (min 2860), the EMA a dip of $\alpha\cdot2000=235$\,rpm (min
 2751) that decays over $\approx20$ teeth; the mean is biased by $-1.1\,\%$
 (compare 2.1\,c). The per-revolution line, printed right after the gap, shows the
-worst value (\SI{3000}{rpm}: MA 2860, EMA 2751; \SI{7000}{rpm}: 6674, 6418).
-Mode 1 removes the bias, but the sample covering $18^\circ$ has the same weight as
-those covering $6^\circ$; MA$_{30}$ then spans $30$ samples $\neq180^\circ$ for
-half of the windows: residual std 1.07\,rpm. Mode 2 makes the sample index
+worst value (\SI{3000}{rpm}: MA 2860, EMA 2750; \SI{7000}{rpm}: 6674, 6417).
+The evaluation of the capture breaks down:
+\begin{lstlisting}[style=shell,numbers=none]
+GAP_MODE 0:
+# MA : base 2954.8, final 4993.1, 50% at k = 7, 90% at k = 14, D = sum(1-s) = 8.93 samples
+# EMA: base 2953.3, final 4986.4, 50% at k = 5, 90% at k = 18, D = sum(1-s) = 8.63 samples
+GAP_MODE 1:
+# MA : base 3001.5, final 5004.6, 50% at k = 8, 90% at k = 14, D = sum(1-s) = 7.73 samples
+# EMA: base 3002.3, final 5002.3, 50% at k = 5, 90% at k = 19, D = sum(1-s) = 7.65 samples
+\end{lstlisting}
+In mode 0 the dip of the gap at $k=-12$ lowers the baseline by
+\SI{45}{rpm}, and the next gap at $k=46$ (inside the evaluated window) adds a
+second dip, so $D$ is off by more than one sample -- the ``step response''
+measured contains a disturbance that has nothing to do with the filter.
+Mode 1 removes the bias, and the step evaluation is almost as good as in mode 2,
+but the sample covering $18^\circ$ has the same weight as those covering
+$6^\circ$; MA$_{30}$ then spans $30$ samples $\neq180^\circ$ for half of the
+windows: residual std 1.07\,rpm in 3.3\,a). Mode 2 makes the sample index
 proportional to the crank angle ($6^\circ$ per sample, 60 per revolution); MA$_{30}$
 spans exactly $180^\circ$ and cancels the 2nd order completely (std 0.04).
 Time invariance: in the tooth domain the operator ``tooth period $\to$ speed''
@@ -339,24 +520,82 @@ profile by one tooth does not shift the output by one sample. An LTI filter afte
 time-variant measurement produces artefacts that no filter design can remove;
 the correction must restore a uniform (angle-equidistant) sequence first.
 
-d) At \SI{1000}{rpm} one sample takes \SI{1}{ms}; \SI{5000}{rpm/s} are 5\,rpm per
-sample. 0.5\,\% = 5\,rpm allow a lag of only 1 sample, i.e.\ $(N-1)/2+0.5\le1$,
-$N\le2$ -- no ripple suppression at all ($|H|\approx1$). Conversely MA$_{30}$
-removes the ripple but lags $15.5$ samples $=\SI{15.5}{ms}$, i.e.\ 78\,rpm
-($7.8\,\%$). A causal smoother cannot have both. Real ECUs therefore (i) measure
-the \emph{segment time} (time for $720^\circ/z = 180^\circ$, i.e.\ exactly the
-MA$_{30}$ in the period domain) for torque/misfire functions, synchronous to the
-firing, (ii) use the short tooth time for angle extrapolation between teeth,
-and (iii) compensate the known lag by prediction ($\hat n=n_{\text{filt}}+\dot n
-\cdot D$, an estimate of the acceleration). Note also that the lag in
-\emph{samples} is constant while the lag in \emph{time} scales with $1/n$: at
-\SI{6000}{rpm} the same MA$_{30}$ lags only \SI{2.6}{ms}.
+d) New parts of the offline program:
+\inputcode[firstline=137,lastline=168]{solutions/wokwi/sheet03_rpmoffline/sketch.ino}
+Output:
+\begin{lstlisting}[style=shell,numbers=none]
+(e) design: 5000 rpm/s through 1000 rpm, error at 925..1075 rpm, gap x3
+  MA1              mean error  -0.22 %  max |error|  1.24 %  too large
+  MA2              mean error  -0.47 %  max |error|  1.47 %  too large
+  MA4              mean error  -0.97 %  max |error|  1.88 %  too large
+  MA8              mean error  -2.00 %  max |error|  3.01 %  too large
+  MA16             mean error  -4.13 %  max |error|  5.40 %  too large
+  MA30             mean error  -8.03 %  max |error|  9.37 %  too large
+  MA60             mean error -17.27 %  max |error| 20.40 %  too large
+  EMA 2/31         mean error  -8.30 %  max |error|  9.96 %  too large
+  MA30 + comp.     mean error  +1.21 %  max |error|  1.66 %  too large
+  segment 180      mean error  -8.29 %  max |error|  9.66 %  too large
+  segment + pred.  mean error  -0.00 %  max |error|  0.01 %  ok
+\end{lstlisting}
+\emph{MA in the tooth domain: impossible.} At \SI{1000}{rpm} one sample takes
+\SI{1}{ms}; \SI{5000}{rpm/s} are 5\,rpm per sample, and 0.5\,\% are 5\,rpm, so
+the lag may be at most one sample. The lag of MA$_N$ is $N/2$ samples
+($(N-1)/2+0.5$, see a): the mean error grows as $-0.25\,\%\cdot N$ (MA$_8$:
+$-2.0\,\%$, MA$_{16}$: $-4.1\,\%$). Even the raw speed (MA$_1$, lag half a sample,
+$-0.22\,\%$) fails, because it contains the full ripple of $\pm1\,\%$; MA$_2$
+still passes the ripple almost unchanged ($|H|=\cos(\pi/30)=0.995$). The
+attenuation of the 2nd order, $|H|=\sin(N\pi/30)/(N\sin(\pi/30))$, falls only
+slowly with $N$ (0.97, 0.89, 0.59 for $N=4,8,16$) and reaches 0 at $N=30$. To
+bring the ripple below 0.25\,\% an MA needs $|H|\le0.25$, i.e.\ $N\ge24$
+($|H|=0.23$), which lags 12 samples $=6\,\%$; MA$_{30}$ removes the ripple but
+lags 8\,\%. The EMA with the same noise gain ($\alpha=2/31$) has
+the same lag and additionally passes 51\,\% of the ripple. A causal smoother
+in the tooth domain cannot have both small lag and ripple suppression.
+
+\emph{LTI lag compensation over-corrects.} $y_c[k]=y[k]+\frac N2\cdot
+\frac{y[k]-y[k-N]}{N}=1.5\,y[k]-0.5\,y[k-30]$ is still an FIR filter with the
+zeros of MA$_{30}$ at the even orders, and for a ramp that is linear in the
+\emph{sample index} it removes the lag exactly (gain $1.5-0.5=1$, total lag including the half sample of the tooth
+measurement $1.5\cdot15-0.5\cdot45=0$). But the engine accelerates linearly in \emph{time}:
+per tooth the speed rises by $\SI{5000}{rpm/s}\cdot\frac{1}{n}\,\mathrm{s}
+=5000/n$ rpm, i.e.\ 5.6\,rpm at 900\,rpm but 5.0\,rpm at 1000\,rpm. The slope
+estimate $(y[k]-y[k-30])/30$ describes the speed 15--45 teeth ago, when it rose
+faster, so the extrapolation shoots over by $\approx\SI{12}{rpm}$ ($+1.2\,\%$).
+In the tooth domain (uniform in angle) a ramp in time is not a ramp.
+
+\emph{Segment time + prediction works.} The segment speed
+$n_{\text{seg}}=30/T_{\text{seg}}$ is the \emph{time} average of the speed over
+the last $180^\circ$: $T_{\text{seg}}=\int\!\dd t$ and $\int n\,\dd t\propto180^\circ$.
+For a speed linear in time this is exactly the speed at the middle of the
+segment, $T_{\text{seg}}/2$ ago (mean of a linear function over an interval);
+its error ($-8.29\,\%$) is pure lag, and because the segment spans one full
+period of the 2nd order, the ripple is removed (it enters $T_{\text{seg}}$ only
+quadratically, $\approx\varepsilon^2/2=5\cdot10^{-5}$). Two adjacent segment
+speeds give the acceleration exactly, $\dot n=(n_{\text{seg}}[k]-n_{\text{seg}}[k-30])/
+\bigl(\tfrac12(T_{\text{seg}}[k]+T_{\text{seg}}[k-30])\bigr)$, and
+$\hat n=n_{\text{seg}}+\dot n\,T_{\text{seg}}/2$ is the current speed: error
+$<0.01\,\%$ (timer quantisation and float rounding). This processing is not LTI
+in the tooth domain -- the extrapolation interval $T_{\text{seg}}/2$ depends on
+the speed -- but it uses the right model of the physics (acceleration constant in
+time, speed periodic in angle).
+
+\emph{Real ECUs} therefore (i) measure the \emph{segment time} (time for
+$720^\circ/z=180^\circ$, i.e.\ the MA$_{30}$ in the period domain) for
+torque, misfire and speed functions, synchronous to the firing, (ii) use the
+short tooth time for angle extrapolation between teeth, and (iii) compensate
+the known lag by prediction with an acceleration estimate ($\hat n=n_{\text{seg}}
++\dot n\cdot T_{\text{seg}}/2$). Note also that the lag in \emph{samples} is
+constant while the lag in \emph{time} scales with $1/n$: at \SI{6000}{rpm} the
+same MA$_{30}$ lags only \SI{2.6}{ms}.
 \end{solution}
 
 \begin{deliverables}
-3.1: convolution table, derivations of $h$, $s$, noise gain, $D$, $|H|$. 3.2:
-program and output, explanation of the rounding and truncation errors, plot of
-the triangular impulse response. 3.3: completed \texttt{sheet03\_rpmoffline} sketch with
-result tables; sketch; capture of a step for all three gap modes (plot in
-any tool, e.g.\ a spreadsheet), 50/90\,\% points and ramp lag; answer to d).
+3.1: completed \texttt{sheet03\_smoothers} sketch and its output; the
+explanations (table vs.\ graphical method, sum check, closed forms of $h$ and $s$,
+proofs of $y=c(n-D)$ and $D=\sum(1-s)$, law $a(N)$, eigenfunction, zeros of
+MA$_{30}$). 3.2: program and output, explanation of the rounding and truncation
+errors, plot of the triangular impulse response. 3.3: completed
+\texttt{sheet03\_rpmoffline} sketch with result tables; completed
+\texttt{sheet03\_rpmfilter} sketch; capture and evaluation lines of a step for
+all three gap modes, comparison with 3.1; answers to c) and d).
 \end{deliverables}
