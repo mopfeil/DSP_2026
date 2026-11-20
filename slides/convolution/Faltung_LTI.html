@@ -1,0 +1,914 @@
+<title>Von der Impulsantwort zur Faltung</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&family=STIX+Two+Text:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+/* Layout: one long lab notebook — each section = text column + live plot with controls; stacks on phones. */
+:root {
+  --bg: #FBFCFE;
+  --surface: #EEF2F7;
+  --ink: #1B2A41;
+  --muted: #5B6575;
+  --line: #CDD4DF;
+  --ghost: #D3D9E3;
+  --accent: #D9701A;
+  --teal: #23897D;
+  --violet: #7B5EA7;
+  --red: #C1503A;
+  --btn: #1B2A41;
+  --btn-fg: #FFFFFF;
+  --f-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-math: "STIX Two Text", "Cambria Math", "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1622; --surface: #172235; --ink: #E4EAF3; --muted: #9AA6B8; --line: #2C3A52;
+    --ghost: #34445E; --accent: #F0913A; --teal: #43C2B1; --violet: #A88FD8; --red: #E57D65;
+    --btn: #E4EAF3; --btn-fg: #0E1622; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1622; --surface: #172235; --ink: #E4EAF3; --muted: #9AA6B8; --line: #2C3A52;
+  --ghost: #34445E; --accent: #F0913A; --teal: #43C2B1; --violet: #A88FD8; --red: #E57D65;
+  --btn: #E4EAF3; --btn-fg: #0E1622; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.45rem, 3vw, 2rem); font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; max-width: 65ch; }
+a { color: var(--accent); }
+.eyebrow { font-family: var(--f-body); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.m { font-family: var(--f-math); font-size: 1.12em; white-space: nowrap; }
+.m sub, .m sup { font-size: 0.7em; }
+.formula { font-family: var(--f-math); font-size: 1.22rem; color: var(--teal); line-height: 1.5; }
+.formula.big { font-size: 1.45rem; }
+.note { color: var(--muted); font-size: 0.92rem; }
+
+header.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 32px; align-items: center; padding-block: 48px 24px; }
+header.hero .lead { font-size: 1.15rem; color: var(--muted); margin-top: 16px; }
+header.hero canvas { width: 100%; display: block; }
+
+.questions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.q { background: var(--surface); border-radius: 10px; padding: 16px 18px; text-decoration: none; color: var(--ink); display: grid; gap: 6px; align-content: start; }
+.q:hover, .q:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.q .num { font-family: var(--f-mono); color: var(--accent); font-size: 0.85rem; }
+.q strong { font-weight: 600; }
+.q span.ans { font-family: var(--f-math); color: var(--teal); }
+
+section.sec { padding-block: 56px 8px; border-top: 1px solid var(--line); margin-top: 48px; display: grid; gap: 20px; }
+.sec-head { display: grid; gap: 6px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr); gap: 32px; align-items: start; }
+.grid2.eq { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.col { display: grid; gap: 14px; min-width: 0; }
+.fig { min-width: 0; display: grid; gap: 12px; }
+.fig canvas { width: 100%; display: block; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.card h3 { color: var(--accent); }
+.steps { display: grid; gap: 12px; counter-reset: st; }
+.steps > div { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.steps > div::before { counter-increment: st; content: counter(st); width: 30px; height: 30px; border-radius: 50%; background: var(--teal); color: var(--bg); display: grid; place-items: center; font-weight: 600; font-size: 0.9rem; }
+.steps b { color: var(--teal); font-weight: 600; font-size: 0.9rem; }
+.result { background: var(--ink); color: var(--bg); border-radius: 10px; padding: 16px 18px; display: grid; gap: 6px; }
+.result .formula { color: var(--bg); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 260px; }
+.ctl label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+.ctl input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+.ctl output { font-family: var(--f-mono); font-size: 0.9rem; min-width: 6.5ch; text-align: right; }
+button.b, .seg button { font: 600 0.9rem var(--f-body); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; background: var(--btn); color: var(--btn-fg); }
+button.b:focus-visible, .seg button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--surface); padding: 4px; border-radius: 999px; }
+.seg button { background: transparent; color: var(--ink); padding: 6px 12px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
+.xin { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.xin input { width: 4.2em; font: 0.95rem var(--f-mono); padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+.readout { background: var(--surface); border-radius: 10px; padding: 12px 16px; font-family: var(--f-mono); font-size: 0.88rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.readout::before { content: "Live-Werte"; display: block; font: 600 0.72rem var(--f-body); letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.three .card { gap: 10px; }
+table.cmp { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+table.cmp th, table.cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.cmp th { font-weight: 600; }
+table.cmp td:first-child { font-weight: 600; white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+dl.sum { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 24px; margin: 0; }
+dl.sum dt { font-weight: 600; color: var(--accent); }
+dl.sum dd { margin: 0; font-family: var(--f-math); font-size: 1.15rem; }
+footer { margin-top: 56px; color: var(--muted); font-size: 0.88rem; }
+
+@media (max-width: 860px) {
+  header.hero, .grid2, .grid2.eq { grid-template-columns: minmax(0, 1fr); }
+  .questions, .three { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  dl.sum { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+  dl.sum dd { margin-bottom: 10px; }
+}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div>
+    <div class="eyebrow">DSP · Ergänzung zu Blatt 3</div>
+    <h1>Von der Impulsantwort zur Faltung</h1>
+    <p class="lead">Warum <span class="m">y = x * h</span> gilt: diskret und kontinuierlich, mit realen Impulsen und unendlich langen Signalen. Alle Grafiken lassen sich mit den Reglern verändern.</p>
+  </div>
+  <canvas id="cv-hero" aria-label="Eingangssignal, die Antworten auf seine einzelnen Pulse und deren Summe"></canvas>
+</header>
+
+<section id="fragen" style="display:grid;gap:12px">
+  <h2>Sechs Fragen, eine Idee: zerlegen, einzeln antworten, addieren</h2>
+  <div class="questions">
+    <a class="q" href="#herleitung"><span class="num">1</span><strong>Wie kommt man von h zur Antwort auf beliebiges x?</strong><span class="ans">y[n] = Σ x[k]·h[n−k]</span></a>
+    <a class="q" href="#lti"><span class="num">2</span><strong>Warum ist das so?</strong><span class="ans">Linearität + Zeitinvarianz</span></a>
+    <a class="q" href="#realer-impuls"><span class="num">3</span><strong>Wie sieht die Antwort auf einen realen Impuls aus?</strong><span class="ans">geglättetes h: g<sub>T</sub> = p<sub>T</sub> * h</span></a>
+    <a class="q" href="#beliebig"><span class="num">4</span><strong>Kann man damit beliebige Antworten berechnen?</strong><span class="ans">ja, als Summe von Pulsantworten</span></a>
+    <a class="q" href="#grenzen"><span class="num">5</span><strong>Wo sind die Grenzen?</strong><span class="ans">Nichtlinearität, Bandbreite, Rauschen, Zeitvarianz</span></a>
+    <a class="q" href="#kontinuierlich"><span class="num">6</span><strong>Diskret, kontinuierlich, unendlich lang?</strong><span class="ans">Σ → ∫, Konvergenz, Rekursion</span></a>
+  </div>
+</section>
+
+<!-- ============================================================ LTI -->
+<section class="sec" id="lti">
+  <div class="sec-head"><div class="eyebrow">Grundlage</div><h2>Zwei Annahmen genügen: linear und zeitinvariant</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="card"><h3>Impulsantwort</h3><div class="formula">h[n] = S{δ[n]}</div><p class="note">Die Antwort auf den Einheitsimpuls δ[n]: 1 bei n = 0, sonst 0.</p></div>
+      <div class="card"><h3>Zeitinvarianz</h3><div class="formula">S{x[n−k]} = y[n−k]</div><p class="note">Später anregen ergibt dieselbe Antwort, nur später.</p></div>
+      <div class="card"><h3>Linearität</h3><div class="formula">S{a·x<sub>1</sub> + b·x<sub>2</sub>} = a·y<sub>1</sub> + b·y<sub>2</sub></div><p class="note">Skalieren und Addieren gehen durch das System hindurch.</p></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-lti" aria-label="Impuls, verschobener Impuls und Kombination mit den zugehörigen Antworten"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="lti-k">Verschiebung k</label><input type="range" id="lti-k" min="0" max="5" value="3"><output id="lti-k-o">3</output></div>
+        <div class="ctl"><label for="lti-a">Faktor a</label><input type="range" id="lti-a" min="-20" max="20" value="20"><output id="lti-a-o">2</output></div>
+      </div>
+      <p class="note">h = {1; −1; 0,5} aus Blatt 3.1 a. Mehr als diese zwei Eigenschaften braucht die Faltung nicht: keine Differentialgleichung, kein Modell.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ derivation -->
+<section class="sec" id="herleitung">
+  <div class="sec-head"><div class="eyebrow">Frage 1 und 2</div><h2>Warum? Jedes Signal ist eine Summe von Impulsen</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="steps">
+        <div><div><b>Zerlegen</b><div class="formula">x[n] = Σ<sub>k</sub> x[k]·δ[n−k]</div></div></div>
+        <div><div><b>Zeitinvarianz</b><div class="formula">δ[n−k] → h[n−k]</div></div></div>
+        <div><div><b>Homogenität</b><div class="formula">x[k]·δ[n−k] → x[k]·h[n−k]</div></div></div>
+        <div><div><b>Additivität</b><div class="formula">Σ<sub>k</sub> … → Σ<sub>k</sub> …</div></div></div>
+      </div>
+      <div class="result"><div class="formula big">y[n] = Σ<sub>k</sub> x[k]·h[n−k] = (x * h)[n]</div><p>Das System „kennt“ nur h. Alles andere ist Buchhaltung: verschieben, skalieren, addieren.</p></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-deriv" aria-label="Links die Abtastwerte als einzelne Impulse, rechts deren Antworten, unten die Summen"></canvas>
+      <p class="note">Zeile k: links der Impuls x[k]·δ[n−k], rechts seine Antwort x[k]·h[n−k]. Das ist die Produkttabelle aus Blatt 3.1 a. Die Eingabewerte x[k] lassen sich in den nächsten beiden Abschnitten ändern; dieses Bild folgt mit.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ echo view -->
+<section class="sec" id="echos">
+  <div class="sec-head"><div class="eyebrow">Faltung diskret · Eingangssicht</div><h2>Jeder Abtastwert erzeugt ein Echo</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Jeder Wert x[k] startet bei n = k eine Kopie der Impulsantwort, skaliert mit x[k]. Die Ausgabe ist die Summe aller Echos.</p>
+      <div class="formula">y[n] = Σ<sub>k</sub> x[k]·h[n−k]</div>
+      <p class="note">Gelesen als Zeilen der Tabelle aus Blatt 3.1 a.</p>
+      <div class="readout" id="ro-echo"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-echo" aria-label="Eingang, einzelne Echos und ihre Summe"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="echo-k">Echos addiert</label><input type="range" id="echo-k" min="0" max="4" value="4"><output id="echo-k-o">4</output></div>
+      </div>
+      <div class="controls"><div class="seg" role="group" aria-label="Impulsantwort wählen" data-hsel></div><div class="xin" data-xin></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ flip & slide -->
+<section class="sec" id="spiegeln">
+  <div class="sec-head"><div class="eyebrow">Faltung diskret · Ausgangssicht</div><h2>Spiegeln, schieben, multiplizieren, summieren</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Für ein festes n ist h[n−k] als Funktion von k die gespiegelte und nach n geschobene Impulsantwort. Produkt mit x[k], Summe über k: das ist y[n].</p>
+      <div class="formula">y[n] = Σ<sub>k</sub> x[k]·h[n−k] = Σ<sub>m</sub> h[m]·x[n−m]</div>
+      <p class="note">Es ist dieselbe Doppelsumme wie oben, nur spaltenweise gelesen. So rechnet ein Filter in Echtzeit: ein Ausgangswert pro Takt.</p>
+      <div class="readout" id="ro-flip"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-flip" aria-label="x und gespiegelte, geschobene Impulsantwort, ihre Produkte und der Ausgang"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="flip-n">n</label><input type="range" id="flip-n" min="-2" max="11" value="2"><output id="flip-n-o">2</output></div>
+        <button class="b" id="flip-play" type="button">Abspielen</button>
+      </div>
+      <div class="controls"><div class="seg" role="group" aria-label="Impulsantwort wählen" data-hsel></div><div class="xin" data-xin></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ real impulse -->
+<section class="sec" id="realer-impuls">
+  <div class="sec-head"><div class="eyebrow">Frage 3</div><h2>Der reale Impuls: kurz, aber nicht unendlich kurz</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Ein echter Testimpuls p<sub>T</sub> hat Breite T und Fläche 1. Die gemessene Antwort ist selbst eine Faltung:</p>
+      <div class="formula">g<sub>T</sub> = p<sub>T</sub> * h = (1/T)·∫<sub>t−T</sub><sup>t</sup> h(τ) dτ</div>
+      <p>g<sub>T</sub> ist also h, über die Pulsbreite gemittelt: glatter und um etwa T/2 verzögert. Für <span class="m">T ≪ 1/f<sub>max</sub></span> wird g<sub>T</sub> zu h.</p>
+      <p class="note">System: Tiefpass 2. Ordnung, f<sub>0</sub> = 1 Hz, Dämpfung 0,15. Ein Hammerschlag, ein kurzer Spannungspuls oder ein Klatschen im Raum sind solche p<sub>T</sub>.</p>
+      <div class="readout" id="ro-pulse"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-pulse" aria-label="Rechteckpuls und die Antworten h und g_T"></canvas>
+      <div class="controls"><div class="ctl"><label for="pulse-t">Pulsbreite T</label><input type="range" id="pulse-t" min="0" max="7" value="4"><output id="pulse-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ arbitrary -->
+<section class="sec" id="beliebig">
+  <div class="sec-head"><div class="eyebrow">Frage 4</div><h2>Beliebige Antworten aus der realen Pulsantwort</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Zerlege x in Pulse der Breite T:</p>
+      <div class="formula">x(t) ≈ Σ<sub>k</sub> x(kT)·T·p<sub>T</sub>(t−kT)</div>
+      <p>Weil das System linear und zeitinvariant ist, gilt:</p>
+      <div class="formula">y(t) ≈ Σ<sub>k</sub> x(kT)·T·g<sub>T</sub>(t−kT)</div>
+      <p>Für eine Treppe ist das exakt. Der Fehler entsteht nur, weil x keine Treppe ist. Er hängt also vom Eingang ab, nicht nur von h.</p>
+      <p class="note">x enthält einen Anteil bei 0,75 Hz, nahe der Resonanz bei 1 Hz. Bei großem T erfasst die Treppe ihn nicht mehr, und die Ausgangsschwingung fehlt.</p>
+      <div class="readout" id="ro-arb"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-arb" aria-label="Eingang mit Treppe, exakter Ausgang und Summe der Pulsantworten"></canvas>
+      <div class="controls"><div class="ctl"><label for="arb-t">Pulsbreite T</label><input type="range" id="arb-t" min="0" max="10" value="7"><output id="arb-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ step -->
+<section class="sec" id="sprung">
+  <div class="sec-head"><div class="eyebrow">Praxis</div><h2>Oft besser: die Sprungantwort messen</h2></div>
+  <div class="cards">
+    <div class="card"><h3>Zusammenhang</h3><div class="formula">s(t) = ∫<sub>0</sub><sup>t</sup> h(τ) dτ  ⇔  h = ds/dt</div></div>
+    <div class="card"><h3>Der reale Puls sind zwei Sprünge</h3><div class="formula">T·g<sub>T</sub>(t) = s(t) − s(t−T)</div></div>
+    <div class="card"><h3>Beliebiger Eingang (Duhamel)</h3><div class="formula">y = Σ Δx<sub>k</sub>·s(t−kT) → ∫ x′(τ)·s(t−τ) dτ</div></div>
+  </div>
+  <div class="grid2">
+    <div class="col">
+      <p>Ein Sprung hat viel Energie bei kleiner Amplitude und ist leicht zu erzeugen, etwa mit einem Schalter oder einem Sollwertsprung.</p>
+      <p>Blatt 3.3: Der Drehzahlsprung am Drehregler liefert die Sprungantwort von MA und EMA.</p>
+      <p class="note">Nachteil: h = ds/dt verstärkt das Messrauschen.</p>
+    </div>
+    <div class="fig">
+      <canvas id="cv-step" aria-label="Sprungantwort und Zerlegung einer Treppe in Sprünge"></canvas>
+      <div class="controls"><div class="ctl"><label for="step-t">Stufenbreite T</label><input type="range" id="step-t" min="0" max="10" value="7"><output id="step-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ limits -->
+<section class="sec" id="grenzen">
+  <div class="sec-head"><div class="eyebrow">Frage 5</div><h2>Wo sind die Grenzen?</h2></div>
+  <div class="three">
+    <div class="card"><h3 style="color:var(--red)">Linearität</h3>
+      <canvas id="cv-sat" aria-label="Pulsantwort mit begrenztem Ausgang"></canvas>
+      <div class="ctl"><label for="sat-l">Begrenzung</label><input type="range" id="sat-l" min="5" max="70" value="25"><output id="sat-l-o"></output></div>
+      <p class="note">Ein kurzer Puls braucht die Höhe 1/T. Sättigung, Totzone und Quantisierung verletzen die Superposition.</p></div>
+    <div class="card"><h3>Bandbreite</h3>
+      <canvas id="cv-band" aria-label="Spektrum des Rechteckpulses und Frequenzgang"></canvas>
+      <div class="ctl"><label for="band-t">Pulsbreite T</label><input type="range" id="band-t" min="5" max="100" value="20"><output id="band-t-o"></output></div>
+      <p class="note">P<sub>T</sub>(f) = sinc(fT) ist bei f = k/T null. Diese Frequenzen fehlen in g<sub>T</sub>; das Zurückrechnen H = G/P<sub>T</sub> ist dort instabil.</p></div>
+    <div class="card"><h3 style="color:var(--violet)">Rauschen</h3>
+      <canvas id="cv-noise" aria-label="Normierte, verrauschte Pulsantwort"></canvas>
+      <div class="ctl"><label for="noise-t">Pulsbreite T</label><input type="range" id="noise-t" min="0" max="7" value="1"><output id="noise-t-o"></output></div>
+      <p class="note">Die Amplitude ist auf 10 begrenzt, die Pulsfläche ist also höchstens 10·T. Das SNR wächst mit T. Außerdem muss h bis zum Abklingen gemessen werden.</p></div>
+  </div>
+  <div class="card"><h3 style="color:var(--teal)">Zeitinvarianz</h3><p>Ändert sich das System während der Messung (Temperatur, Drehzahl), gibt es nicht mehr die eine Impulsantwort: <span class="m">y[n] = Σ x[k]·h[n, k]</span>. Blatt 3.3 d zeigt das für Zahn- und Zeitbereich.</p></div>
+</section>
+
+<!-- ============================================================ continuous -->
+<section class="sec" id="kontinuierlich">
+  <div class="sec-head"><div class="eyebrow">Frage 6 · kontinuierlich</div><h2>Aus der Summe wird ein Integral</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="steps">
+        <div><div><b>Pulse der Breite Δ</b><div class="formula">x(t) ≈ Σ<sub>k</sub> x(kΔ)·p<sub>Δ</sub>(t−kΔ)·Δ</div></div></div>
+        <div><div><b>Antwort (LTI)</b><div class="formula">y(t) ≈ Σ<sub>k</sub> x(kΔ)·g<sub>Δ</sub>(t−kΔ)·Δ</div></div></div>
+        <div><div><b>Grenzwert Δ → 0</b><div class="formula">p<sub>Δ</sub> → δ,  g<sub>Δ</sub> → h,  Σ·Δ → ∫</div></div></div>
+      </div>
+      <div class="result"><div class="formula big">y(t) = ∫ x(τ)·h(t−τ) dτ = (x * h)(t)</div></div>
+      <p class="note">Der Dirac-Impuls δ(t) hat Fläche 1 und Breite 0. Er ist der Grenzwert des realen Pulses: messen lässt er sich nicht, nur annähern.</p>
+    </div>
+    <div class="fig">
+      <canvas id="cv-riem" aria-label="Signal als Treppe aus Pulsen der Breite Delta"></canvas>
+      <div class="controls"><div class="ctl"><label for="riem-d">Breite Δ</label><input type="range" id="riem-d" min="0" max="7" value="5"><output id="riem-d-o"></output></div></div>
+      <p class="note">Der hervorgehobene Streifen ist ein Puls x(kΔ)·Δ·p<sub>Δ</sub>(t−kΔ). Seine Antwort ist x(kΔ)·Δ·g<sub>Δ</sub>(t−kΔ), genau ein Summand von oben.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="flaeche">
+  <div class="sec-head"><div class="eyebrow">Faltung kontinuierlich</div><h2>Spiegeln, schieben, Fläche bilden</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Eingang: Rechteck von 0 bis 2 s. System: RC-Glied</p>
+      <div class="formula">h(t) = (1/τ)·e<sup>−t/τ</sup>,  τ = 0,5 s</div>
+      <p>Für jedes t ist y(t) die Fläche unter x(τ)·h(t−τ).</p>
+      <p><b>t &lt; 0:</b> keine Überlappung<br><b>0 ≤ t ≤ 2:</b> Laden, 1 − e<sup>−t/τ</sup><br><b>t &gt; 2:</b> Entladen, Abklingen mit τ</p>
+      <div class="readout" id="ro-area"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-area" aria-label="x und gespiegelte Impulsantwort, Produktfläche und Ausgang"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="area-t">t</label><input type="range" id="area-t" min="-100" max="500" value="125"><output id="area-t-o"></output></div>
+        <button class="b" id="area-play" type="button">Abspielen</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="vergleich">
+  <div class="sec-head"><div class="eyebrow">Gegenüberstellung</div><h2>Diskret und kontinuierlich im Vergleich</h2></div>
+  <div class="grid2 eq">
+    <div class="col tablewrap">
+      <table class="cmp">
+        <thead><tr><th></th><th>diskret</th><th>kontinuierlich</th></tr></thead>
+        <tbody>
+          <tr><td>Impuls</td><td>δ[n]: Wert 1 bei n = 0</td><td>δ(t): Fläche 1, Breite 0</td></tr>
+          <tr><td>Faltung</td><td class="m">Σ<sub>k</sub> x[k]·h[n−k]</td><td class="m">∫ x(τ)·h(t−τ) dτ</td></tr>
+          <tr><td>Impuls messen</td><td>exakt möglich (eine Zahl)</td><td>nur angenähert (p<sub>T</sub>)</td></tr>
+          <tr><td>Rechnen</td><td>N Multiplikationen pro Wert (FIR)</td><td>analytisch oder numerisch</td></tr>
+          <tr><td>Verbindung</td><td class="m">h[n] = T<sub>s</sub>·h(nT<sub>s</sub>)</td><td class="m">y(nT<sub>s</sub>) ≈ Σ x[k]·h[n−k]</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="fig">
+      <canvas id="cv-samp" aria-label="Abgetastete Impulsantwort"></canvas>
+      <div class="controls"><div class="ctl"><label for="samp-t">Abtastzeit T<sub>s</sub></label><input type="range" id="samp-t" min="1" max="30" value="10"><output id="samp-t-o"></output></div></div>
+      <div class="readout" id="ro-samp"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ infinite -->
+<section class="sec" id="unendlich">
+  <div class="sec-head"><div class="eyebrow">Frage 6 · unendlich lang</div><h2>Unendlich lange Eingänge</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="card"><h3>Kausal: nur die Vergangenheit zählt</h3><div class="formula">y[n] = Σ<sub>k=−∞</sub><sup>n</sup> x[k]·h[n−k]</div></div>
+      <div class="card"><h3>Existiert, wenn h absolut summierbar ist (BIBO)</h3><div class="formula">Σ|h[n]| &lt; ∞ ⇒ |y[n]| ≤ max|x|·Σ|h|</div></div>
+      <div class="card"><h3>FIR: endliches Gedächtnis</h3><div class="formula">y[n] = Σ<sub>m=0</sub><sup>N−1</sup> h[m]·x[n−m]</div></div>
+      <div class="card"><h3>IIR: unendlich viele Terme, aber rekursiv</h3><div class="formula">y[n] = a·y[n−1] + (1−a)·x[n]</div></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-inf" aria-label="Impulsantwort des EMA mit abgeschnittenem Rest"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="inf-a">a</label><input type="range" id="inf-a" min="50" max="105" value="80"><output id="inf-a-o"></output></div>
+        <div class="ctl"><label for="inf-m">abschneiden ab M</label><input type="range" id="inf-m" min="1" max="60" value="15"><output id="inf-m-o"></output></div>
+      </div>
+      <div class="readout" id="ro-inf"></div>
+      <p class="note">Man braucht nie den ganzen Eingang. Jeder Ausgangswert kommt aus den letzten N Eingängen bzw. dem letzten Ausgang: Streaming statt Speichern. Kontinuierlich gilt dasselbe mit ∫|h(t)| dt &lt; ∞. Schieben Sie a über 1: Dann ist das System instabil.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="eigenfunktion">
+  <div class="sec-head"><div class="eyebrow">Unendlich lang · Frequenz</div><h2>Eingeschaltete Schwingung: Einschwingen und Eigenfunktion</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Läuft der Eingang schon ewig, kommt eine Schwingung gleicher Frequenz heraus:</p>
+      <div class="formula">e<sup>jΩn</sup> → H(Ω)·e<sup>jΩn</sup>,  H(Ω) = Σ<sub>k</sub> h[k]·e<sup>−jΩk</sup></div>
+      <p>Wird bei n = 0 eingeschaltet, schwingt das System ein, solange h in den leeren Bereich n &lt; 0 reicht. Beim FIR ist das nach N−1 Werten vorbei, beim IIR klingt es exponentiell ab.</p>
+      <p class="note">Ω = 0 ist der Sprung aus Blatt 3.3. MA5 bei Ω = 2π/5: |H| = 0, nach dem Einschwingen ist der Ausgang exakt null (vgl. Blatt 3.1 d).</p>
+      <div class="readout" id="ro-eig"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-eig" aria-label="Eingeschalteter Kosinus, Filterausgang, Frequenzgang"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="eig-w">Ω</label><input type="range" id="eig-w" min="0" max="1000" value="125"><output id="eig-w-o"></output></div>
+        <div class="seg" role="group" aria-label="Filter wählen" id="eig-f"><button type="button" aria-pressed="true" data-v="0">EMA a = 0,8</button><button type="button" aria-pressed="false" data-v="1">MA5</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="ueberblick">
+  <div class="sec-head"><div class="eyebrow">Zum Mitnehmen</div><h2>Auf einen Blick</h2></div>
+  <dl class="sum">
+    <dt>Idee</dt><dd>zerlegen in Impulse, je eine Antwort h, addieren</dd>
+    <dt>Diskret</dt><dd>y[n] = Σ<sub>k</sub> x[k]·h[n−k]</dd>
+    <dt>Kontinuierlich</dt><dd>y(t) = ∫ x(τ)·h(t−τ) dτ</dd>
+    <dt>Realer Impuls</dt><dd>g<sub>T</sub> = p<sub>T</sub> * h ≈ h für T ≪ 1/f<sub>max</sub></dd>
+    <dt>Sprungantwort</dt><dd>h = ds/dt,  T·g<sub>T</sub>(t) = s(t) − s(t−T)</dd>
+    <dt>Grenzen</dt><dd>nur LTI · Bandbreite des Testsignals · Rauschen</dd>
+    <dt>Unendlich lang</dt><dd>Σ|h| &lt; ∞,  Rekursion statt Summe,  e<sup>jΩn</sup> → H(Ω)·e<sup>jΩn</sup></dd>
+  </dl>
+  <footer>Begleitseite zum Foliensatz Faltung_LTI (Blatt 3). Alle Kurven werden im Browser aus denselben Formeln berechnet wie die Folien (model.py).</footer>
+</section>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ------------------------------------------------------------- models
+const PI = Math.PI, ZETA = 0.15, W0 = 2 * PI, WD = W0 * Math.sqrt(1 - ZETA * ZETA);
+const h2 = t => t < 0 ? 0 : W0 / Math.sqrt(1 - ZETA * ZETA) * Math.exp(-ZETA * W0 * t) * Math.sin(WD * t);
+const s2 = t => t < 0 ? 0 : 1 - Math.exp(-ZETA * W0 * t) * (Math.cos(WD * t) + ZETA / Math.sqrt(1 - ZETA * ZETA) * Math.sin(WD * t));
+const gT = (t, T) => (s2(t) - s2(t - T)) / T;
+const xc = t => (t < 0 || t > 4) ? 0 : 0.5 * (1 - Math.cos(2 * PI * t / 4)) + 0.3 * Math.sin(2 * PI * 0.75 * t);
+const TAU = 0.5;
+const hrc = t => t < 0 ? 0 : Math.exp(-t / TAU) / TAU;
+const xrect = t => (t >= 0 && t <= 2) ? 1 : 0;
+const yrc = t => t < 0 ? 0 : t <= 2 ? 1 - Math.exp(-t / TAU) : (1 - Math.exp(-2 / TAU)) * Math.exp(-(t - 2) / TAU);
+const ystair = (t, T) => { let y = 0; const nk = Math.round(4 / T); for (let k = 0; k < nk; k++) { if (t < k * T) break; y += xc((k + 0.5) * T) * (s2(t - k * T) - s2(t - (k + 1) * T)); } return y; };
+const lin = (a, b, n) => Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1));
+const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const gauss = (() => { const r = rng(7); const out = []; for (let i = 0; i < 4000; i++) { const u = Math.max(r(), 1e-12), v = r(); out.push(Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * PI * v)); } return out; })();
+
+const H_SETS = [
+  { name: "{1; −1; 0,5}", label: "h = {1; −1; 0,5} (Blatt 3.1 a)", h: [1, -1, 0.5] },
+  { name: "MA4", label: "MA4: h = ¼·{1; 1; 1; 1}", h: [0.25, 0.25, 0.25, 0.25] },
+  { name: "EMA a = 0,5", label: "EMA a = 0,5: h[n] = 0,5·0,5ⁿ (bis n = 7)", h: Array.from({ length: 8 }, (_, n) => 0.5 * 0.5 ** n) },
+];
+const D = { x: [1, 2, 0, -1], hs: 0 };            // shared discrete state
+const conv = (x, h) => { const y = new Array(x.length + h.length - 1).fill(0); x.forEach((xv, i) => h.forEach((hv, j) => { y[i + j] += xv * hv; })); return y; };
+const KMIN = -3, KMAX = 12;
+
+// ------------------------------------------------------------- format
+const fm = (v, d = 2) => { if (Math.abs(v) < 1e-12) v = 0; return v.toLocaleString("de-DE", { maximumFractionDigits: d }).replace("-", "−"); };
+const par = v => v < 0 ? "(" + fm(v) + ")" : fm(v);
+
+// ------------------------------------------------------------- colors
+let COL = {};
+const readColors = () => { const s = getComputedStyle(document.documentElement); const g = n => s.getPropertyValue(n).trim();
+  COL = { ink: g("--ink"), muted: g("--muted"), line: g("--line"), ghost: g("--ghost"), acc: g("--accent"), teal: g("--teal"), violet: g("--violet"), red: g("--red"), bg: g("--bg"), surface: g("--surface") }; };
+const echoCol = k => [COL.teal, COL.acc, COL.violet, COL.red][k % 4];
+
+// ------------------------------------------------------------- plotting
+function canvasCtx(cv, aspect, narrowAspect) {
+  const w = cv.clientWidth || cv.parentElement.clientWidth;
+  const h = Math.round(w * (w < 560 ? (narrowAspect || aspect * 1.3) : aspect));
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px";
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function Panel(c, spec) {
+  const LM = spec.lm ?? 40, RM = 8, TT = 22, GAP = 14, BOT = spec.bot ?? 26;
+  const avail = c.h - BOT, [a, b] = spec.frac || [0, 1];
+  const top0 = spec.top0 ?? 0;
+  const P = { ctx: c.ctx, L: LM, W: c.w - LM - RM, T: top0 + a * (avail - top0) + TT, x0: spec.x[0], x1: spec.x[1], y0: spec.y[0], y1: spec.y[1] };
+  P.H = (b - a) * (avail - top0) - TT - GAP;
+  P.X = x => P.L + (x - P.x0) / (P.x1 - P.x0) * P.W;
+  P.Y = y => { y = Math.min(P.y1, Math.max(P.y0, y)); return P.T + P.H - (y - P.y0) / (P.y1 - P.y0) * P.H; };
+  const ctx = c.ctx;
+  P.axes = (title, color, yt) => {
+    ctx.save(); ctx.strokeStyle = COL.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(P.L + 0.5, P.T); ctx.lineTo(P.L + 0.5, P.T + P.H); ctx.stroke();
+    if (P.y0 < 0 && P.y1 > 0) { ctx.beginPath(); ctx.moveTo(P.L, Math.round(P.Y(0)) + 0.5); ctx.lineTo(P.L + P.W, Math.round(P.Y(0)) + 0.5); ctx.stroke(); }
+    ctx.fillStyle = COL.muted; ctx.font = "11px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    (yt || []).forEach(v => { if (v < P.y0 || v > P.y1) return; ctx.beginPath(); ctx.moveTo(P.L - 4, P.Y(v)); ctx.lineTo(P.L, P.Y(v)); ctx.stroke(); ctx.fillText(fm(v), P.L - 6, P.Y(v)); });
+    if (title) { ctx.fillStyle = color || COL.ink; ctx.font = "600 13px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.fillText(title, P.L, P.T - 8, P.W); }
+    ctx.restore();
+  };
+  P.xticks = (a, b, step, label, ff = fm) => {
+    ctx.save(); ctx.strokeStyle = COL.line; ctx.fillStyle = COL.muted; ctx.font = "11px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    const skip = P.W / ((b - a) / step) < 22 ? 2 : 1; let i = 0;
+    for (let v = a; v <= b + 1e-9; v += step, i++) { ctx.beginPath(); ctx.moveTo(P.X(v), P.T + P.H); ctx.lineTo(P.X(v), P.T + P.H + 4); ctx.stroke(); if (i % skip === 0) ctx.fillText(ff(v), P.X(v), P.T + P.H + 6); }
+    if (label) { ctx.textAlign = "right"; ctx.fillText(label, P.L + P.W, P.T + P.H + 19); }
+    ctx.restore();
+  };
+  P.clip = fn => { ctx.save(); ctx.beginPath(); ctx.rect(P.L, P.T - 2, P.W, P.H + 4); ctx.clip(); fn(); ctx.restore(); };
+  P.stem = (x, y, col, o = {}) => {
+    if (x < P.x0 || x > P.x1) return; const r = o.r ?? 4;
+    ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = o.lw ?? 2;
+    ctx.beginPath(); ctx.moveTo(P.X(x), P.Y(0)); ctx.lineTo(P.X(x), P.Y(y)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(P.X(x), P.Y(y), r, 0, 2 * PI); ctx.fillStyle = o.hollow ? COL.bg : col; ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+  };
+  P.line = (xs, ys, col, o = {}) => P.clip(() => {
+    ctx.strokeStyle = col; ctx.lineWidth = o.lw ?? 2; ctx.setLineDash(o.dash ? [6, 4] : []); ctx.lineJoin = "round";
+    ctx.beginPath(); xs.forEach((x, i) => { const px = P.X(x), py = P.T + P.H - (ys[i] - P.y0) / (P.y1 - P.y0) * P.H; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke();
+  });
+  P.area = (xs, ys, col, alpha = 0.35) => P.clip(() => {
+    ctx.fillStyle = col; ctx.globalAlpha = alpha; ctx.beginPath(); ctx.moveTo(P.X(xs[0]), P.Y(0));
+    xs.forEach((x, i) => ctx.lineTo(P.X(x), P.Y(ys[i]))); ctx.lineTo(P.X(xs[xs.length - 1]), P.Y(0)); ctx.closePath(); ctx.fill();
+  });
+  P.vline = (x, col) => { ctx.save(); ctx.strokeStyle = col; ctx.setLineDash([2, 3]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P.X(x), P.T); ctx.lineTo(P.X(x), P.T + P.H); ctx.stroke(); ctx.restore(); };
+  P.dot = (x, y, col, r = 6) => { ctx.save(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(P.X(x), P.Y(y), r, 0, 2 * PI); ctx.fill(); ctx.restore(); };
+  P.legend = items => {
+    ctx.save(); ctx.font = "12px 'IBM Plex Sans', sans-serif"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    const wmax = Math.max(...items.map(it => ctx.measureText(it.t).width)) + 30; const x = P.L + P.W - wmax;
+    items.forEach((it, i) => { const y = P.T + 8 + i * 17; ctx.strokeStyle = it.c; ctx.lineWidth = 2.2; ctx.setLineDash(it.dash ? [5, 3] : []);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 22, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = COL.ink; ctx.fillText(it.t, x + 28, y); });
+    ctx.restore();
+  };
+  return P;
+}
+const yrange = (y, lo = -0.5, pad = 0.4) => [Math.min(lo, ...y) - pad, Math.max(0.5, ...y) + pad];
+const nice = r => { const span = r[1] - r[0]; const st = span > 4 ? 2 : span > 2 ? 1 : 0.5; const out = []; for (let v = Math.ceil(r[0] / st) * st; v <= r[1]; v += st) out.push(+v.toFixed(6)); return out; };
+
+const $ = id => document.getElementById(id);
+const renderers = [];
+const reg = fn => { renderers.push(fn); return fn; };
+const bindRange = (id, fn, fmtOut) => { const el = $(id), o = $(id + "-o"); const f = () => { if (o && fmtOut) o.textContent = fmtOut(+el.value); fn(); }; el.addEventListener("input", f); if (o && fmtOut) o.textContent = fmtOut(+el.value); return el; };
+
+// ------------------------------------------------------------- hero
+const drawHero = reg(() => {
+  const c = canvasCtx($("cv-hero"), 0.62, 0.75);
+  const P = Panel(c, { x: [-0.5, 7], y: [-1.1, 3.6], lm: 4, bot: 4 });
+  const t = lin(-0.5, 7, 600), T = 0.5;
+  P.line(t, t.map(v => xc(v) + 2.4), COL.muted, { lw: 2.2 });
+  for (let k = 0; k < 8; k++) P.line(t, t.map(v => xc((k + 0.5) * T) * (s2(v - k * T) - s2(v - (k + 1) * T))), COL.acc, { lw: 1.3 });
+  P.line(t, t.map(v => ystair(v, 0.02)), COL.ink, { lw: 3 });
+  const ctx = c.ctx; ctx.font = "12px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "left";
+  ctx.fillStyle = COL.muted; ctx.fillText("Eingang x(t)", P.X(4.4), P.Y(2.75));
+  ctx.fillStyle = COL.acc; ctx.fillText("Antworten auf die einzelnen Pulse", P.X(4.2), P.Y(-0.7));
+  ctx.fillStyle = COL.ink; ctx.fillText("Summe = y(t)", P.X(4.4), P.Y(0.75));
+});
+
+// ------------------------------------------------------------- LTI
+const drawLti = reg(() => {
+  const k0 = +$("lti-k").value, a = +$("lti-a").value / 10, h = H_SETS[0].h;
+  const c = canvasCtx($("cv-lti"), 0.62, 1.05);
+  const half = (c.w - 0) / 2; const ctx = c.ctx;
+  const rows = [
+    ["δ[n]", [[0, 1]], "h[n]", [[0, 1]]],
+    [`δ[n−${k0}]  (verschoben)`, [[k0, 1]], `h[n−${k0}]  (gleich verschoben)`, [[k0, 1]]],
+    [`${fm(a, 1)}·δ[n] − δ[n−${k0}]`, [[0, a], [k0, -1]], `${fm(a, 1)}·h[n] − h[n−${k0}]  (gleich kombiniert)`, [[0, a], [k0, -1]]],
+  ];
+  rows.forEach((r, i) => {
+    [0, 1].forEach(side => {
+      const sub = { ctx, w: half, h: c.h };
+      ctx.save(); ctx.translate(side * half, 0);
+      const P = Panel(sub, { frac: [i / 3, (i + 1) / 3], x: [-1.5, 8.5], y: [-2.6, 2.6], lm: 30 });
+      P.axes(side ? r[2] : r[0], side ? COL.acc : COL.ink, [-2, 0, 2]);
+      if (side === 0) { const m = new Map(); r[1].forEach(([k, v]) => m.set(k, (m.get(k) || 0) + v)); m.forEach((v, k) => P.stem(k, v, COL.ink)); }
+      else { const y = new Array(12).fill(0); r[3].forEach(([k, v]) => h.forEach((hv, j) => { y[k + j] += v * hv; })); y.forEach((v, n) => { if (n <= 8) P.stem(n, v, COL.acc, { r: 3.5 }); }); }
+      if (i === 2) P.xticks(0, 8, 1, "n");
+      ctx.restore();
+    });
+  });
+});
+bindRange("lti-k", drawLti, v => v); bindRange("lti-a", drawLti, v => fm(v / 10, 1));
+
+// ------------------------------------------------------------- derivation
+const drawDeriv = reg(() => {
+  const h = H_SETS[D.hs].h, x = D.x, y = conv(x, h);
+  const c = canvasCtx($("cv-deriv"), 0.8, 1.25); const ctx = c.ctx; const half = c.w / 2;
+  const n1 = Math.max(9, y.length + 1);
+  const ymax = Math.max(2.6, ...x.map(Math.abs), ...y.map(Math.abs), ...x.map(v => Math.abs(v) * Math.max(...h.map(Math.abs)))) + 0.2;
+  for (let i = 0; i < 5; i++) [0, 1].forEach(side => {
+    ctx.save(); ctx.translate(side * half, 0);
+    const P = Panel({ ctx, w: half, h: c.h }, { frac: [i / 5, (i + 1) / 5], x: [-1.5, n1 - 0.5], y: [-ymax, ymax], lm: 30 });
+    if (i < 4) {
+      const col = echoCol(i);
+      P.axes(side ? `x[${i}]·h[n−${i}]` : `x[${i}]·δ[n−${i}]`, col, [0]);
+      if (side === 0) P.stem(i, x[i], col, { r: 3.5 }); else h.forEach((hv, j) => P.stem(i + j, x[i] * hv, col, { r: 3 }));
+    } else {
+      P.axes(side ? "Σ = y[n] = Σ x[k]·h[n−k]" : "Σ = x[n]", COL.ink, [0]);
+      if (side === 0) x.forEach((v, k) => P.stem(k, v, COL.ink, { r: 3.5 })); else y.forEach((v, n) => P.stem(n, v, COL.ink, { r: 3 }));
+      P.xticks(0, n1 - 1, 1, "n");
+    }
+    ctx.restore();
+  });
+});
+
+// ------------------------------------------------------------- shared discrete controls
+function buildDiscreteControls() {
+  document.querySelectorAll("[data-hsel]").forEach(seg => {
+    seg.innerHTML = ""; H_SETS.forEach((s, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = s.name; b.dataset.v = i; b.setAttribute("aria-pressed", i === D.hs); b.addEventListener("click", () => { D.hs = i; syncDiscrete(); }); seg.appendChild(b); });
+  });
+  document.querySelectorAll("[data-xin]").forEach((box, bi) => {
+    box.innerHTML = "";
+    D.x.forEach((v, k) => { const id = `xin-${bi}-${k}`; const lab = document.createElement("label"); lab.htmlFor = id; lab.className = "note"; lab.textContent = `x[${k}]`;
+      const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.5"; inp.min = "-3"; inp.max = "3"; inp.id = id; inp.value = v;
+      inp.addEventListener("input", () => { const f = parseFloat(inp.value.replace(",", ".")); if (!isNaN(f)) { D.x[k] = Math.max(-3, Math.min(3, f)); syncDiscrete(inp); } });
+      box.append(lab, inp); });
+  });
+}
+function syncDiscrete(src) {
+  document.querySelectorAll("[data-hsel] button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.v === D.hs));
+  document.querySelectorAll("[data-xin] input").forEach(inp => { if (inp !== src) inp.value = D.x[+inp.id.split("-")[2]]; });
+  drawEcho(); drawFlip(); drawDeriv();
+}
+
+// ------------------------------------------------------------- echo view
+const drawEcho = reg(() => {
+  const K = +$("echo-k").value, H = H_SETS[D.hs], h = H.h, x = D.x, y = conv(x, h);
+  const c = canvasCtx($("cv-echo"), 0.62, 1.0);
+  const yK = new Array(y.length).fill(0); for (let i = 0; i < K; i++) h.forEach((hv, j) => { yK[i + j] += x[i] * hv; });
+  const em = Math.max(2.2, ...x.map(v => Math.abs(v) * Math.max(...h.map(Math.abs)))) + 0.3;
+  const xr = yrange(x), er = [-em, em], yr = yrange(y);
+  let P = Panel(c, { frac: [0, 1 / 3], x: [KMIN - 0.5, KMAX + 0.5], y: xr });
+  P.axes("x[k]: jeder Abtastwert ist ein skalierter, verschobener Impuls", COL.ink, nice(xr));
+  x.forEach((v, k) => P.stem(k, v, k < K ? echoCol(k) : COL.ghost, { hollow: k >= K }));
+  P = Panel(c, { frac: [1 / 3, 2 / 3], x: [KMIN - 0.5, KMAX + 0.5], y: er });
+  P.axes("Echos x[k]·h[n−k], jeweils eine Impulsantwort", COL.ink, nice(er));
+  for (let i = 0; i < K; i++) h.forEach((hv, j) => { if (Math.abs(x[i] * hv) > 1e-9) P.stem(i + j + (i - 1.5) * 0.13, x[i] * hv, echoCol(i), { r: 3.5 }); });
+  P = Panel(c, { frac: [2 / 3, 1], x: [KMIN - 0.5, KMAX + 0.5], y: yr });
+  P.axes(`Summe der ersten ${K} Echos = y[n]`, COL.ink, nice(yr));
+  y.forEach((v, n) => P.stem(n, v, COL.ghost, { hollow: true }));
+  if (K > 0) yK.forEach((v, n) => { if (n < K - 1 + h.length) P.stem(n, v, COL.ink); });
+  P.xticks(KMIN, KMAX, 1, "n");
+  let s;
+  if (K === 0) s = "Noch kein Echo addiert: y[n] = 0";
+  else s = "y[n] = " + Array.from({ length: K }, (_, i) => `x[${i}]·h[n${i ? "−" + i : ""}]`).join(" + ") + `\n${K} von 4 Echos addiert` + (K === 4 ? ", fertig: y = x * h" : "");
+  $("ro-echo").textContent = s + "\nImpulsantwort: " + H.label;
+});
+bindRange("echo-k", drawEcho, v => v);
+
+// ------------------------------------------------------------- flip & slide
+const drawFlip = reg(() => {
+  const n = +$("flip-n").value, H = H_SETS[D.hs], h = H.h, x = D.x, y = conv(x, h), nh = h.length;
+  const c = canvasCtx($("cv-flip"), 0.62, 1.0);
+  const kA = Math.max(0, n - nh + 1), kB = Math.min(3, n);
+  let yn = 0; for (let k = kA; k <= kB; k++) yn += x[k] * h[n - k];
+  const r1 = yrange([...x, ...h]), pmax = Math.max(2.2, ...x.map(v => Math.abs(v) * Math.max(...h.map(Math.abs)))) + 0.3, yr = yrange(y);
+  let P = Panel(c, { frac: [0, 1 / 3], x: [KMIN - 0.5, KMAX + 0.5], y: r1 });
+  P.axes(`x[k]  und  h[${fm(n)}−k] (gespiegelt, nach n = ${fm(n)} geschoben)`, COL.ink, nice(r1));
+  x.forEach((v, k) => P.stem(k, v, COL.ink));
+  h.forEach((hv, j) => P.stem(n - j + 0.15, hv, COL.acc));
+  P.vline(n, COL.acc);
+  P = Panel(c, { frac: [1 / 3, 2 / 3], x: [KMIN - 0.5, KMAX + 0.5], y: [-pmax, pmax] });
+  P.axes(`Produkte x[k]·h[${fm(n)}−k]  →  Summe = y[${fm(n)}] = ${fm(yn)}`, COL.teal, nice([-pmax, pmax]));
+  for (let k = kA; k <= kB; k++) P.stem(k, x[k] * h[n - k], COL.teal);
+  P = Panel(c, { frac: [2 / 3, 1], x: [KMIN - 0.5, KMAX + 0.5], y: yr });
+  P.axes("y[n]", COL.ink, nice(yr));
+  y.forEach((v, m) => P.stem(m, v, m <= n ? COL.ink : COL.ghost, { hollow: m > n }));
+  if (n >= 0 && n < y.length) P.stem(n, y[n], COL.acc, { r: 6 });
+  P.xticks(KMIN, KMAX, 1, "k bzw. n");
+  let s1, s2;
+  if (kA > kB) { s1 = `n = ${fm(n)}: keine Überlappung`; s2 = `y[${fm(n)}] = 0`; }
+  else { const ks = []; for (let k = kA; k <= kB; k++) ks.push(k);
+    s1 = `y[${fm(n)}] = ` + ks.map(k => `x[${k}]h[${n - k}]`).join(" + ");
+    s2 = "= " + ks.map(k => `${par(x[k])}·${par(h[n - k])}`).join(" + ") + ` = ${fm(yn)}`; }
+  $("ro-flip").textContent = `${s1}\n${s2}\nImpulsantwort: ${H.label}`;
+});
+bindRange("flip-n", drawFlip, v => fm(v));
+let flipTimer = null;
+$("flip-play").addEventListener("click", () => {
+  const el = $("flip-n"), btn = $("flip-play");
+  if (flipTimer) { clearInterval(flipTimer); flipTimer = null; btn.textContent = "Abspielen"; return; }
+  if (+el.value >= 11) el.value = -2;
+  btn.textContent = "Stopp";
+  const stepFn = () => { el.value = +el.value + 1; el.dispatchEvent(new Event("input")); if (+el.value >= 11) { clearInterval(flipTimer); flipTimer = null; btn.textContent = "Abspielen"; } };
+  el.dispatchEvent(new Event("input")); flipTimer = setInterval(stepFn, 650);
+});
+
+// ------------------------------------------------------------- real impulse
+const PT = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2];
+const pulseT = v => PT[v];
+const drawPulse = reg(() => {
+  const T = pulseT(+$("pulse-t").value), hp = 1 / T;
+  const c = canvasCtx($("cv-pulse"), 0.62, 0.95);
+  let P = Panel(c, { frac: [0, 0.3], x: [-0.5, 5], y: [-0.5, 6.5] });
+  P.axes(`Realer Impuls p_T(t): Breite T = ${fm(T, 3)} s, Höhe 1/T = ${fm(hp, 1)}, Fläche 1`, COL.acc, [0, 3, 6]);
+  P.area([0, Math.max(T, 0.004)], [hp, hp], COL.acc, 0.4);
+  P.line([-0.5, 0, 0, T, T, 5], [0, 0, hp, hp, 0, 0], COL.acc, { lw: 2 });
+  if (hp > 6.5) { const ctx = c.ctx; ctx.fillStyle = COL.acc; ctx.font = "12px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "left"; ctx.fillText(`↑ abgeschnitten, Höhe ${fm(hp, 0)}`, P.X(T) + 8, P.Y(5.8)); }
+  const t = lin(-0.5, 5, 700), hv = t.map(h2), gv = t.map(v => gT(v, T));
+  P = Panel(c, { frac: [0.3, 1], x: [-0.5, 5], y: [-4, 6] });
+  P.axes("Antworten", COL.ink, [-4, -2, 0, 2, 4, 6]);
+  P.line(t, hv, COL.ink, { lw: 2, dash: true });
+  P.line(t, gv, COL.acc, { lw: 2.6 });
+  P.legend([{ t: "h(t), idealer Dirac-Impuls", c: COL.ink, dash: true }, { t: "g_T(t) = (p_T * h)(t)", c: COL.acc }]);
+  P.xticks(0, 5, 1, "t / s");
+  const hMax = Math.max(...hv.map(Math.abs)), e = Math.max(...gv.map((g, i) => Math.abs(g - hv[i])));
+  $("ro-pulse").textContent = `T = ${fm(T, 3)} s,  T·f₀ = ${fm(T, 3)}\nmax|g_T − h| = ${fm(100 * e / hMax, 0)} % von max|h|\ng_T ist h, über T gemittelt: Verzögerung ≈ T/2 = ${fm(T / 2, 3)} s`;
+});
+bindRange("pulse-t", drawPulse, v => fm(pulseT(v), 3) + " s");
+
+// ------------------------------------------------------------- arbitrary input
+const ARB_T = [0.02, 0.04, 0.05, 0.1, 0.2, 0.25, 0.4, 0.5, 0.8, 1, 2];
+let arbExact = null;
+const drawArb = reg(() => {
+  const T = ARB_T[+$("arb-t").value], nk = Math.round(4 / T);
+  const t = lin(-0.5, 7, 751);
+  if (!arbExact) arbExact = t.map(v => ystair(v, 0.01));
+  const yT = t.map(v => ystair(v, T));
+  const c = canvasCtx($("cv-arb"), 0.62, 0.95);
+  let P = Panel(c, { frac: [0, 0.5], x: [-0.5, 7], y: [-0.6, 1.6] });
+  P.axes("Eingang", COL.ink, [0, 1]);
+  P.line(t, t.map(xc), COL.ink, { lw: 2 });
+  const sx = [-0.5, 0], sy = [0, 0]; for (let k = 0; k < nk; k++) { const v = xc((k + 0.5) * T); sx.push(k * T, (k + 1) * T); sy.push(v, v); } sx.push(4, 7); sy.push(0, 0);
+  P.line(sx, sy, COL.acc, { lw: 2 });
+  P.legend([{ t: "x(t)", c: COL.ink }, { t: `Treppe aus ${nk} Pulsen der Breite T`, c: COL.acc }]);
+  P = Panel(c, { frac: [0.5, 1], x: [-0.5, 7], y: [-0.8, 1.8] });
+  P.axes("Ausgang", COL.ink, [0, 1]);
+  P.line(t, arbExact, COL.ink, { lw: 2 });
+  P.line(t, yT, COL.acc, { lw: 2.4 });
+  P.legend([{ t: "y = x * h (exakt)", c: COL.ink }, { t: "Σ x(kT)·T·g_T(t−kT)", c: COL.acc }]);
+  P.xticks(0, 7, 1, "t / s");
+  const ym = Math.max(...arbExact.map(Math.abs)), e = Math.max(...yT.map((v, i) => Math.abs(v - arbExact[i])));
+  $("ro-arb").textContent = `T = ${fm(T)} s  →  ${nk} Pulsantworten addiert\nmax. Fehler = ${fm(100 * e / ym, 0)} % von max|y|\n(exakt für die Treppe, Fehler = Treppe − x)`;
+});
+bindRange("arb-t", drawArb, v => fm(ARB_T[v]) + " s");
+
+// ------------------------------------------------------------- step
+const drawStep = reg(() => {
+  const T = ARB_T[+$("step-t").value], nk = Math.round(4 / T);
+  const c = canvasCtx($("cv-step"), 0.62, 0.95);
+  const t = lin(-0.5, 7, 700);
+  let P = Panel(c, { frac: [0, 0.45], x: [-0.5, 7], y: [-0.7, 2.2] });
+  P.axes("Sprungantwort s(t) und ihre Ableitung", COL.ink, [0, 1, 2]);
+  P.line(t, t.map(v => v >= 0 ? 1 : 0), COL.muted, { lw: 1.5 });
+  P.line(t, t.map(s2), COL.ink, { lw: 2.4 });
+  P.line(t, t.map(v => h2(v) / 6), COL.acc, { lw: 1.6, dash: true });
+  P.legend([{ t: "u(t)", c: COL.muted }, { t: "s(t)", c: COL.ink }, { t: "h(t) = ds/dt (÷ 6)", c: COL.acc, dash: true }]);
+  P = Panel(c, { frac: [0.45, 1], x: [-0.5, 7], y: [-0.9, 1.8] });
+  P.axes(`Treppe aus Sprüngen Δx_k: y = Σ Δx_k·s(t−kT), ${nk + 1} Sprünge`, COL.ink, [0, 1]);
+  let prev = 0;
+  if (nk <= 60) for (let k = 0; k <= nk; k++) { const v = k < nk ? xc((k + 0.5) * T) : 0, d = v - prev; prev = v; c.ctx.globalAlpha = 0.5; P.line(t, t.map(u => d * s2(u - k * T)), echoCol(k), { lw: 1 }); c.ctx.globalAlpha = 1; }
+  const sx = [-0.5, 0], sy = [0, 0]; for (let k = 0; k < nk; k++) { const v = xc((k + 0.5) * T); sx.push(k * T, (k + 1) * T); sy.push(v, v); } sx.push(4, 7); sy.push(0, 0);
+  P.line(sx, sy, COL.muted, { lw: 1.4 });
+  P.line(t, t.map(v => ystair(v, T)), COL.ink, { lw: 2.6 });
+  P.xticks(0, 7, 1, "t / s");
+});
+bindRange("step-t", drawStep, v => fm(ARB_T[v]) + " s");
+
+// ------------------------------------------------------------- limits
+const drawSat = reg(() => {
+  const L = +$("sat-l").value / 10, T = 0.05;
+  const c = canvasCtx($("cv-sat"), 0.75, 0.75);
+  const t = lin(-0.3, 4, 500);
+  const P = Panel(c, { x: [-0.3, 4], y: [-4, 6.5], lm: 30 });
+  P.axes("", COL.ink, [-4, -2, 0, 2, 4, 6]);
+  P.line(t, t.map(h2), COL.ink, { lw: 1.5, dash: true });
+  P.line(t, t.map(v => Math.max(-L, Math.min(L, gT(v, T)))), COL.red, { lw: 2.2 });
+  P.legend([{ t: "h(t)", c: COL.ink, dash: true }, { t: `gemessen, begrenzt ±${fm(L, 1)}`, c: COL.red }]);
+  P.xticks(0, 4, 1, "t / s");
+});
+bindRange("sat-l", drawSat, v => "±" + fm(v / 10, 1));
+const drawBand = reg(() => {
+  const T = +$("band-t").value / 100;
+  const c = canvasCtx($("cv-band"), 0.75, 0.75);
+  const f = lin(0, 6, 600);
+  const sinc = u => u === 0 ? 1 : Math.sin(PI * u) / (PI * u);
+  const Hm = v => 1 / Math.hypot(1 - v * v, 2 * ZETA * v);
+  const P = Panel(c, { x: [0, 6], y: [0, 3.6], lm: 30 });
+  P.axes("", COL.ink, [0, 1, 2, 3]);
+  P.line(f, f.map(Hm), COL.ink, { lw: 2 });
+  P.line(f, f.map(v => Math.abs(sinc(v * T))), COL.acc, { lw: 2 });
+  for (let k = 1; k / T <= 6; k++) P.vline(k / T, COL.acc);
+  P.legend([{ t: "|H(f)|", c: COL.ink }, { t: `|P_T(f)|, T = ${fm(T)} s`, c: COL.acc }]);
+  P.xticks(0, 6, 1, "f / Hz");
+});
+bindRange("band-t", drawBand, v => fm(v / 100) + " s");
+const drawNoise = reg(() => {
+  const T = pulseT(+$("noise-t").value), area = Math.min(1, 10 * T);
+  const c = canvasCtx($("cv-noise"), 0.75, 0.75);
+  const t = lin(-0.3, 4, 600);
+  const P = Panel(c, { x: [-0.3, 4], y: [-5, 8], lm: 30 });
+  P.axes("", COL.ink, [-4, 0, 4, 8]);
+  P.line(t, t.map(v => (area * gT(v, T) + 0.08 * gauss[Math.round((v + 0.3) * 400) % gauss.length]) / area), COL.violet, { lw: 1.2 });
+  P.line(t, t.map(h2), COL.ink, { lw: 1.5, dash: true });
+  P.legend([{ t: `gemessen ÷ Fläche ${fm(area, 2)}`, c: COL.violet }, { t: "h(t)", c: COL.ink, dash: true }]);
+  P.xticks(0, 4, 1, "t / s");
+});
+bindRange("noise-t", drawNoise, v => fm(pulseT(v), 3) + " s");
+
+// ------------------------------------------------------------- Riemann
+const RIEM = [1, 0.8, 0.5, 0.4, 0.25, 0.2, 0.1, 0.05];
+const drawRiem = reg(() => {
+  const Dl = RIEM[+$("riem-d").value];
+  const c = canvasCtx($("cv-riem"), 0.5, 0.8);
+  const t = lin(-0.3, 4.3, 900);
+  const P = Panel(c, { x: [-0.3, 4.3], y: [-0.6, 1.5] });
+  P.axes(`Δ = ${fm(Dl)}: x(t) ≈ Σ x(kΔ)·Δ·p_Δ(t−kΔ),  ${Math.round(4 / Dl)} Pulse`, COL.ink, [-0.5, 0, 0.5, 1]);
+  const k = Math.floor(1.6 / Dl), v = xc((k + 0.5) * Dl);
+  P.area([k * Dl, (k + 1) * Dl], [v, v], COL.acc, 0.45);
+  const sx = [-0.3, 0], sy = [0, 0]; for (let j = 0; j < Math.round(4 / Dl); j++) { const w = xc((j + 0.5) * Dl); sx.push(j * Dl, (j + 1) * Dl); sy.push(w, w); } sx.push(4, 4.3); sy.push(0, 0);
+  P.line(sx, sy, COL.acc, { lw: 1.6 });
+  P.line(t, t.map(xc), COL.ink, { lw: 2 });
+  P.xticks(0, 4, 1, "t / s");
+});
+bindRange("riem-d", drawRiem, v => fm(RIEM[v]));
+
+// ------------------------------------------------------------- area flip & slide
+const drawArea = reg(() => {
+  const t0 = +$("area-t").value / 100;
+  const c = canvasCtx($("cv-area"), 0.62, 1.0);
+  const tau = lin(-2, 6, 801);
+  let P = Panel(c, { frac: [0, 1 / 3], x: [-2, 6], y: [-0.3, 2.4] });
+  P.axes("x(τ)  und  h(t−τ), gespiegelt und nach t geschoben", COL.ink, [0, 1, 2]);
+  P.line([-2, 0, 0, 2, 2, 6], [0, 0, 1, 1, 0, 0], COL.ink, { lw: 2.2 });
+  const gx = tau.filter(v => v <= t0); const gy = gx.map(v => hrc(t0 - v)); gx.push(t0, t0, 6); gy.push(1 / TAU, 0, 0);
+  P.line(gx, gy, COL.acc, { lw: 2.2 }); P.vline(t0, COL.acc);
+  P.legend([{ t: "x(τ): Rechteck 0 … 2 s", c: COL.ink }, { t: `h(t−τ), t = ${fm(t0)}`, c: COL.acc }]);
+  P = Panel(c, { frac: [1 / 3, 2 / 3], x: [-2, 6], y: [-0.3, 2.4] });
+  P.axes(`Produkt x(τ)·h(t−τ)  →  Fläche = y(t) = ${fm(yrc(t0), 3)}`, COL.teal, [0, 1, 2]);
+  if (t0 > 0) { const ax = lin(0, Math.min(t0, 2), 300); const ay = ax.map(v => hrc(t0 - v)); P.area(ax, ay, COL.teal, 0.4); P.line(ax, ay, COL.teal, { lw: 2 }); }
+  P = Panel(c, { frac: [2 / 3, 1], x: [-2, 6], y: [-0.2, 1.2] });
+  P.axes("y(t)", COL.ink, [0, 0.5, 1]);
+  P.line(tau, tau.map(yrc), COL.ghost, { lw: 2 });
+  const tt = tau.filter(v => v <= t0); if (tt.length > 1) P.line(tt, tt.map(yrc), COL.ink, { lw: 2.4 });
+  P.dot(t0, yrc(t0), COL.acc);
+  P.xticks(-2, 6, 1, "τ bzw. t");
+  $("ro-area").textContent = `t = ${fm(t0)} s\ny(t) = ∫ x(τ)·h(t−τ) dτ = ${fm(yrc(t0), 3)}\n` + (t0 <= 0 ? "keine Überlappung → y = 0" : t0 <= 2 ? "Laden: 1 − e^(−t/τ)" : "Entladen: das Rechteck ist vorbei");
+});
+bindRange("area-t", drawArea, v => fm(v / 100) + " s");
+let areaTimer = null;
+$("area-play").addEventListener("click", () => {
+  const el = $("area-t"), btn = $("area-play");
+  if (areaTimer) { clearInterval(areaTimer); areaTimer = null; btn.textContent = "Abspielen"; return; }
+  if (+el.value >= 500) el.value = -100;
+  btn.textContent = "Stopp";
+  areaTimer = setInterval(() => { el.value = +el.value + 5; el.dispatchEvent(new Event("input")); if (+el.value >= 500) { clearInterval(areaTimer); areaTimer = null; btn.textContent = "Abspielen"; } }, 40);
+});
+
+// ------------------------------------------------------------- sampling
+const drawSamp = reg(() => {
+  const Ts = +$("samp-t").value / 100;
+  const c = canvasCtx($("cv-samp"), 0.5, 0.75);
+  const t = lin(-0.3, 3, 600);
+  const ymax = Math.max(0.1, 5.2 * Ts) * 1.15;
+  const P = Panel(c, { x: [-0.3, 3], y: [-0.65 * ymax, ymax] });
+  P.axes(`h[n] = T_s·h(nT_s),  T_s = ${fm(Ts)} s`, COL.ink, []);
+  P.line(t, t.map(v => Ts * h2(v)), COL.muted, { lw: 1.8 });
+  let sum = 0; for (let n = 0; n * Ts <= 3; n++) { const v = Ts * h2(n * Ts); sum += v; P.stem(n * Ts, v, COL.acc, { r: 3, lw: 1.4 }); }
+  for (let n = 3 / Ts; n < 40 / Ts; n++) sum += Ts * h2(n * Ts);
+  P.xticks(0, 3, 0.5, "t / s");
+  $("ro-samp").textContent = `Σ h[n] = ${fm(sum, 3)}  (exakt: ∫ h dt = 1)\n` + (Ts > 0.15 ? "T_s zu groß: die Riemann-Summe trifft h schlecht" : "T_s klein gegen die Schwingdauer 1 s: gute Näherung");
+});
+bindRange("samp-t", drawSamp, v => fm(v / 100) + " s");
+
+// ------------------------------------------------------------- infinite
+const drawInf = reg(() => {
+  const a = +$("inf-a").value / 100, M = +$("inf-m").value;
+  const c = canvasCtx($("cv-inf"), 0.5, 0.8);
+  const N = 60, h = Array.from({ length: N + 1 }, (_, n) => (1 - a) * a ** n);
+  const mx = Math.max(...h.map(Math.abs)) * 1.15;
+  const P = Panel(c, { x: [-1, N + 1], y: a > 1 ? [-mx, 0.05 * mx] : [-0.05 * mx, mx] });
+  P.axes(`EMA a = ${fm(a)}: h[n] = (1−a)·aⁿ`, COL.ink, []);
+  h.forEach((v, n) => P.stem(n, v, n < M ? COL.ink : COL.acc, { r: 2.5, lw: 1.2 }));
+  P.vline(M - 0.5, COL.acc);
+  P.xticks(0, N, 10, "n");
+  let s;
+  if (a < 1) s = `Σ|h[n]| = 1  → stabil, |y| ≤ max|x|\nRest ab n = ${M}: Σ = a^M = ${fm(a ** M, 4)}\nFehler durch Abschneiden ≤ max|x|·${fm(a ** M, 4)}`;
+  else if (a === 1) s = "a = 1: h[n] = 0, das Filter hält nur den Anfangswert";
+  else s = `a = ${fm(a)} > 1: |h[n]| wächst wie aⁿ\nΣ|h[n]| = ∞ → nicht BIBO-stabil\nschon ein Sprung am Eingang lässt y divergieren`;
+  $("ro-inf").textContent = s;
+});
+bindRange("inf-a", drawInf, v => fm(v / 100)); bindRange("inf-m", drawInf, v => v);
+
+// ------------------------------------------------------------- eigenfunction
+let eigKind = 0;
+const Hof = (om, kind) => { if (kind === 0) { const a = 0.8, re = 1 - a * Math.cos(om), im = a * Math.sin(om), d = re * re + im * im; return [(1 - a) * re / d, -(1 - a) * im / d]; }
+  let r = 0, i = 0; for (let k = 0; k < 5; k++) { r += 0.2 * Math.cos(om * k); i -= 0.2 * Math.sin(om * k); } return [r, i]; };
+const omLabel = om => { const q = om / PI; const fr = [[0, "0"], [1 / 32, "π/32"], [1 / 16, "π/16"], [1 / 8, "π/8"], [1 / 4, "π/4"], [0.4, "2π/5"], [0.5, "π/2"], [1, "π"]]; const m = fr.find(([v]) => Math.abs(v - q) < 0.0025); return m ? m[1] : fm(q, 3) + "·π"; };
+const drawEig = reg(() => {
+  const v = +$("eig-w").value; let om = v / 1000 * PI;
+  if (Math.abs(v - 400) <= 2) om = 0.4 * PI;
+  const NN = 48, x = Array.from({ length: NN + 1 }, (_, n) => Math.cos(om * n)), y = new Array(NN + 1).fill(0);
+  if (eigKind === 0) { let p = 0; x.forEach((xv, n) => { p = 0.8 * p + 0.2 * xv; y[n] = p; }); }
+  else x.forEach((_, n) => { for (let k = 0; k < 5; k++) if (n - k >= 0) y[n] += 0.2 * x[n - k]; });
+  const [hr, hi] = Hof(om, eigKind), mag = Math.hypot(hr, hi), ph = Math.atan2(hi, hr);
+  const c = canvasCtx($("cv-eig"), 0.8, 1.25);
+  let P = Panel(c, { frac: [0, 0.36], x: [-4, NN + 1], y: [-1.3, 1.3] });
+  P.axes(`x[n] = cos(Ωn)·u[n], Ω = ${omLabel(om)}, ab n = 0 eingeschaltet`, COL.muted, [-1, 0, 1]);
+  x.forEach((v, n) => P.stem(n, v, COL.muted, { r: 2.5, lw: 1.1 }));
+  P = Panel(c, { frac: [0.36, 0.72], x: [-4, NN + 1], y: [-1.3, 1.3] });
+  P.axes(`y[n] (${eigKind ? "MA5" : "EMA a = 0,8"});  gestrichelt: |H(Ω)|·cos(Ωn + φ)`, COL.ink, [-1, 0, 1]);
+  y.forEach((v, n) => P.stem(n, v, COL.ink, { r: 2.5, lw: 1.1 }));
+  const nn = lin(-4, NN, 600); P.line(nn, nn.map(u => mag * Math.cos(om * u + ph)), COL.acc, { lw: 1.8, dash: true });
+  P.xticks(0, 48, 8, "n");
+  const W = lin(0, PI, 400);
+  P = Panel(c, { frac: [0.72, 1], x: [0, PI], y: [0, 1.1] });
+  P.axes("|H(Ω)| über Ω von 0 bis π", COL.ink, [0, 1]);
+  P.line(W, W.map(w => Math.hypot(...Hof(w, eigKind))), COL.teal, { lw: 2 });
+  P.dot(om, mag, COL.acc, 5);
+  P.xticks(0, PI, PI / 4, "Ω", v => ["0", "π/4", "π/2", "3π/4", "π"][Math.round(v / (PI / 4))]);
+  let s = `Ω = ${omLabel(om)}:  |H(Ω)| = ${fm(mag, 3)}`;
+  if (mag > 1e-4) s += `,  φ = ${fm(ph * 180 / PI, 0)}°`;
+  s += "\n" + (eigKind ? "MA5: ab n = 4 exakt eingeschwungen" : "EMA: das Einschwingen klingt mit 0,8ⁿ ab");
+  s += "\nAb −∞ eingeschaltet: nur die gestrichelte Kurve";
+  $("ro-eig").textContent = s;
+});
+bindRange("eig-w", drawEig, v => omLabel(Math.abs(v - 400) <= 2 ? 0.4 * PI : v / 1000 * PI));
+document.querySelectorAll("#eig-f button").forEach(b => b.addEventListener("click", () => { eigKind = +b.dataset.v; document.querySelectorAll("#eig-f button").forEach(o => o.setAttribute("aria-pressed", o === b)); drawEig(); }));
+
+// ------------------------------------------------------------- boot
+const drawAll = () => { readColors(); renderers.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); };
+buildDiscreteControls();
+let rt = null; const later = () => { clearTimeout(rt); rt = setTimeout(drawAll, 80); };
+window.addEventListener("resize", later);
+new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", later);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+drawAll();
+})();
+</script>
