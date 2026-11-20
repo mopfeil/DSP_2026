@@ -1,15 +1,11 @@
-# Faltung_LTI – Foliensatz zur Faltung (Ergänzung zu Blatt 3)
+# Faltung_LTI – interaktive Seite zur Faltung (Ergänzung zu Blatt 3)
 
-| Datei | Inhalt |
-|---|---|
-| `Faltung_LTI.pptx` | 17 Folien; Folien 5, 6, 7, 8, 12, 15 sind interaktiv |
-| `Faltung.bas` | VBA-Modul für die interaktiven Folien |
-| `model.py` | alle Signale/Systeme (dieselben Formeln wie im VBA) |
-| `figs.py` | erzeugt die Grafiken in `build/` |
-| `build.py` | erzeugt die .pptx (python-pptx) |
+`Faltung_LTI.html` ist eine einzelne, eigenständige Seite: einfach im Browser öffnen.
+Alle Kurven werden im Browser berechnet; nur die Schriften kommen von Google Fonts.
 
-Makros einrichten (einmalig): PowerPoint → Alt+F11 → Datei → Datei importieren →
-`Faltung.bas`; Cursor in `Sub Setup` → F5; als `.pptm` speichern. Ohne Makros
-zeigen die interaktiven Folien ein festes Standardbild.
-
-Neu bauen: `python figs.py && python build.py` (numpy, matplotlib, python-pptx).
+Inhalt: Beispielsystem Motor auf Gummilagern (f₀, ζ einstellbar), Fourier-Grundlagen
+und Sinus-Synthese, LTI und Herleitung, Faltung diskret (Eingangs-/Ausgangssicht,
+x[k] zeichenbar), Faltungssatz mit FFT-Vergleich, Impulshammer, beliebige Antworten,
+Sprungantwort, Grenzen, Normierung beim Übergang zum Integral, Faltung kontinuierlich,
+unendlich lange Eingänge, Zündkräfte/Eigenfunktion, RC-Tiefpass: Impulsantwort messen
+und Rechteckantwort rekonstruieren.
