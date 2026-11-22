@@ -1,0 +1,1370 @@
+<title>From Impulse Response to Convolution</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&family=STIX+Two+Text:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+/* Layout: one long lab notebook — each section = text column + live plot with controls; stacks on phones. */
+:root {
+  --bg: #FBFCFE;
+  --surface: #EEF2F7;
+  --ink: #1B2A41;
+  --muted: #5B6575;
+  --line: #CDD4DF;
+  --ghost: #D3D9E3;
+  --accent: #D9701A;
+  --teal: #23897D;
+  --violet: #7B5EA7;
+  --red: #C1503A;
+  --btn: #1B2A41;
+  --btn-fg: #FFFFFF;
+  --f-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-math: "STIX Two Text", "Cambria Math", "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1622; --surface: #172235; --ink: #E4EAF3; --muted: #9AA6B8; --line: #2C3A52;
+    --ghost: #34445E; --accent: #F0913A; --teal: #43C2B1; --violet: #A88FD8; --red: #E57D65;
+    --btn: #E4EAF3; --btn-fg: #0E1622; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1622; --surface: #172235; --ink: #E4EAF3; --muted: #9AA6B8; --line: #2C3A52;
+  --ghost: #34445E; --accent: #F0913A; --teal: #43C2B1; --violet: #A88FD8; --red: #E57D65;
+  --btn: #E4EAF3; --btn-fg: #0E1622; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.45rem, 3vw, 2rem); font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; max-width: 65ch; }
+a { color: var(--accent); }
+.eyebrow { font-family: var(--f-body); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.m { font-family: var(--f-math); font-size: 1.12em; white-space: nowrap; }
+.formula { font-family: var(--f-math); font-size: 1.22rem; color: var(--teal); line-height: 1.5; }
+.formula.big { font-size: 1.45rem; }
+.note { color: var(--muted); font-size: 0.92rem; }
+
+header.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 32px; align-items: center; padding-block: 48px 24px; }
+header.hero .lead { font-size: 1.15rem; color: var(--muted); margin-top: 16px; }
+header.hero canvas { width: 100%; display: block; }
+
+.questions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.q { background: var(--surface); border-radius: 10px; padding: 16px 18px; text-decoration: none; color: var(--ink); display: grid; gap: 6px; align-content: start; }
+.q:hover, .q:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.q .num { font-family: var(--f-mono); color: var(--accent); font-size: 0.85rem; }
+.q strong { font-weight: 600; }
+.q span.ans { font-family: var(--f-math); color: var(--teal); }
+
+section.sec { padding-block: 56px 8px; border-top: 1px solid var(--line); margin-top: 48px; display: grid; gap: 20px; }
+.sec-head { display: grid; gap: 6px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr); gap: 32px; align-items: start; }
+.col { display: grid; gap: 14px; min-width: 0; }
+.fig { min-width: 0; display: grid; gap: 12px; }
+.fig canvas, .card canvas { width: 100%; display: block; touch-action: pan-y; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.cards.one { grid-template-columns: minmax(0, 1fr); }
+.card { background: var(--surface); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.card h3 { color: var(--accent); }
+.steps { display: grid; gap: 12px; counter-reset: st; }
+.steps > div { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.steps > div::before { counter-increment: st; content: counter(st); width: 30px; height: 30px; border-radius: 50%; background: var(--teal); color: var(--bg); display: grid; place-items: center; font-weight: 600; font-size: 0.9rem; }
+.steps b { color: var(--teal); font-weight: 600; font-size: 0.9rem; }
+.result { background: var(--ink); color: var(--bg); border-radius: 10px; padding: 16px 18px; display: grid; gap: 6px; }
+.result .formula { color: var(--bg); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 260px; }
+.ctl label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+.ctl input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+.ctl output { font-family: var(--f-mono); font-size: 0.9rem; min-width: 7ch; text-align: right; }
+button.b, .seg button { font: 600 0.9rem var(--f-body); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; background: var(--btn); color: var(--btn-fg); }
+button.b:focus-visible, .seg button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--surface); padding: 4px; border-radius: 18px; }
+.seg button { background: transparent; color: var(--ink); padding: 6px 12px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
+.seglabel { font-size: 0.85rem; color: var(--muted); min-width: 4.5em; }
+.readout { background: var(--surface); border-radius: 10px; padding: 12px 16px; font-family: var(--f-mono); font-size: 0.88rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.readout::before { content: "Live values"; display: block; font: 600 0.72rem var(--f-body); letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.three .card { gap: 10px; }
+.sysbox { background: var(--surface); border-radius: 12px; padding: 18px 20px; display: grid; gap: 14px; }
+table.cmp, table.num { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+table.cmp th, table.cmp td, table.num th, table.num td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.cmp th, table.num th { font-weight: 600; }
+table.cmp td:first-child { font-weight: 600; white-space: nowrap; }
+table.num td { font-family: var(--f-mono); font-size: 0.86rem; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+table.num th { text-align: right; font-size: 0.85rem; white-space: nowrap; }
+table.num tr.hl td { color: var(--accent); font-weight: 500; }
+.tablewrap { overflow-x: auto; }
+dl.sum { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 24px; margin: 0; }
+dl.sum dt { font-weight: 600; color: var(--accent); }
+dl.sum dd { margin: 0; font-family: var(--f-math); font-size: 1.15rem; }
+footer { margin-top: 56px; color: var(--muted); font-size: 0.88rem; }
+
+@media (max-width: 960px) { .questions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  header.hero, .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .three { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .questions { grid-template-columns: minmax(0, 1fr); }
+  dl.sum { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+  dl.sum dd { margin-bottom: 10px; }
+}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div>
+    <div class="eyebrow">DSP · Companion to Sheet 3</div>
+    <h1>From Impulse Response to Convolution</h1>
+    <p class="lead">Why <span class="m">y = x * h</span> holds, what it has to do with frequencies and how to measure it: with an engine on rubber mounts, an impact hammer and an RC low-pass. Every plot can be changed with the sliders.</p>
+  </div>
+  <canvas id="cv-hero" aria-label="Force signal, the responses to its individual pulses and their sum"></canvas>
+</header>
+
+<section id="fragen" style="display:grid;gap:12px">
+  <h2>Eight questions, one idea: decompose, respond to each part, add up</h2>
+  <div class="questions">
+    <a class="q" href="#fourier"><span class="num">1</span><strong>Why does an impulse excite every frequency?</strong><span class="ans">δ(t) ⟷ 1</span></a>
+    <a class="q" href="#herleitung"><span class="num">2</span><strong>How do we get from h to the response to any x?</strong><span class="ans">y[n] = Σ x[k]·h[n−k]</span></a>
+    <a class="q" href="#lti"><span class="num">3</span><strong>Why does this work?</strong><span class="ans">linearity + time invariance</span></a>
+    <a class="q" href="#faltungssatz"><span class="num">4</span><strong>What happens in the frequency domain?</strong><span class="ans">Y(f) = H(f)·X(f)</span></a>
+    <a class="q" href="#realer-impuls"><span class="num">5</span><strong>What does the response to a real impulse look like?</strong><span class="ans">g<sub>T</sub> = p<sub>T</sub> * h</span></a>
+    <a class="q" href="#grenzen"><span class="num">6</span><strong>Where are the limits?</strong><span class="ans">nonlinearity, bandwidth, noise</span></a>
+    <a class="q" href="#normierung"><span class="num">7</span><strong>Where does the normalisation in the integral come from?</strong><span class="ans">Σ x(kΔ)·h(t−kΔ)·Δ → ∫</span></a>
+    <a class="q" href="#unendlich"><span class="num">8</span><strong>What about infinitely long inputs?</strong><span class="ans">Σ|h| &lt; ∞, recursion, eigenfunction</span></a>
+  </div>
+</section>
+
+<!-- ============================================================ system -->
+<section class="sec" id="system">
+  <div class="sec-head"><div class="eyebrow">The example system</div><h2>An engine on rubber mounts</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>An engine of about 175 kg sits on rubber mounts with a combined stiffness of 1000 N/mm. It is a mass-spring-damper system: the input is the force x(t) in kN, the output the displacement y(t) in mm.</p>
+      <div class="formula">m·ÿ + c·ẏ + k·y = x(t)</div>
+      <p>A short blow, such as a hammer strike, makes it oscillate. The oscillation decays; its frequency is the resonance frequency f₀ = √(k/m)/2π.</p>
+      <div class="sysbox">
+        <div class="ctl"><label for="sys-f0">Resonance f₀</label><input type="range" id="sys-f0" min="4" max="30" step="0.5" value="12"><output id="sys-f0-o"></output></div>
+        <div class="ctl"><label for="sys-z">Damping ζ</label><input type="range" id="sys-z" min="0.02" max="0.6" step="0.01" value="0.1"><output id="sys-z-o"></output></div>
+        <p class="note">These two sliders apply to the whole page: every engine-mount example uses these values.</p>
+      </div>
+      <div class="readout" id="ro-sys"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-sys" aria-label="Impulse response and frequency response of the engine mount"></canvas>
+      <p class="note">Top: response to an ideally short force impulse of 1 kN·s. Bottom: magnitude of the frequency response. The decaying oscillation and the resonance peak are two views of the same property.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Fourier -->
+<section class="sec" id="fourier">
+  <div class="sec-head"><div class="eyebrow">Introduction · Question 1</div><h2>The Fourier transform of the key signals</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>The Fourier transform decomposes a signal into oscillations. X(f) tells us with which amplitude |X(f)| and which phase arg X(f) the frequency f is present:</p>
+      <div class="formula">X(f) = ∫ x(t)·e<sup>−j2πft</sup> dt</div>
+      <div class="formula">x(t) = ∫ X(f)·e<sup>j2πft</sup> df</div>
+      <p>Choose a signal. Look out for three things: the impulse has a flat spectrum. Shifting changes only the phase. A wide pulse loses the high frequencies.</p>
+      <div class="readout" id="ro-ft"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-ft" aria-label="Signal, magnitude and phase of the spectrum"></canvas>
+      <div class="controls"><div class="seg" role="group" aria-label="Choose signal" id="ft-sel">
+        <button type="button" data-v="0" aria-pressed="true">impulse δ(t)</button><button type="button" data-v="1" aria-pressed="false">shifted δ(t−t₀)</button><button type="button" data-v="2" aria-pressed="false">rectangular pulse</button><button type="button" data-v="3" aria-pressed="false">impulse response h(t)</button><button type="button" data-v="4" aria-pressed="false">cosine</button>
+      </div></div>
+      <div class="controls">
+        <div class="ctl" id="ft-t0-w"><label for="ft-t0">Shift t₀</label><input type="range" id="ft-t0" min="0" max="200" value="50"><output id="ft-t0-o"></output></div>
+        <div class="ctl" id="ft-T-w"><label for="ft-T">Pulse width T</label><input type="range" id="ft-T" min="0" max="7" value="3"><output id="ft-T-o"></output></div>
+        <div class="ctl" id="ft-f1-w"><label for="ft-f1">Frequency f₁</label><input type="range" id="ft-f1" min="1" max="50" value="12"><output id="ft-f1-o"></output></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="synthese-impuls">
+  <div class="sec-head"><div class="eyebrow">Fourier · synthesis</div><h2>An impulse is the sum of all frequencies</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>If we add cosines at 1, 2, 3, … Hz, all with the same amplitude and zero phase, they cancel almost everywhere. Only at t = 0 are they all at their maximum at the same time.</p>
+      <div class="formula">δ<sub>N</sub>(t) = Σ<sub>k=−N</sub><sup>N</sup> e<sup>j2πkΔf·t</sup> = 1 + 2·Σ<sub>k=1</sub><sup>N</sup> cos(2πkΔf·t)</div>
+      <p>With more frequencies the peak gets taller and narrower; the area stays 1. In the limit we get δ(t). Read the other way round: <b>an impulse contains all frequencies equally strongly</b> and therefore excites every resonance.</p>
+      <p>Shifting by t₀ means: every oscillation gets the phase −2πf·t₀. Then they all peak together at t₀.</p>
+      <div class="readout" id="ro-syn"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-syn" aria-label="Spectrum, individual cosines and their sum"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="syn-n">Frequencies N</label><input type="range" id="syn-n" min="0" max="80" value="12"><output id="syn-n-o"></output></div>
+        <div class="ctl"><label for="syn-t0">Shift t₀</label><input type="range" id="syn-t0" min="0" max="50" value="0"><output id="syn-t0-o"></output></div>
+      </div>
+      <p class="note">Δf = 1 Hz. Discrete frequencies give a periodic signal with period 1/Δf = 1 s; one period is shown.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="synthese-h">
+  <div class="sec-head"><div class="eyebrow">Fourier · synthesis</div><h2>From sine synthesis to the impulse response</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Now we send the same oscillations through the engine mount. Each frequency f comes out amplified by |H(f)| and shifted by φ(f). This is a property of linear systems (section “Firing forces”).</p>
+      <div class="formula">h<sub>N</sub>(t) = H(0) + 2·Σ<sub>k=1</sub><sup>N</sup> |H(kΔf)|·cos(2πkΔf·t + φ(kΔf))</div>
+      <p>The sum of the filtered oscillations is the response to the sum of the oscillations, i.e. to the impulse. That is <b>the impulse response</b>. Frequencies near f₀ are strongly amplified, which is why h(t) oscillates at f₀.</p>
+      <div class="result"><div class="formula">h(t) = ∫ H(f)·e<sup>j2πft</sup> df  ⟷  H(f) = ∫ h(t)·e<sup>−j2πft</sup> dt</div><p>Impulse response and frequency response are a Fourier pair.</p></div>
+      <div class="readout" id="ro-synh"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-synh" aria-label="Frequency response, filtered oscillations and their sum"></canvas>
+      <div class="controls"><div class="ctl"><label for="synh-n">Frequencies N</label><input type="range" id="synh-n" min="0" max="80" value="20"><output id="synh-n-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ LTI -->
+<section class="sec" id="lti">
+  <div class="sec-head"><div class="eyebrow">Question 3 · foundation</div><h2>Two assumptions are enough: linear and time-invariant</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="card"><h3>Impulse response</h3><div class="formula">h[n] = S{δ[n]}</div><p class="note">The response to the unit impulse δ[n]: 1 at n = 0, 0 otherwise. Here the engine mount, sampled every 10 ms.</p></div>
+      <div class="card"><h3>Time invariance</h3><div class="formula">S{x[n−k]} = y[n−k]</div><p class="note">Striking later gives the same response, just later. The mount is still the same tomorrow.</p></div>
+      <div class="card"><h3>Linearity</h3><div class="formula">S{a·x<sub>1</sub> + b·x<sub>2</sub>} = a·y<sub>1</sub> + b·y<sub>2</sub></div><p class="note">Striking twice as hard gives twice the displacement; two strikes give the sum of the responses. This holds as long as the rubber stays in its linear range.</p></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-lti" aria-label="Impulse, shifted impulse and combination with the corresponding responses"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="lti-k">second strike at k</label><input type="range" id="lti-k" min="1" max="20" value="4"><output id="lti-k-o"></output></div>
+        <div class="ctl"><label for="lti-a">strength a</label><input type="range" id="lti-a" min="-20" max="20" value="10"><output id="lti-a-o"></output></div>
+      </div>
+      <p class="note">Try k ≈ half an oscillation period with a = 1: the second strike stops the oscillation. With k ≈ a full period it reinforces it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ derivation -->
+<section class="sec" id="herleitung">
+  <div class="sec-head"><div class="eyebrow">Question 2</div><h2>Why? Every signal is a sum of impulses</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="steps">
+        <div><div><b>Decompose</b><div class="formula">x[n] = Σ<sub>k</sub> x[k]·δ[n−k]</div></div></div>
+        <div><div><b>Time invariance</b><div class="formula">δ[n−k] → h[n−k]</div></div></div>
+        <div><div><b>Homogeneity</b><div class="formula">x[k]·δ[n−k] → x[k]·h[n−k]</div></div></div>
+        <div><div><b>Additivity</b><div class="formula">Σ<sub>k</sub> … → Σ<sub>k</sub> …</div></div></div>
+      </div>
+      <div class="result"><div class="formula big">y[n] = Σ<sub>k</sub> x[k]·h[n−k] = (x * h)[n]</div><p>The system “knows” only h. Everything else is bookkeeping: shift, scale, add.</p></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-deriv" aria-label="Left: four force impulses as individual impulses, right: their responses, bottom: the sums"></canvas>
+      <p class="note">Four impulses x[k] (left) each produce a shifted, scaled impulse response (right). Bottom: the sums, x[n] on the left, y[n] on the right. This is the product table from Sheet 3.1 a, just with more values.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ echo view -->
+<section class="sec" id="echos">
+  <div class="sec-head"><div class="eyebrow">Discrete convolution · input view</div><h2>Every sample produces an echo</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Each value x[k] starts a copy of the impulse response at n = k, scaled by x[k]. The output is the sum of all echoes.</p>
+      <div class="formula">y[n] = Σ<sub>k</sub> x[k]·h[n−k]</div>
+      <p class="note">In the top plot you can draw x[k] with the mouse or a finger: tap or drag. The buttons below load examples.</p>
+      <div class="readout" id="ro-echo"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-echo" aria-label="Input, individual echoes and their sum"></canvas>
+      <div class="controls"><div class="ctl"><label for="echo-k">echoes added</label><input type="range" id="echo-k" min="0" max="50" value="50"><output id="echo-k-o"></output></div></div>
+      <div class="controls"><span class="seglabel">Input</span><div class="seg" role="group" aria-label="Choose input" data-xsel></div></div>
+      <div class="controls"><span class="seglabel">System</span><div class="seg" role="group" aria-label="Choose impulse response" data-hsel></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ flip & slide -->
+<section class="sec" id="spiegeln">
+  <div class="sec-head"><div class="eyebrow">Discrete convolution · output view</div><h2>Flip, shift, multiply, sum</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>For a fixed n, h[n−k] as a function of k is the impulse response flipped and shifted to n. Multiply by x[k], sum over k: that is y[n].</p>
+      <div class="formula">y[n] = Σ<sub>k</sub> x[k]·h[n−k] = Σ<sub>m</sub> h[m]·x[n−m]</div>
+      <p class="note">The same double sum as above, just read column by column. This is how a filter computes in real time: one output value per clock tick, from the most recent inputs.</p>
+      <div class="readout" id="ro-flip"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-flip" aria-label="x and the flipped, shifted impulse response, their products and the output"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="flip-n">n</label><input type="range" id="flip-n" min="-5" max="99" value="12"><output id="flip-n-o"></output></div>
+        <button class="b" id="flip-play" type="button">Play</button>
+      </div>
+      <div class="controls"><span class="seglabel">Input</span><div class="seg" role="group" aria-label="Choose input" data-xsel></div></div>
+      <div class="controls"><span class="seglabel">System</span><div class="seg" role="group" aria-label="Choose impulse response" data-hsel></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ convolution theorem -->
+<section class="sec" id="faltungssatz">
+  <div class="sec-head"><div class="eyebrow">Question 4</div><h2>Convolution in time is multiplication in frequency</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>x is a sum of oscillations with spectrum X(f). The system multiplies each of them by H(f). The sum of the results is y. Hence:</p>
+      <div class="result"><div class="formula big">y = x * h  ⟷  Y(f) = X(f)·H(f)</div></div>
+      <p>In the time domain every output value needs a sum over many products. In the frequency domain one multiplication per frequency is enough. With the FFT this is much faster for long signals.</p>
+      <p class="note">On the right, y is computed twice: directly as the convolution sum and as IFFT(FFT(x)·FFT(h)). The two curves lie exactly on top of each other. The spectrum shows how the resonance of H lifts out the parts of x near f₀.</p>
+      <div class="readout" id="ro-fs"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-fs" aria-label="Time signals x, h, y and the spectra X, H, Y"></canvas>
+      <div class="controls"><span class="seglabel">Input</span><div class="seg" role="group" aria-label="Choose input" id="fs-sel">
+        <button type="button" data-v="0" aria-pressed="true">rectangle 50 ms</button><button type="button" data-v="1" aria-pressed="false">force signal</button><button type="button" data-v="2" aria-pressed="false">wave packet</button><button type="button" data-v="3" aria-pressed="false">noise</button>
+      </div></div>
+      <div class="controls" id="fs-f-w"><div class="ctl"><label for="fs-f">packet frequency</label><input type="range" id="fs-f" min="2" max="40" value="20"><output id="fs-f-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ real impulse -->
+<section class="sec" id="realer-impuls">
+  <div class="sec-head"><div class="eyebrow">Question 5</div><h2>The real impulse: the impact hammer</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>In modal analysis the structure is struck with an impact hammer. The contact time T depends on the hammer tip: steel is hard and short, rubber soft and long. A force sensor in the hammer measures the impulse J = ∫F dt, which we divide by (here J = 1 kN·s).</p>
+      <div class="formula">g<sub>T</sub> = p<sub>T</sub> * h = (1/T)·∫<sub>t−T</sub><sup>t</sup> h(τ) dτ</div>
+      <p>g<sub>T</sub> is h averaged over the contact time: smoother and delayed by T/2. In the spectrum, <span class="m">G<sub>T</sub>(f) = P<sub>T</sub>(f)·H(f)</span>. The pulse excites frequencies evenly only up to about 1/(3T). If f₀ lies above that, the resonance is not seen properly.</p>
+      <div class="readout" id="ro-pulse"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-pulse" aria-label="Force pulse, responses h and g_T, and spectra"></canvas>
+      <div class="controls"><div class="ctl"><label for="pulse-t">hammer tip</label><input type="range" id="pulse-t" min="0" max="7" value="5"><output id="pulse-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ arbitrary -->
+<section class="sec" id="beliebig">
+  <div class="sec-head"><div class="eyebrow">Question 5</div><h2>Any response from the measured pulse response</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>An arbitrary force signal x(t), here a load change with a superimposed 10 Hz excitation, is split into pulses of width T:</p>
+      <div class="formula">x(t) ≈ Σ<sub>k</sub> x(kT)·T·p<sub>T</sub>(t−kT)</div>
+      <p>Because the system is linear and time-invariant:</p>
+      <div class="formula">y(t) ≈ Σ<sub>k</sub> x(kT)·T·g<sub>T</sub>(t−kT)</div>
+      <p>For a staircase this is exact. The error arises only because x is not a staircase. So it depends on the input, not only on h: here on the 10 Hz component near the resonance.</p>
+      <div class="readout" id="ro-arb"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-arb" aria-label="Input with staircase, exact output and sum of the pulse responses"></canvas>
+      <div class="controls"><div class="ctl"><label for="arb-t">pulse width T</label><input type="range" id="arb-t" min="0" max="10" value="7"><output id="arb-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ step -->
+<section class="sec" id="sprung">
+  <div class="sec-head"><div class="eyebrow">In practice</div><h2>Often better: measure the step response</h2></div>
+  <div class="cards">
+    <div class="card"><h3>Relation</h3><div class="formula">s(t) = ∫<sub>0</sub><sup>t</sup> h(τ) dτ  ⇔  h = ds/dt</div></div>
+    <div class="card"><h3>The real pulse is two steps</h3><div class="formula">T·g<sub>T</sub>(t) = s(t) − s(t−T)</div></div>
+    <div class="card"><h3>Arbitrary input (Duhamel)</h3><div class="formula">y = Σ Δx<sub>k</sub>·s(t−kT) → ∫ x′(τ)·s(t−τ) dτ</div></div>
+  </div>
+  <div class="grid2">
+    <div class="col">
+      <p>On the engine, the step is a load change: the drive torque jumps, the engine tilts in its mounts and rings out. A step has a lot of energy at small amplitude and is easy to produce.</p>
+      <p>Sheet 3.3: the speed step on the rotary knob gives the step response of MA and EMA.</p>
+      <p class="note">Drawback: h = ds/dt amplifies the measurement noise (see the RC low-pass at the end).</p>
+    </div>
+    <div class="fig">
+      <canvas id="cv-step" aria-label="Step response and decomposition of a staircase into steps"></canvas>
+      <div class="controls"><div class="ctl"><label for="step-t">step width T</label><input type="range" id="step-t" min="0" max="10" value="7"><output id="step-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ limits -->
+<section class="sec" id="grenzen">
+  <div class="sec-head"><div class="eyebrow">Question 6</div><h2>Where are the limits?</h2></div>
+  <div class="three">
+    <div class="card"><h3 style="color:var(--red)">Linearity</h3>
+      <canvas id="cv-sat" aria-label="Pulse response with end stop"></canvas>
+      <div class="ctl"><label for="sat-l">end stop at</label><input type="range" id="sat-l" min="5" max="100" value="35"><output id="sat-l-o"></output></div>
+      <p class="note">The mount has an end stop and the rubber gets progressively stiffer. A hard strike drives it out of the linear range, and superposition no longer holds.</p></div>
+    <div class="card"><h3>Bandwidth</h3>
+      <canvas id="cv-band" aria-label="Spectrum of the rectangular pulse and frequency response"></canvas>
+      <div class="ctl"><label for="band-t">contact time T</label><input type="range" id="band-t" min="0" max="7" value="5"><output id="band-t-o"></output></div>
+      <p class="note">P<sub>T</sub>(f) = sinc(fT) is zero at f = k/T. These frequencies are missing from g<sub>T</sub>. Recovering H = G/P<sub>T</sub> is unstable there.</p></div>
+    <div class="card"><h3 style="color:var(--violet)">Noise</h3>
+      <canvas id="cv-noise" aria-label="Normalised, noisy pulse response"></canvas>
+      <div class="ctl"><label for="noise-t">contact time T</label><input type="range" id="noise-t" min="0" max="7" value="1"><output id="noise-t-o"></output></div>
+      <p class="note">The peak force is limited (here 50 kN), so the impulse is at most 50 kN·T. Short strikes carry little energy, and after normalising the noise becomes large.</p></div>
+  </div>
+  <div class="card"><h3 style="color:var(--teal)">Time invariance</h3><p>Rubber gets stiffer in the cold, so f₀ rises. Hydraulic mounts change their damping with amplitude. If the system changes during the measurement, there is no longer a single impulse response: <span class="m">y[n] = Σ x[k]·h[n, k]</span>. Sheet 3.3 d shows this for the tooth and time domains.</p></div>
+</section>
+
+<!-- ============================================================ normalisation -->
+<section class="sec" id="normierung">
+  <div class="sec-head"><div class="eyebrow">Question 7 · continuous</div><h2>From sum to integral: where does the normalisation come from?</h2></div>
+  <div class="cards">
+    <div class="card"><h3>Discrete impulse</h3><div class="formula">δ[n]: value 1</div><p class="note">One sample of height 1. Thought of as a rectangle over one clock period T<sub>s</sub>, it has area 1·T<sub>s</sub>.</p></div>
+    <div class="card"><h3>Continuous impulse</h3><div class="formula">δ(t): area 1</div><p class="note">As a rectangle of width Δ it must have height 1/Δ: p<sub>Δ</sub>(t). Its unit is 1/s.</p></div>
+    <div class="card"><h3>Hence the factor Δ</h3><div class="formula">x(t) ≈ Σ<sub>k</sub> x(kΔ)·<b>Δ</b>·p<sub>Δ</sub>(t−kΔ)</div><p class="note">Δ·p<sub>Δ</sub> is a box of height 1. Multiplied by x(kΔ) it gives one strip of the staircase with area x(kΔ)·Δ.</p></div>
+    <div class="card"><h3>Units for the engine mount</h3><p class="note">x in kN, y in mm, h(t) in mm/(kN·s), dτ in s: <span class="m">∫ x·h dτ</span> has the unit mm. The sampled h[n] has the unit mm/kN.</p></div>
+  </div>
+  <div class="grid2">
+    <div class="col">
+      <div class="steps">
+        <div><div><b>Pulses of width Δ</b><div class="formula">x(t) ≈ Σ<sub>k</sub> x(kΔ)·Δ·p<sub>Δ</sub>(t−kΔ)</div></div></div>
+        <div><div><b>Response (LTI)</b><div class="formula">y(t) ≈ Σ<sub>k</sub> x(kΔ)·Δ·g<sub>Δ</sub>(t−kΔ)</div></div></div>
+        <div><div><b>Limit Δ → 0</b><div class="formula">p<sub>Δ</sub> → δ,  g<sub>Δ</sub> → h,  Σ(…)·Δ → ∫(…) dτ</div></div></div>
+      </div>
+      <div class="result"><div class="formula big">y(t) = ∫ x(τ)·h(t−τ) dτ</div><p>The Δ becomes the dτ. Without Δ it would be a sum of heights instead of areas, and it would keep growing as Δ gets finer.</p></div>
+      <div class="readout" id="ro-norm"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-norm" aria-label="Product x(τ)·h(t*−τ) as Riemann strips"></canvas>
+      <div class="controls"><div class="ctl"><label for="norm-d">strip width Δ</label><input type="range" id="norm-d" min="0" max="6" value="3"><output id="norm-d-o"></output></div></div>
+      <div class="tablewrap"><table class="num" id="tab-norm"></table></div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="col">
+      <h3>The same when sampling</h3>
+      <p>A digital filter that models the engine mount computes <span class="m">y[n] = Σ x[k]·h[n−k]</span> without dτ. The T<sub>s</sub> must therefore be inside h[n]:</p>
+      <div class="formula">h[n] = T<sub>s</sub>·h(nT<sub>s</sub>)</div>
+      <p>Then the DC gain is Σh[n] ≈ ∫h dt = H(0) = 1 mm/kN. If you forget T<sub>s</sub>, the filter amplifies too much by a factor of 1/T<sub>s</sub>, i.e. a hundredfold at 10 ms.</p>
+      <div class="readout" id="ro-samp"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-samp" aria-label="Sampled impulse response"></canvas>
+      <div class="controls"><div class="ctl"><label for="samp-t">sampling period T<sub>s</sub></label><input type="range" id="samp-t" min="1" max="40" value="10"><output id="samp-t-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="flaeche">
+  <div class="sec-head"><div class="eyebrow">Continuous convolution</div><h2>Flip, shift, take the area</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>Input: a force rectangle of 1 kN for 100 ms, like a short blip of the throttle. System: the engine mount.</p>
+      <p>For each t, y(t) is the area under x(τ)·h(t−τ). Because h oscillates, the product has positive and negative parts: the area is signed.</p>
+      <div class="formula">y(t) = ∫<sub>0</sub><sup>0.1 s</sup> h(t−τ) dτ = s(t) − s(t − 0.1 s)</div>
+      <div class="readout" id="ro-area"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-area" aria-label="x and flipped impulse response, product area and output"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="area-t">t</label><input type="range" id="area-t" min="-50" max="600" step="5" value="120"><output id="area-t-o"></output></div>
+        <button class="b" id="area-play" type="button">Play</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="vergleich">
+  <div class="sec-head"><div class="eyebrow">Side by side</div><h2>Discrete and continuous compared</h2></div>
+  <div class="tablewrap">
+    <table class="cmp">
+      <thead><tr><th></th><th>discrete</th><th>continuous</th></tr></thead>
+      <tbody>
+        <tr><td>Impulse</td><td>δ[n]: value 1 at n = 0</td><td>δ(t): area 1, width 0, unit 1/s</td></tr>
+        <tr><td>Convolution</td><td class="m">Σ<sub>k</sub> x[k]·h[n−k]</td><td class="m">∫ x(τ)·h(t−τ) dτ</td></tr>
+        <tr><td>Measuring the impulse response</td><td>possible exactly: impulse into the filter (Sheet 3.1 b)</td><td>only approximately: hammer, step, noise</td></tr>
+        <tr><td>Frequency domain</td><td class="m">H(Ω) = Σ h[n]·e<sup>−jΩn</sup></td><td class="m">H(f) = ∫ h(t)·e<sup>−j2πft</sup> dt</td></tr>
+        <tr><td>Link</td><td class="m">h[n] = T<sub>s</sub>·h(nT<sub>s</sub>)</td><td class="m">y(nT<sub>s</sub>) ≈ Σ x[k]·h[n−k]</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ infinite -->
+<section class="sec" id="unendlich">
+  <div class="sec-head"><div class="eyebrow">Question 8</div><h2>Infinitely long inputs</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="card"><h3>Causal: only the past counts</h3><div class="formula">y[n] = Σ<sub>k=−∞</sub><sup>n</sup> x[k]·h[n−k]</div></div>
+      <div class="card"><h3>Exists if h is absolutely summable (BIBO)</h3><div class="formula">Σ|h[n]| &lt; ∞ ⇒ |y[n]| ≤ max|x|·Σ|h|</div></div>
+      <div class="card"><h3>FIR: finite memory</h3><div class="formula">y[n] = Σ<sub>m=0</sub><sup>N−1</sup> h[m]·x[n−m]</div></div>
+      <div class="card"><h3>IIR: infinitely many terms, but recursive</h3><div class="formula">y[n] = a·y[n−1] + (1−a)·x[n]</div></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-inf" aria-label="Impulse response of the EMA with truncated tail"></canvas>
+      <div class="controls">
+        <div class="ctl"><label for="inf-a">a</label><input type="range" id="inf-a" min="50" max="105" value="80"><output id="inf-a-o"></output></div>
+        <div class="ctl"><label for="inf-m">truncate from M</label><input type="range" id="inf-m" min="1" max="60" value="15"><output id="inf-m-o"></output></div>
+      </div>
+      <div class="readout" id="ro-inf"></div>
+      <p class="note">EMA from Sheet 3. You never need the whole input: each output value comes from the last N inputs or from the last output. For the engine mount Σ|h| grows like 1/ζ; with no damping at all it would not be BIBO-stable. Push a above 1 and the EMA becomes unstable too.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="eigenfunktion">
+  <div class="sec-head"><div class="eyebrow">Question 8 · frequency</div><h2>Firing forces: transient and eigenfunction</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>The gas forces of a four-cylinder engine excite it at the 2nd engine order: <span class="m">f = 2·n<sub>mot</sub>/60</span>. If the excitation has been running forever, an oscillation of the same frequency comes out:</p>
+      <div class="formula">e<sup>j2πft</sup> → H(f)·e<sup>j2πft</sup></div>
+      <p>If it is switched on at t = 0, the system goes through a transient: the natural oscillation at f₀ decays with e<sup>−ζ·2πf₀·t</sup>, leaving the forced oscillation.</p>
+      <p class="note">If f is near f₀, the amplitude builds up over many periods to |H| ≈ 1/(2ζ). When the engine is switched off it runs through this speed and shakes briefly.</p>
+      <div class="readout" id="ro-eig"></div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-eig" aria-label="Switched-on force, displacement, frequency response"></canvas>
+      <div class="controls"><div class="ctl"><label for="eig-f">excitation f</label><input type="range" id="eig-f" min="0" max="400" value="100"><output id="eig-f-o"></output></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ RC reconstruction -->
+<section class="sec" id="rc">
+  <div class="sec-head"><div class="eyebrow">Finally · practical example</div><h2>RC low-pass: measure the impulse response, reconstruct the rectangle response</h2></div>
+  <div class="grid2">
+    <div class="col">
+      <p>An RC low-pass with R = 1 kΩ and C = 10 µF has τ = RC = 10 ms and the cutoff frequency f<sub>c</sub> = 1/(2πτ) ≈ 16 Hz. Its model is</p>
+      <div class="formula">h(t) = (1/τ)·e<sup>−t/τ</sup>,  H(f) = 1/(1 + j2πfτ)</div>
+      <p>Task: predict the response to a 5 V rectangle lasting 30 ms, using only a measured impulse response. For that we first have to get h. There are four ways, all with measurement noise on the oscilloscope:</p>
+      <div class="cards one">
+        <div class="card"><h3>Model</h3><p class="note">Compute h from the schematic. Exact if the component values are right.</p></div>
+        <div class="card"><h3>Short pulse</h3><p class="note">Function generator: a 10 V pulse of width T<sub>p</sub>, divide the response by 10 V·T<sub>p</sub>. Short pulse: little energy, a lot of noise. Long pulse: smeared h.</p></div>
+        <div class="card"><h3>Differentiate the step</h3><p class="note">Apply a 5 V step, measure s(t), h = ds/dt. Differentiating amplifies the noise; a moving average (Sheet 3) smooths it again but smears the start.</p></div>
+        <div class="card"><h3>Noise + FFT</h3><p class="note">Apply white noise x, measure y, average H = Y·X* / |X|² over M measurements, then h = IFFT(H). This uses the convolution theorem.</p></div>
+      </div>
+    </div>
+    <div class="fig">
+      <canvas id="cv-rc" aria-label="Estimated impulse response and reconstructed rectangle response"></canvas>
+      <div class="controls"><span class="seglabel">h from</span><div class="seg" role="group" aria-label="Choose measurement method" id="rc-sel">
+        <button type="button" data-v="0" aria-pressed="false">model</button><button type="button" data-v="1" aria-pressed="true">short pulse</button><button type="button" data-v="2" aria-pressed="false">differentiate step</button><button type="button" data-v="3" aria-pressed="false">noise + FFT</button>
+      </div></div>
+      <div class="controls">
+        <div class="ctl"><label for="rc-noise">measurement noise</label><input type="range" id="rc-noise" min="0" max="50" value="10"><output id="rc-noise-o"></output></div>
+        <div class="ctl" id="rc-tp-w"><label for="rc-tp">pulse width T<sub>p</sub></label><input type="range" id="rc-tp" min="0" max="6" value="2"><output id="rc-tp-o"></output></div>
+        <div class="ctl" id="rc-ma-w"><label for="rc-ma">smoothing MA</label><input type="range" id="rc-ma" min="1" max="41" step="2" value="1"><output id="rc-ma-o"></output></div>
+        <div class="ctl" id="rc-m-w"><label for="rc-m">averages M</label><input type="range" id="rc-m" min="1" max="64" value="8"><output id="rc-m-o"></output></div>
+      </div>
+      <div class="readout" id="ro-rc"></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="ueberblick">
+  <div class="sec-head"><div class="eyebrow">Takeaways</div><h2>At a glance</h2></div>
+  <dl class="sum">
+    <dt>Idea</dt><dd>split into impulses, one response h each, add up</dd>
+    <dt>Impulse in the spectrum</dt><dd>δ(t) ⟷ 1,  δ(t−t₀) ⟷ e<sup>−j2πft₀</sup>,  p<sub>T</sub> ⟷ sinc(fT)·e<sup>−jπfT</sup></dd>
+    <dt>Fourier pair</dt><dd>h(t) ⟷ H(f): the impulse response is the sum of all filtered oscillations</dd>
+    <dt>Discrete</dt><dd>y[n] = Σ<sub>k</sub> x[k]·h[n−k]</dd>
+    <dt>Continuous</dt><dd>y(t) = ∫ x(τ)·h(t−τ) dτ,  Δ → dτ,  h[n] = T<sub>s</sub>·h(nT<sub>s</sub>)</dd>
+    <dt>Convolution theorem</dt><dd>y = x * h  ⟷  Y = X·H</dd>
+    <dt>Real impulse</dt><dd>g<sub>T</sub> = p<sub>T</sub> * h ≈ h for T ≪ 1/f<sub>max</sub></dd>
+    <dt>Step response</dt><dd>h = ds/dt,  T·g<sub>T</sub>(t) = s(t) − s(t−T)</dd>
+    <dt>Limits</dt><dd>LTI only · bandwidth of the test signal · noise</dd>
+    <dt>Infinitely long</dt><dd>Σ|h| &lt; ∞,  recursion instead of sum,  e<sup>j2πft</sup> → H(f)·e<sup>j2πft</sup></dd>
+  </dl>
+  <footer>Companion to Sheet 3 (Digital Signal Processing). All curves are computed in the browser. Engine mount: mass-spring-damper with a static compliance of 1 mm/kN.</footer>
+</section>
+</div>
+
+<script>
+(() => {
+"use strict";
+// =============================================================== system
+const PI = Math.PI;
+let F0 = 12, ZETA = 0.1, SY, CACHE = {};
+const updSys = () => { const w0 = 2 * PI * F0, r = Math.sqrt(1 - ZETA * ZETA); SY = { w0, r, wd: w0 * r }; CACHE = {}; };
+const h2 = t => t < 0 ? 0 : SY.w0 / SY.r * Math.exp(-ZETA * SY.w0 * t) * Math.sin(SY.wd * t);
+const s2 = t => t < 0 ? 0 : 1 - Math.exp(-ZETA * SY.w0 * t) * (Math.cos(SY.wd * t) + ZETA / SY.r * Math.sin(SY.wd * t));
+const gT = (t, T) => (s2(t) - s2(t - T)) / T;
+const Hc = f => { const u = f / F0, re = 1 - u * u, im = 2 * ZETA * u, d = re * re + im * im; return [re / d, -im / d]; };
+const Habs = f => Math.hypot(...Hc(f));
+const Harg = f => { const [a, b] = Hc(f); return Math.atan2(b, a); };
+updSys();
+
+const TX = 0.4;   // duration of the test force
+const xc = t => (t < 0 || t > TX) ? 0 : 0.5 * (1 - Math.cos(2 * PI * t / TX)) + 0.3 * Math.sin(2 * PI * 10 * t);
+const ystair = (t, T) => { let y = 0; const nk = Math.round(TX / T); for (let k = 0; k < nk; k++) { if (t < k * T) break; y += xc((k + 0.5) * T) * (s2(t - k * T) - s2(t - (k + 1) * T)); } return y; };
+const lin = (a, b, n) => Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1));
+const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const GN = (() => { const r = rng(7); const out = new Float64Array(8192); for (let i = 0; i < out.length; i++) { const u = Math.max(r(), 1e-12), v = r(); out[i] = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * PI * v); } return out; })();
+const sinc = u => Math.abs(u) < 1e-12 ? 1 : Math.sin(PI * u) / (PI * u);
+const wrap = p => { p = (p + PI) % (2 * PI); if (p < 0) p += 2 * PI; return p - PI; };
+
+function fft(re, im, inv) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = 2 * PI / len * (inv ? 1 : -1), wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) { let cr = 1, ci = 0;
+      for (let j = 0; j < len / 2; j++) { const a = i + j, b = a + len / 2; const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr; } }
+  }
+  if (inv) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+}
+
+// ============================================================= format
+const fm = (v, d = 2) => { if (!isFinite(v)) return "∞"; if (Math.abs(v) < 1e-12) v = 0; return v.toLocaleString("en-US", { maximumFractionDigits: d }).replace("-", "−"); };
+const ms = t => fm(t * 1000, Math.abs(t) < 0.005 ? 1 : 0) + " ms";
+const par = v => v < 0 ? "(" + fm(v, 3) + ")" : fm(v, 3);
+
+// ============================================================= colors
+let COL = {};
+const readColors = () => { const s = getComputedStyle(document.documentElement); const g = n => s.getPropertyValue(n).trim();
+  COL = { ink: g("--ink"), muted: g("--muted"), line: g("--line"), ghost: g("--ghost"), acc: g("--accent"), teal: g("--teal"), violet: g("--violet"), red: g("--red"), bg: g("--bg") }; };
+const echoCol = k => [COL.teal, COL.acc, COL.violet, COL.red][((k % 4) + 4) % 4];
+
+// ============================================================= plotting
+function canvasCtx(cv, aspect, narrowAspect) {
+  const w = cv.clientWidth || cv.parentElement.clientWidth;
+  const h = Math.round(w * (w < 560 ? (narrowAspect || aspect * 1.3) : aspect));
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px";
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function Panel(c, spec) {
+  const LM = spec.lm ?? 42, RM = 14, TT = 22, GAP = 14, BOT = spec.bot ?? 26;
+  const avail = c.h - BOT, [a, b] = spec.frac || [0, 1];
+  const P = { L: LM, W: c.w - LM - RM, T: a * avail + TT, x0: spec.x[0], x1: spec.x[1], y0: spec.y[0], y1: spec.y[1] };
+  P.H = (b - a) * avail - TT - GAP;
+  P.X = x => P.L + (x - P.x0) / (P.x1 - P.x0) * P.W;
+  P.Yr = y => P.T + P.H - (y - P.y0) / (P.y1 - P.y0) * P.H;
+  P.Y = y => P.Yr(Math.min(P.y1, Math.max(P.y0, y)));
+  P.invX = px => P.x0 + (px - P.L) / P.W * (P.x1 - P.x0);
+  P.invY = py => P.y0 + (P.T + P.H - py) / P.H * (P.y1 - P.y0);
+  const ctx = c.ctx;
+  P.axes = (title, color, yt, yfmt = fm) => {
+    ctx.save(); ctx.strokeStyle = COL.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(P.L + 0.5, P.T); ctx.lineTo(P.L + 0.5, P.T + P.H); ctx.stroke();
+    if (P.y0 < 0 && P.y1 > 0) { ctx.beginPath(); ctx.moveTo(P.L, Math.round(P.Y(0)) + 0.5); ctx.lineTo(P.L + P.W, Math.round(P.Y(0)) + 0.5); ctx.stroke(); }
+    ctx.fillStyle = COL.muted; ctx.font = "11px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    (yt || []).forEach(v => { if (v < P.y0 - 1e-9 || v > P.y1 + 1e-9) return; ctx.beginPath(); ctx.moveTo(P.L - 4, P.Y(v)); ctx.lineTo(P.L, P.Y(v)); ctx.stroke(); ctx.fillText(yfmt(v), P.L - 6, P.Y(v)); });
+    if (title) { ctx.fillStyle = color || COL.ink; ctx.font = "600 13px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.fillText(title, P.L, P.T - 8, P.W); }
+    ctx.restore();
+  };
+  P.xticks = (a, b, step, label, ff = fm) => {
+    ctx.save(); ctx.strokeStyle = COL.line; ctx.fillStyle = COL.muted; ctx.font = "11px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    const n = Math.round((b - a) / step); const skip = Math.max(1, Math.ceil(30 / (P.W / n)));
+    for (let i = 0; i <= n; i++) { const v = a + i * step; ctx.beginPath(); ctx.moveTo(P.X(v), P.T + P.H); ctx.lineTo(P.X(v), P.T + P.H + 4); ctx.stroke(); if (i % skip === 0) ctx.fillText(ff(+v.toFixed(9)), P.X(v), P.T + P.H + 6); }
+    if (label) { ctx.textAlign = "right"; ctx.fillText(label, P.L + P.W, P.T + P.H + 19); }
+    ctx.restore();
+  };
+  P.clip = fn => { ctx.save(); ctx.beginPath(); ctx.rect(P.L, P.T - 2, P.W, P.H + 4); ctx.clip(); fn(); ctx.restore(); };
+  P.stem = (x, y, col, o = {}) => {
+    if (x < P.x0 || x > P.x1) return; const r = o.r ?? 4;
+    ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = o.lw ?? 2; if (o.alpha) ctx.globalAlpha = o.alpha;
+    ctx.beginPath(); ctx.moveTo(P.X(x), P.Y(0)); ctx.lineTo(P.X(x), P.Y(y)); ctx.stroke();
+    if (r > 0) { ctx.beginPath(); ctx.arc(P.X(x), P.Y(y), r, 0, 2 * PI); ctx.fillStyle = o.hollow ? COL.bg : col; ctx.fill(); ctx.lineWidth = 1.3; ctx.stroke(); }
+    ctx.restore();
+  };
+  P.line = (xs, ys, col, o = {}) => P.clip(() => {
+    ctx.strokeStyle = col; ctx.lineWidth = o.lw ?? 2; ctx.setLineDash(o.dash ? [6, 4] : []); ctx.lineJoin = "round"; if (o.alpha) ctx.globalAlpha = o.alpha;
+    const span = P.y1 - P.y0; ctx.beginPath(); let pen = false;
+    for (let i = 0; i < xs.length; i++) { const y = ys[i]; if (!isFinite(y)) { pen = false; continue; }
+      if (pen && o.brk && Math.abs(y - ys[i - 1]) > o.brk) pen = false;
+      const px = P.X(xs[i]), py = P.Yr(Math.max(P.y0 - 5 * span, Math.min(P.y1 + 5 * span, y)));
+      if (pen) ctx.lineTo(px, py); else ctx.moveTo(px, py); pen = true; }
+    ctx.stroke();
+  });
+  P.area = (xs, ys, col, alpha = 0.35) => P.clip(() => {
+    ctx.fillStyle = col; ctx.globalAlpha = alpha; ctx.beginPath(); ctx.moveTo(P.X(xs[0]), P.Y(0));
+    xs.forEach((x, i) => ctx.lineTo(P.X(x), P.Y(ys[i]))); ctx.lineTo(P.X(xs[xs.length - 1]), P.Y(0)); ctx.closePath(); ctx.fill();
+  });
+  P.rect = (xa, xb, y, col, alpha) => P.clip(() => { ctx.fillStyle = col; ctx.globalAlpha = alpha; const ya = P.Y(0), yb = P.Y(y); ctx.fillRect(P.X(xa), Math.min(ya, yb), Math.max(1, P.X(xb) - P.X(xa) - 0.5), Math.abs(yb - ya)); });
+  P.vline = (x, col) => { if (x < P.x0 || x > P.x1) return; ctx.save(); ctx.strokeStyle = col; ctx.setLineDash([2, 3]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P.X(x), P.T); ctx.lineTo(P.X(x), P.T + P.H); ctx.stroke(); ctx.restore(); };
+  P.dot = (x, y, col, r = 6) => { ctx.save(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(P.X(x), P.Y(y), r, 0, 2 * PI); ctx.fill(); ctx.restore(); };
+  P.arrow = (x, y, col, label) => { ctx.save(); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2.4; const px = P.X(x), py = P.Y(y);
+    ctx.beginPath(); ctx.moveTo(px, P.Y(0)); ctx.lineTo(px, py + 6); ctx.stroke(); ctx.beginPath(); ctx.moveTo(px - 6, py + 9); ctx.lineTo(px + 6, py + 9); ctx.lineTo(px, py - 1); ctx.closePath(); ctx.fill();
+    if (label) { ctx.font = "12px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(label, px + 9, py + 6); } ctx.restore(); };
+  P.text = (x, y, s, col, align = "left") => { ctx.save(); ctx.fillStyle = col; ctx.font = "12px 'IBM Plex Sans', sans-serif"; ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(s, P.X(x), P.Y(y)); ctx.restore(); };
+  P.legend = items => {
+    ctx.save(); ctx.font = "12px 'IBM Plex Sans', sans-serif"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    const wmax = Math.max(...items.map(it => ctx.measureText(it.t).width)) + 30; const x = P.L + P.W - wmax;
+    items.forEach((it, i) => { const y = P.T + 8 + i * 17; ctx.strokeStyle = it.c; ctx.lineWidth = 2.2; ctx.setLineDash(it.dash ? [5, 3] : []);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 22, y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = COL.ink; ctx.fillText(it.t, x + 28, y); });
+    ctx.restore();
+  };
+  return P;
+}
+const yrange = (y, lo = -0.5, pad = 0.15) => { const mn = Math.min(lo, ...y), mx = Math.max(0.5, ...y), p = pad * (mx - mn); return [mn - p, mx + p]; };
+const nice = r => { const span = r[1] - r[0]; if (!(span > 0)) return [0]; const raw = span / 4; const mag = 10 ** Math.floor(Math.log10(raw)); const st = [1, 2, 2.5, 5, 10].map(v => v * mag).find(v => v >= raw); const out = []; for (let v = Math.ceil(r[0] / st) * st; v <= r[1] + 1e-9; v += st) out.push(+v.toFixed(8)); return out; };
+
+const $ = id => document.getElementById(id);
+const renderers = [];
+const reg = fn => { renderers.push(fn); return fn; };
+const bindRange = (id, fn, fmtOut) => { const el = $(id), o = $(id + "-o"); const f = () => { if (o && fmtOut) o.textContent = fmtOut(+el.value); fn(); }; el.addEventListener("input", f); if (o && fmtOut) o.textContent = fmtOut(+el.value); return el; };
+const bindSeg = (id, fn) => { let v = +document.querySelector(`#${id} button[aria-pressed="true"]`).dataset.v; document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => { v = +b.dataset.v; document.querySelectorAll(`#${id} button`).forEach(o => o.setAttribute("aria-pressed", o === b)); fn(); })); return () => v; };
+
+// ============================================================= hero
+reg(() => {
+  const c = canvasCtx($("cv-hero"), 0.62, 0.75);
+  const T = 0.05, t = lin(-0.05, 0.85, 700);
+  const yE = t.map(v => ystair(v, 0.002)); const mx = Math.max(...yE.map(Math.abs));
+  const P = Panel(c, { x: [-0.05, 0.85], y: [-mx * 1.1, 2.6 + 1.3], lm: 4, bot: 4 });
+  P.line(t, t.map(v => xc(v) + 2.4), COL.muted, { lw: 2.2 });
+  for (let k = 0; k < 8; k++) P.line(t, t.map(v => xc((k + 0.5) * T) * (s2(v - k * T) - s2(v - (k + 1) * T))), COL.acc, { lw: 1.2 });
+  P.line(t, yE, COL.ink, { lw: 3 });
+  P.text(0.48, 3.1, "force x(t)", COL.muted); P.text(0.48, -mx * 0.85, "responses to the individual pulses", COL.acc); P.text(0.48, mx * 0.8, "sum = displacement y(t)", COL.ink);
+});
+
+// ============================================================= system
+reg(() => {
+  const c = canvasCtx($("cv-sys"), 0.62, 0.95);
+  const t = lin(-0.05, 0.6, 700), hv = t.map(h2), mx = Math.max(...hv.map(Math.abs));
+  let P = Panel(c, { frac: [0, 0.55], x: [-0.05, 0.6], y: [-mx * 1.1, mx * 1.15] });
+  P.axes("impulse response h(t) in mm/(kN·s): decaying oscillation", COL.ink, nice([-mx, mx]));
+  P.line(t, t.map(v => v < 0 ? NaN : mx * Math.exp(-ZETA * SY.w0 * v)), COL.ghost, { lw: 1.4, dash: true });
+  P.line(t, hv, COL.ink, { lw: 2.4 });
+  P.xticks(0, 0.6, 0.1, "t / s");
+  const fmx = Math.max(40, 3 * F0), f = lin(0, fmx, 600), Hm = f.map(Habs), hm = Math.max(...Hm);
+  P = Panel(c, { frac: [0.55, 1], x: [0, fmx], y: [0, hm * 1.15] });
+  P.axes("|H(f)| in mm/kN: resonance at f₀", COL.teal, nice([0, hm]));
+  P.line(f, Hm, COL.teal, { lw: 2.4 }); P.vline(F0, COL.acc);
+  P.xticks(0, fmx, 10, "f / Hz");
+  $("ro-sys").textContent = `f₀ = ${fm(F0, 1)} Hz, ζ = ${fm(ZETA)}\noscillation period 1/f_d = ${ms(2 * PI / SY.wd)}\ndecay time 1/(ζ·2πf₀) = ${ms(1 / (ZETA * SY.w0))}\nresonance gain ≈ 1/(2ζ) = ${fm(1 / (2 * ZETA), 1)}`;
+});
+
+// ============================================================= Fourier spectra
+const FT_T = [0.002, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2];
+let drawFt;
+const ftSel = bindSeg("ft-sel", () => drawFt());
+drawFt = reg(() => {
+  const s = ftSel(); $("ft-t0-w").hidden = s !== 1; $("ft-T-w").hidden = s !== 2; $("ft-f1-w").hidden = s !== 4;
+  const t0 = +$("ft-t0").value / 1000, T = FT_T[+$("ft-T").value], f1 = +$("ft-f1").value;
+  const c = canvasCtx($("cv-ft"), 0.78, 1.2);
+  const t = lin(-0.1, 0.5, 1200), f = lin(0, 60, 1200);
+  let P, mag, ph, ro;
+  if (s === 0 || s === 1) {
+    const tt = s === 0 ? 0 : t0;
+    P = Panel(c, { frac: [0, 0.36], x: [-0.1, 0.5], y: [-0.2, 1.25] }); P.axes(s ? `δ(t − t₀), t₀ = ${ms(t0)}` : "δ(t): infinitely narrow, area 1", COL.ink, []);
+    P.line([-0.1, 0.5], [0, 0], COL.ink, { lw: 1.6 }); P.arrow(tt, 1, COL.ink, "area 1");
+    mag = f.map(() => 1); ph = f.map(v => wrap(-2 * PI * v * tt));
+    ro = s ? `δ(t − t₀) ⟷ X(f) = e^(−j2πf·t₀)\n|X(f)| = 1 stays: all frequencies equally strong\nphase −2πf·t₀ falls linearly: −360° every 1/t₀ = ${t0 > 0 ? fm(1 / t0, 1) + " Hz" : "∞"}\nShifting changes only the phase, never the magnitude.`
+           : "δ(t) ⟷ X(f) = 1\nEvery frequency with magnitude 1 and phase 0.\nThat is why an impulse excites all resonances equally.";
+  } else if (s === 2) {
+    const hp = 1 / T;
+    P = Panel(c, { frac: [0, 0.36], x: [-0.1, 0.5], y: [-0.08 * hp, 1.2 * hp] }); P.axes(`rectangular pulse p_T(t): width ${ms(T)}, height 1/T = ${fm(hp, 0)} 1/s, area 1`, COL.acc, nice([0, hp]));
+    P.area([0, T], [hp, hp], COL.acc, 0.35); P.line([-0.1, 0, 0, T, T, 0.5], [0, 0, hp, hp, 0, 0], COL.acc, { lw: 2 });
+    mag = f.map(v => Math.abs(sinc(v * T))); ph = f.map(v => wrap(-PI * v * T + (sinc(v * T) < 0 ? PI : 0)));
+    const z = []; for (let k = 1; k / T <= 60 && k < 4; k++) z.push(fm(k / T, 0) + " Hz");
+    ro = `p_T(t) ⟷ X(f) = sinc(fT)·e^(−jπfT)\nzeros at f = k/T: ${z.length ? z.join(", ") + (1 / T * 4 <= 60 ? ", …" : "") : fm(1 / T, 0) + " Hz, … (out of range)"}\nnearly flat up to about 1/(3T) = ${fm(1 / (3 * T), 0)} Hz\nshorter pulse → wider spectrum → closer to the impulse.\nphase −πfT: the pulse is shifted by T/2.`;
+  } else if (s === 3) {
+    const hv = t.map(h2), mx = Math.max(...hv.map(Math.abs));
+    P = Panel(c, { frac: [0, 0.36], x: [-0.1, 0.5], y: [-mx * 1.1, mx * 1.2] }); P.axes("impulse response h(t) of the engine mount", COL.ink, nice([-mx, mx]));
+    P.line(t, hv, COL.ink, { lw: 2.2 });
+    mag = f.map(Habs); ph = f.map(Harg);
+    ro = `h(t) ⟷ H(f) = 1 / (1 − (f/f₀)² + j·2ζ·f/f₀)\nresonance at f₀ = ${fm(F0, 1)} Hz: |H| ≈ 1/(2ζ) = ${fm(1 / (2 * ZETA), 1)}\nphase: 0° → −90° at f₀ → −180°\nThe oscillation in h(t) is the peak in |H(f)|.`;
+  } else {
+    P = Panel(c, { frac: [0, 0.36], x: [-0.1, 0.5], y: [-1.3, 1.3] }); P.axes(`cos(2π·f₁·t), f₁ = ${f1} Hz`, COL.ink, [-1, 0, 1]);
+    P.line(t, t.map(v => Math.cos(2 * PI * f1 * v)), COL.ink, { lw: 1.8 });
+    mag = null; ph = null;
+    ro = "cos(2πf₁t) ⟷ ½·δ(f − f₁) + ½·δ(f + f₁)\nExactly one frequency, infinitely long.\nThe counterpart of the impulse: there one instant and all frequencies, here all times and one frequency.";
+  }
+  P.xticks(-0.1, 0.5, 0.1, "t / s");
+  const mm = mag ? Math.max(1.05, ...mag) * 1.1 : 1.1;
+  P = Panel(c, { frac: [0.36, 0.7], x: [0, 60], y: [0, mm] }); P.axes("magnitude |X(f)|", COL.teal, nice([0, mm]));
+  if (mag) P.line(f, mag, COL.teal, { lw: 2.4 }); else P.arrow(f1, 0.5, COL.teal, "½");
+  if (s === 3) P.vline(F0, COL.acc);
+  P.xticks(0, 60, 10, "f / Hz");
+  P = Panel(c, { frac: [0.7, 1], x: [0, 60], y: [-PI * 1.1, PI * 1.1] }); P.axes("phase arg X(f)", COL.violet, [-PI, 0, PI], v => v === 0 ? "0" : v > 0 ? "π" : "−π");
+  if (ph) P.line(f, ph, COL.violet, { lw: 2, brk: PI }); else P.dot(f1, 0, COL.violet, 5);
+  P.xticks(0, 60, 10, "f / Hz");
+  $("ro-ft").textContent = ro;
+});
+bindRange("ft-t0", drawFt, v => ms(v / 1000)); bindRange("ft-T", drawFt, v => ms(FT_T[v])); bindRange("ft-f1", drawFt, v => v + " Hz");
+
+// ============================================================= synthesis of the impulse
+const drawSyn = reg(() => {
+  const N = +$("syn-n").value, t0 = +$("syn-t0").value / 100;
+  const c = canvasCtx($("cv-syn"), 0.8, 1.25);
+  let P = Panel(c, { frac: [0, 0.26], x: [-82, 82], y: [-0.15, 1.3] });
+  P.axes(`spectrum: ${2 * N + 1} frequencies from −${N} to ${N} Hz, all magnitude 1`, COL.teal, [0, 1]);
+  for (let k = -80; k <= 80; k++) if (Math.abs(k) <= N) P.stem(k, 1, COL.teal, { r: 2, lw: 1.2 }); else P.stem(k, 0, COL.ghost, { r: 1, lw: 1 });
+  P.xticks(-80, 80, 20, "f / Hz");
+  const t = lin(-0.3, 0.7, 2000);
+  P = Panel(c, { frac: [0.26, 0.58], x: [-0.3, 0.7], y: [-2.4, 2.4] });
+  P.axes("the individual oscillations 2·cos(2πk·(t − t₀)), k = 1 … 6", COL.muted, [-2, 0, 2]);
+  for (let k = 1; k <= Math.min(N, 6); k++) P.line(t, t.map(v => 2 * Math.cos(2 * PI * k * (v - t0))), echoCol(k), { lw: 1.4, alpha: 0.8 });
+  P.vline(t0, COL.acc); P.xticks(-0.3, 0.7, 0.1, "t / s");
+  const y = t.map(v => { let s = 1; for (let k = 1; k <= N; k++) s += 2 * Math.cos(2 * PI * k * (v - t0)); return s; });
+  const top = 2 * N + 1;
+  P = Panel(c, { frac: [0.58, 1], x: [-0.3, 0.7], y: [-0.25 * top - 0.5, top * 1.1 + 0.5] });
+  P.axes(`sum δ_N(t): peak at t₀ = ${ms(t0)}, height ${top}`, COL.ink, nice([-0.25 * top, top]));
+  P.line(t, y, COL.ink, { lw: 1.8 }); P.vline(t0, COL.acc);
+  P.xticks(-0.3, 0.7, 0.1, "t / s");
+  $("ro-syn").textContent = `N = ${N}: ${2 * N + 1} frequencies, magnitude 1, phase −2πf·t₀\npeak at t₀ = ${ms(t0)}: height 2N+1 = ${top}\nwidth ≈ 1/(2N+1) s = ${ms(1 / top)}, area per period = 1\nN → ∞: this becomes δ(t − t₀)`;
+});
+bindRange("syn-n", drawSyn, v => v); bindRange("syn-t0", drawSyn, v => ms(v / 100));
+
+// ============================================================= synthesis of h
+const drawSynh = reg(() => {
+  const N = +$("synh-n").value;
+  const c = canvasCtx($("cv-synh"), 0.8, 1.25);
+  const fmax = 80, fl = lin(0, fmax, 600), Hm = fl.map(Habs), hm = Math.max(...Hm);
+  let P = Panel(c, { frac: [0, 0.3], x: [-1, fmax + 1], y: [0, hm * 1.15] });
+  P.axes(`|H(k·Δf)|: weight of each frequency, ${N + 1} frequencies used`, COL.teal, nice([0, hm]));
+  P.line(fl, Hm, COL.ghost, { lw: 1.5 });
+  for (let k = 0; k <= fmax; k++) P.stem(k, Habs(k), k <= N ? COL.teal : COL.ghost, { r: k <= N ? 2.2 : 0, lw: 1.2 });
+  P.vline(F0, COL.acc); P.xticks(0, fmax, 10, "f / Hz");
+  const t = lin(-0.1, 0.6, 1400), k0 = Math.round(F0);
+  P = Panel(c, { frac: [0.3, 0.6], x: [-0.1, 0.6], y: [-2.2 * hm, 2.2 * hm] });
+  P.axes(`filtered oscillations 2·|H|·cos(2πkt + φ) for k = ${Math.max(1, k0 - 2)} … ${k0 + 2} Hz`, COL.muted, nice([-2 * hm, 2 * hm]));
+  for (let k = Math.max(1, k0 - 2), i = 0; k <= k0 + 2; k++, i++) if (k <= N) { const a = Habs(k), p = Harg(k); P.line(t, t.map(v => 2 * a * Math.cos(2 * PI * k * v + p)), echoCol(i), { lw: 1.3, alpha: 0.8 }); }
+  P.xticks(-0.1, 0.6, 0.1, "t / s");
+  const hN = t.map(v => { let s = Habs(0); for (let k = 1; k <= N; k++) s += 2 * Habs(k) * Math.cos(2 * PI * k * v + Harg(k)); return s; });
+  const hp = t.map(v => v < 0 ? h2(v + 1) + h2(v + 2) : h2(v) + h2(v + 1));
+  const mx = Math.max(...hp.map(Math.abs));
+  P = Panel(c, { frac: [0.6, 1], x: [-0.1, 0.6], y: [-mx * 1.2, mx * 1.25] });
+  P.axes("sum h_N(t) (orange) against the impulse response h(t) (dashed)", COL.ink, nice([-mx, mx]));
+  P.line(t, hp, COL.ink, { lw: 1.6, dash: true }); P.line(t, hN, COL.acc, { lw: 2.4 });
+  P.xticks(-0.1, 0.6, 0.1, "t / s");
+  const err = Math.max(...hN.map((v, i) => Math.abs(v - hp[i]))) / mx;
+  $("ro-synh").textContent = `N = ${N}: frequencies 0 … ${N} Hz, each weighted by |H| and shifted by φ\nmax. deviation from h(t): ${fm(100 * err, 0)} % of max|h|\n${N < F0 ? "The resonance at f₀ = " + fm(F0, 1) + " Hz is still missing: no oscillation." : "The resonance is included: h_N oscillates at f₀."}`;
+});
+bindRange("synh-n", drawSynh, v => v);
+
+// ============================================================= discrete data
+const TS = 0.01, NX = 50;
+const H_SETS = [
+  { name: "Engine mount", label: "engine mount, sampled: h[n] = T_s·h(nT_s), T_s = 10 ms", get h() { return CACHE.hd || (CACHE.hd = Array.from({ length: NX }, (_, n) => TS * h2(n * TS))); } },
+  { name: "MA8", label: "MA8 (Sheet 3): h[n] = 1/8 for n = 0 … 7", h: Array(8).fill(0.125) },
+  { name: "EMA a = 0.8", label: "EMA a = 0.8 (Sheet 3): h[n] = 0.2·0.8ⁿ, up to n = 29", h: Array.from({ length: 30 }, (_, n) => 0.2 * 0.8 ** n) },
+  { name: "Sheet 3.1 a", label: "h = {1, −1, 0.5} (Sheet 3.1 a)", h: [1, -1, 0.5] },
+];
+const period = () => Math.max(1, Math.round(1 / (F0 * TS)));
+const X_PRE = [
+  { name: "Hammer strike", f: () => [1] },
+  { name: "2 strikes in phase", f: () => { const x = Array(NX).fill(0); x[0] = 1; x[period()] = 1; return x; } },
+  { name: "2 strikes out of phase", f: () => { const x = Array(NX).fill(0); x[0] = 1; x[Math.max(1, Math.round(0.5 / (F0 * TS)))] = 1; return x; } },
+  { name: "Firing pulses at resonance", f: () => { const x = Array(NX).fill(0); for (let k = 0; k < NX; k += period()) x[k] = 0.5; return x; } },
+  { name: "Load change (step)", f: () => Array(NX).fill(0.5) },
+  { name: "Noise", f: () => { const r = rng(11); return Array.from({ length: NX }, () => +(r() * 1.6 - 0.8).toFixed(2)); } },
+  { name: "Sheet 3.1 a", f: () => [1, 2, 0, -1] },
+];
+const D = { x: [], hs: 0, pre: 1 };
+const applyPreset = () => { if (D.pre >= 0) D.x = X_PRE[D.pre].f(); };
+const conv = (x, h) => { const y = new Array(x.length + h.length - 1).fill(0); x.forEach((xv, i) => { if (xv) h.forEach((hv, j) => { y[i + j] += xv * hv; }); }); return y; };
+const NMIN = -5, NMAX = 99, XR = [-2.4, 2.4];
+const stemR = P => Math.max(1.6, Math.min(4, P.W / (P.x1 - P.x0) * 0.32));
+
+// ============================================================= LTI
+const drawLti = reg(() => {
+  const k0 = +$("lti-k").value, a = +$("lti-a").value / 10, h = H_SETS[0].h;
+  const c = canvasCtx($("cv-lti"), 0.66, 1.1); const ctx = c.ctx; const half = c.w / 2;
+  const mx = Math.max(...h.map(Math.abs)) * (1 + Math.abs(a)) * 1.1;
+  const rows = [
+    ["δ[n]", [[0, 1]], "h[n]", [[0, 1]]],
+    [`δ[n−${k0}]: ${ms(k0 * TS)} later`, [[k0, 1]], `h[n−${k0}]: shifted the same`, [[k0, 1]]],
+    [`δ[n] + ${fm(a, 1)}·δ[n−${k0}]`, [[0, 1], [k0, a]], `h[n] + ${fm(a, 1)}·h[n−${k0}]`, [[0, 1], [k0, a]]],
+  ];
+  rows.forEach((r, i) => [0, 1].forEach(side => {
+    ctx.save(); ctx.translate(side * half, 0);
+    const P = Panel({ ctx, w: half, h: c.h }, { frac: [i / 3, (i + 1) / 3], x: [-2, 50], y: side ? [-mx, mx] : [-2.2, 2.2], lm: 34 });
+    P.axes(side ? r[2] : r[0], side ? COL.acc : COL.ink, side ? nice([-mx, mx]) : [-2, 0, 2]);
+    const rr = stemR(P);
+    if (side === 0) { const m = new Map(); r[1].forEach(([k, v]) => m.set(k, (m.get(k) || 0) + v)); m.forEach((v, k) => P.stem(k, v, COL.ink, { r: 3.5 })); }
+    else { const y = new Array(70).fill(0); r[3].forEach(([k, v]) => h.forEach((hv, j) => { y[k + j] += v * hv; })); y.forEach((v, n) => { if (n <= 50) P.stem(n, v, COL.acc, { r: rr, lw: 1.2 }); }); }
+    if (i === 2) P.xticks(0, 50, 10, "n");
+    ctx.restore();
+  }));
+});
+bindRange("lti-k", drawLti, v => v + " (" + ms(v * TS) + ")"); bindRange("lti-a", drawLti, v => fm(v / 10, 1));
+
+// ============================================================= derivation
+const XD = [1, 0, 0, 0.6, 0, 0, -0.8, 0, 0, 0.5];
+reg(() => {
+  const h = H_SETS[0].h, y = conv(XD, h), ks = [0, 3, 6, 9];
+  const c = canvasCtx($("cv-deriv"), 0.85, 1.35); const ctx = c.ctx; const half = c.w / 2;
+  const my = Math.max(...y.map(Math.abs), ...h.map(Math.abs)) * 1.15;
+  for (let i = 0; i < 5; i++) [0, 1].forEach(side => {
+    ctx.save(); ctx.translate(side * half, 0);
+    const P = Panel({ ctx, w: half, h: c.h }, { frac: [i / 5, (i + 1) / 5], x: [-2, 52], y: side ? [-my, my] : [-1.2, 1.2], lm: 30 });
+    const rr = stemR(P);
+    if (i < 4) {
+      const k = ks[i], col = echoCol(i);
+      P.axes(side ? `x[${k}]·h[n−${k}]` : `x[${k}]·δ[n−${k}] = ${fm(XD[k], 1)}·δ[n−${k}]`, col, side ? [0] : [-1, 0, 1]);
+      if (side === 0) P.stem(k, XD[k], col, { r: 3.5 }); else h.forEach((hv, j) => P.stem(k + j, XD[k] * hv, col, { r: rr, lw: 1.2 }));
+    } else {
+      P.axes(side ? "Σ = y[n] = Σ x[k]·h[n−k]" : "Σ = x[n]", COL.ink, side ? [0] : [-1, 0, 1]);
+      if (side === 0) XD.forEach((v, k) => { if (v) P.stem(k, v, COL.ink, { r: 3.5 }); }); else y.forEach((v, n) => P.stem(n, v, COL.ink, { r: rr, lw: 1.2 }));
+      P.xticks(0, 50, 10, "n");
+    }
+    ctx.restore();
+  });
+});
+
+// ============================================================= shared discrete controls
+let echoP = null, flipP = null, drawEcho, drawFlip;
+const lastNZ = () => { for (let k = D.x.length - 1; k >= 0; k--) if (D.x[k]) return k; return 0; };
+function buildDiscreteControls() {
+  document.querySelectorAll("[data-hsel]").forEach(seg => { seg.innerHTML = "";
+    H_SETS.forEach((s, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = s.name; b.dataset.v = i; b.addEventListener("click", () => { D.hs = i; syncDiscrete(); }); seg.appendChild(b); }); });
+  document.querySelectorAll("[data-xsel]").forEach(seg => { seg.innerHTML = "";
+    X_PRE.forEach((s, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = s.name; b.dataset.v = i; b.addEventListener("click", () => { D.pre = i; applyPreset(); syncDiscrete(); }); seg.appendChild(b); }); });
+}
+function syncDiscrete() {
+  document.querySelectorAll("[data-hsel] button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.v === D.hs));
+  document.querySelectorAll("[data-xsel] button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.v === D.pre));
+  const ek = $("echo-k"); const mx = lastNZ() + 1; const wasFull = +ek.value >= +ek.max;
+  ek.max = mx; if (wasFull || +ek.value > mx) ek.value = mx; $("echo-k-o").textContent = ek.value;
+  drawEcho(); drawFlip();
+}
+function attachDraw(cv, getP) {
+  let down = false;
+  const set = e => { const P = getP(); if (!P) return; const r = cv.getBoundingClientRect(); const px = e.clientX - r.left, py = e.clientY - r.top;
+    if (py < P.T - 6 || py > P.T + P.H + 6) return; const k = Math.round(P.invX(px)); if (k < 0 || k >= NX) return;
+    let v = Math.round(P.invY(py) * 10) / 10; v = Math.max(-2, Math.min(2, v)); if (Math.abs(v) < 0.08) v = 0;
+    while (D.x.length <= k) D.x.push(0); D.x[k] = v; D.pre = -1; syncDiscrete(); };
+  cv.addEventListener("pointerdown", e => { down = true; set(e); });
+  cv.addEventListener("pointermove", e => { if (down && e.buttons) set(e); });
+  window.addEventListener("pointerup", () => { down = false; });
+  cv.style.cursor = "crosshair";
+}
+
+// ============================================================= echo view
+drawEcho = reg(() => {
+  const K = +$("echo-k").value, H = H_SETS[D.hs], h = H.h, x = D.x, y = conv(x, h);
+  const c = canvasCtx($("cv-echo"), 0.66, 1.05);
+  const yK = new Array(y.length).fill(0); for (let i = 0; i < Math.min(K, x.length); i++) if (x[i]) h.forEach((hv, j) => { yK[i + j] += x[i] * hv; });
+  const hmax = Math.max(...h.map(Math.abs)), em = Math.max(0.3, ...x.map(v => Math.abs(v) * hmax)) * 1.15, yr = yrange(y, -0.2);
+  let P = Panel(c, { frac: [0, 1 / 3], x: [NMIN - 0.5, NMAX + 0.5], y: XR }); echoP = P;
+  P.axes("x[k]: force impulses in kN (draw here)", COL.ink, [-2, -1, 0, 1, 2]);
+  const rr = stemR(P);
+  x.forEach((v, k) => { if (v) P.stem(k, v, k < K ? echoCol(k) : COL.ghost, { hollow: k >= K, r: rr }); });
+  P = Panel(c, { frac: [1 / 3, 2 / 3], x: [NMIN - 0.5, NMAX + 0.5], y: [-em, em] });
+  P.axes("echoes x[k]·h[n−k]: one shifted impulse response each", COL.ink, nice([-em, em]));
+  let lastK = -1;
+  for (let i = 0; i < Math.min(K, x.length); i++) if (x[i]) { lastK = i; P.line(h.map((_, j) => i + j), h.map(hv => x[i] * hv), echoCol(i), { lw: 1.2, alpha: 0.7 }); }
+  if (lastK >= 0) h.forEach((hv, j) => P.stem(lastK + j, x[lastK] * hv, echoCol(lastK), { r: rr * 0.8, lw: 1.2 }));
+  P = Panel(c, { frac: [2 / 3, 1], x: [NMIN - 0.5, NMAX + 0.5], y: yr });
+  P.axes(`sum of the echoes from k = 0 to ${K - 1} = y[n] in mm`, COL.ink, nice(yr));
+  y.forEach((v, n) => P.stem(n, v, COL.ghost, { hollow: true, r: rr * 0.8, lw: 1 }));
+  if (K > 0) yK.forEach((v, n) => { if (n < K - 1 + h.length) P.stem(n, v, COL.ink, { r: rr * 0.8, lw: 1.2 }); });
+  P.xticks(0, 90, 10, "n (10 ms each)");
+  const nz = x.slice(0, K).map((v, k) => [k, v]).filter(([, v]) => v);
+  let s = nz.length === 0 ? "no echo added yet: y[n] = 0" :
+    "y[n] = " + nz.slice(0, 3).map(([k]) => `x[${k}]·h[n${k ? "−" + k : ""}]`).join(" + ") + (nz.length > 3 ? ` + … (${nz.length} echoes)` : "");
+  s += `\n${nz.length} of ${x.filter(v => v).length} echoes added, max|y| so far = ${fm(Math.max(0, ...yK.map(Math.abs)), 3)} mm`;
+  $("ro-echo").textContent = s + "\nsystem: " + H.label;
+});
+$("echo-k").addEventListener("input", () => { $("echo-k-o").textContent = $("echo-k").value; drawEcho(); });
+
+// ============================================================= flip & slide
+drawFlip = reg(() => {
+  const n = +$("flip-n").value, H = H_SETS[D.hs], h = H.h, x = D.x, y = conv(x, h), nh = h.length;
+  const c = canvasCtx($("cv-flip"), 0.66, 1.05);
+  const kA = Math.max(0, n - nh + 1), kB = Math.min(x.length - 1, n);
+  let yn = 0; const terms = []; for (let k = kA; k <= kB; k++) { const p = x[k] * h[n - k]; yn += p; if (x[k]) terms.push([k, p]); }
+  const hm = Math.max(...h.map(Math.abs)), hs = 2 / hm;
+  const pm = Math.max(0.2, ...x.map(v => Math.abs(v) * hm)) * 1.15, yr = yrange(y, -0.2);
+  let P = Panel(c, { frac: [0, 1 / 3], x: [NMIN - 0.5, NMAX + 0.5], y: XR }); flipP = P;
+  P.axes(`x[k] (draw here) and h[${fm(n)}−k] (orange, scaled), flipped to n = ${fm(n)}`, COL.ink, [-2, -1, 0, 1, 2]);
+  const rr = stemR(P);
+  x.forEach((v, k) => { if (v) P.stem(k, v, COL.ink, { r: rr }); });
+  P.line(h.map((_, j) => n - j), h.map(hv => hv * hs), COL.acc, { lw: 1.6 });
+  h.forEach((hv, j) => P.stem(n - j, hv * hs, COL.acc, { r: rr * 0.6, lw: 1 }));
+  P.vline(n, COL.acc);
+  P = Panel(c, { frac: [1 / 3, 2 / 3], x: [NMIN - 0.5, NMAX + 0.5], y: [-pm, pm] });
+  P.axes(`products x[k]·h[${fm(n)}−k]  →  sum = y[${fm(n)}] = ${fm(yn, 3)}`, COL.teal, nice([-pm, pm]));
+  for (let k = kA; k <= kB; k++) if (x[k]) P.stem(k, x[k] * h[n - k], COL.teal, { r: rr });
+  P = Panel(c, { frac: [2 / 3, 1], x: [NMIN - 0.5, NMAX + 0.5], y: yr });
+  P.axes("y[n] in mm", COL.ink, nice(yr));
+  y.forEach((v, m) => P.stem(m, v, m <= n ? COL.ink : COL.ghost, { hollow: m > n, r: rr * 0.8, lw: 1.2 }));
+  if (n >= 0 && n < y.length) P.stem(n, y[n], COL.acc, { r: 5 });
+  P.xticks(0, 90, 10, "k or n (10 ms each)");
+  let s;
+  if (!terms.length) s = `n = ${fm(n)}: no overlap with inputs ≠ 0\ny[${fm(n)}] = 0`;
+  else { const big = terms.reduce((a, b) => Math.abs(b[1]) > Math.abs(a[1]) ? b : a);
+    s = `y[${fm(n)}] = ` + terms.slice(0, 3).map(([k]) => `x[${k}]h[${n - k}]`).join(" + ") + (terms.length > 3 ? " + …" : "") +
+        `\n= ${terms.length} products, sum = ${fm(yn, 3)} mm\nlargest contribution: x[${big[0]}]·h[${n - big[0]}] = ${par(x[big[0]])}·${par(h[n - big[0]])} = ${fm(big[1], 3)}`; }
+  $("ro-flip").textContent = s + "\nsystem: " + H.label;
+});
+bindRange("flip-n", drawFlip, v => fm(v));
+let flipTimer = null;
+$("flip-play").addEventListener("click", () => {
+  const el = $("flip-n"), btn = $("flip-play");
+  if (flipTimer) { clearInterval(flipTimer); flipTimer = null; btn.textContent = "Play"; return; }
+  if (+el.value >= +el.max) el.value = el.min;
+  btn.textContent = "Stop";
+  flipTimer = setInterval(() => { el.value = +el.value + 1; el.dispatchEvent(new Event("input")); if (+el.value >= +el.max) { clearInterval(flipTimer); flipTimer = null; btn.textContent = "Play"; } }, 110);
+});
+attachDraw($("cv-echo"), () => echoP); attachDraw($("cv-flip"), () => flipP);
+
+// ============================================================= convolution theorem
+let drawFs;
+const fsSel = bindSeg("fs-sel", () => drawFs());
+drawFs = reg(() => {
+  const sel = fsSel(), fp = +$("fs-f").value; $("fs-f-w").hidden = sel !== 2;
+  const dt = 0.001, N = 2048, n1 = 900;
+  const x = new Float64Array(N), hh = new Float64Array(N);
+  for (let i = 0; i < n1; i++) { const t = i * dt;
+    x[i] = sel === 0 ? (t < 0.05 ? 1 : 0) : sel === 1 ? xc(t) : sel === 2 ? (t < 0.5 ? Math.sin(PI * t / 0.5) ** 2 * Math.cos(2 * PI * fp * t) : 0) : (t < 0.5 ? GN[i] * 0.5 : 0); }
+  for (let i = 0; i < N; i++) hh[i] = dt * h2(i * dt);
+  const yd = new Float64Array(n1);
+  for (let n = 0; n < n1; n++) { let s = 0; for (let k = 0; k <= n; k++) if (x[k]) s += x[k] * hh[n - k]; yd[n] = s; }
+  const xr = Float64Array.from(x), xi = new Float64Array(N), hr = Float64Array.from(hh), hi = new Float64Array(N);
+  fft(xr, xi, false); fft(hr, hi, false);
+  const yr = new Float64Array(N), yi = new Float64Array(N);
+  for (let k = 0; k < N; k++) { yr[k] = xr[k] * hr[k] - xi[k] * hi[k]; yi[k] = xr[k] * hi[k] + xi[k] * hr[k]; }
+  const df = 1 / (N * dt), kmax = Math.round(60 / df), Xm = [], Hm = [], Ym = [];
+  for (let k = 0; k <= kmax; k++) { Xm.push(Math.hypot(xr[k], xi[k]) * dt); Hm.push(Math.hypot(hr[k], hi[k])); Ym.push(Math.hypot(yr[k], yi[k]) * dt); }
+  fft(yr, yi, true);
+  const t = Array.from({ length: n1 }, (_, i) => i * dt), fax = Array.from({ length: kmax + 1 }, (_, k) => k * df);
+  const c = canvasCtx($("cv-fs"), 0.95, 1.6); const ctx = c.ctx; const half = c.w / 2;
+  const rows = [
+    ["x(t) in kN", Array.from(x.slice(0, n1)), "|X(f)| in kN/Hz", Xm, COL.ink],
+    ["h[n] = dt·h(t) in mm/kN", Array.from(hh.slice(0, n1)), "|H(f)| in mm/kN", Hm, COL.teal],
+    ["y = x * h in mm", Array.from(yd), "|Y(f)| = |X(f)|·|H(f)|", Ym, COL.acc],
+  ];
+  rows.forEach((row, i) => [0, 1].forEach(side => {
+    ctx.save(); ctx.translate(side * half, 0);
+    if (side === 0) {
+      const ys = row[1]; const m = Math.max(1e-9, ...ys.map(Math.abs));
+      const P = Panel({ ctx, w: half, h: c.h }, { frac: [i / 3, (i + 1) / 3], x: [0, 0.9], y: [-m * 1.15, m * 1.3], lm: 40 });
+      P.axes(row[0], row[4], nice([-m, m]));
+      P.line(t, ys, row[4], { lw: 1.8 });
+      if (i === 2) { P.line(t, Array.from(yr.slice(0, n1)), COL.ink, { lw: 1.2, dash: true }); P.legend([{ t: "direct: Σ x·h", c: COL.acc }, { t: "IFFT(X·H)", c: COL.ink, dash: true }]); }
+      P.xticks(0, 0.9, 0.1, i === 2 ? "t / s" : "");
+    } else {
+      const ys = row[3]; const m = Math.max(1e-9, ...ys) * 1.15;
+      const P = Panel({ ctx, w: half, h: c.h }, { frac: [i / 3, (i + 1) / 3], x: [0, 60], y: [0, m], lm: 40 });
+      P.axes(row[2], row[4], nice([0, m]));
+      P.line(fax, ys, row[4], { lw: 2 }); P.vline(F0, COL.acc);
+      P.xticks(0, 60, 10, i === 2 ? "f / Hz" : "");
+    }
+    ctx.restore();
+  }));
+  let dmax = 0, ymax = 0; for (let i = 0; i < n1; i++) { dmax = Math.max(dmax, Math.abs(yd[i] - yr[i])); ymax = Math.max(ymax, Math.abs(yd[i])); }
+  const name = ["rectangle 1 kN, 50 ms", "force signal (load change + 10 Hz)", `wave packet ${fp} Hz`, "noise, 0.5 s"][sel];
+  $("ro-fs").textContent = `input: ${name}\nmax|y_direct − y_FFT| = ${dmax.toExponential(1)} mm at max|y| = ${fm(ymax, 3)} mm\ncost direct ≈ ${fm(n1 * n1 / 2 / 1000, 0)}·10³ mult., via FFT ≈ ${fm(3 * 2 * N * Math.log2(N) / 1000, 0)}·10³\n|H(f₀)| = ${fm(Habs(F0), 1)} mm/kN: components near ${fm(F0, 1)} Hz are amplified`;
+});
+bindRange("fs-f", drawFs, v => v + " Hz");
+
+// ============================================================= real impulse (hammer)
+const TIPS = [[0.0005, "steel tip"], [0.001, "aluminium tip"], [0.002, "plastic tip"], [0.005, "rubber tip"], [0.01, "soft rubber tip"], [0.03, "rubber mallet"], [0.06, "punch"], [0.12, "push by hand"]];
+const drawPulse = reg(() => {
+  const [T, tip] = TIPS[+$("pulse-t").value], hp = 1 / T;
+  const c = canvasCtx($("cv-pulse"), 0.82, 1.3);
+  const t = lin(-0.05, 0.6, 900);
+  let P = Panel(c, { frac: [0, 0.22], x: [-0.05, 0.6], y: [-10, 120] });
+  P.axes(`force pulse p_T(t): ${tip}, T = ${ms(T)}, height 1/T = ${fm(hp, 0)} kN per kN·s`, COL.acc, [0, 50, 100]);
+  P.area([0, Math.max(T, 0.0008)], [hp, hp], COL.acc, 0.45); P.line([-0.05, 0, 0, T, T, 0.6], [0, 0, hp, hp, 0, 0], COL.acc, { lw: 2 });
+  if (hp > 120) P.text(T + 0.012, 100, `↑ clipped, height ${fm(hp, 0)}`, COL.acc);
+  const hv = t.map(h2), gv = t.map(v => gT(v, T)), mx = Math.max(...hv.map(Math.abs));
+  P = Panel(c, { frac: [0.22, 0.62], x: [-0.05, 0.6], y: [-mx * 1.1, mx * 1.25] });
+  P.axes("responses in mm/(kN·s)", COL.ink, nice([-mx, mx]));
+  P.line(t, hv, COL.ink, { lw: 1.8, dash: true }); P.line(t, gv, COL.acc, { lw: 2.4 });
+  P.legend([{ t: "h(t): ideal impulse", c: COL.ink, dash: true }, { t: "g_T(t) = (p_T * h)(t)", c: COL.acc }]);
+  P.xticks(0, 0.6, 0.1, "t / s");
+  const fmax = Math.max(60, 4 * F0), f = lin(0, fmax, 700), Hm = f.map(Habs), hm = Math.max(...Hm);
+  P = Panel(c, { frac: [0.62, 1], x: [0, fmax], y: [0, hm * 1.3] });
+  P.axes("spectra: |H(f)|, |P_T(f)| (scaled) and |G_T| = |P_T|·|H|", COL.teal, nice([0, hm]));
+  P.line(f, Hm, COL.ink, { lw: 1.6, dash: true }); P.line(f, f.map(v => Math.abs(sinc(v * T)) * hm), COL.acc, { lw: 1.4, alpha: 0.7 });
+  P.line(f, f.map(v => Math.abs(sinc(v * T)) * Habs(v)), COL.teal, { lw: 2.4 });
+  for (let k = 1; k / T <= fmax; k++) P.vline(k / T, COL.acc);
+  P.legend([{ t: "|H(f)|", c: COL.ink, dash: true }, { t: "|P_T(f)|·max|H|", c: COL.acc }, { t: "|G_T(f)|", c: COL.teal }]);
+  P.xticks(0, fmax, 10, "f / Hz");
+  const e = Math.max(...gv.map((g, i) => Math.abs(g - hv[i])));
+  $("ro-pulse").textContent = `${tip}: T = ${ms(T)}, T·f₀ = ${fm(T * F0, 3)}\nmax|g_T − h| = ${fm(100 * e / mx, 0)} % of max|h|\nfirst zero of P_T at 1/T = ${fm(1 / T, 0)} Hz (f₀ = ${fm(F0, 1)} Hz)\n|P_T(f₀)| = ${fm(Math.abs(sinc(F0 * T)), 3)}: this is how strongly the resonance is excited`;
+});
+bindRange("pulse-t", drawPulse, v => TIPS[v][1]);
+
+// ============================================================= arbitrary input
+const ARB_T = [0.002, 0.004, 0.005, 0.01, 0.02, 0.025, 0.04, 0.05, 0.08, 0.1, 0.2];
+const tA = lin(-0.05, 0.8, 851);
+const exactY = () => CACHE.yE || (CACHE.yE = tA.map(v => ystair(v, 0.001)));
+const drawArb = reg(() => {
+  const T = ARB_T[+$("arb-t").value], nk = Math.round(TX / T);
+  const yE = exactY(), yT = tA.map(v => ystair(v, T));
+  const c = canvasCtx($("cv-arb"), 0.62, 0.95);
+  let P = Panel(c, { frac: [0, 0.5], x: [-0.05, 0.8], y: [-0.6, 1.6] });
+  P.axes("input: force in kN", COL.ink, [0, 1]);
+  P.line(tA, tA.map(xc), COL.ink, { lw: 2 });
+  const sx = [-0.05, 0], sy = [0, 0]; for (let k = 0; k < nk; k++) { const v = xc((k + 0.5) * T); sx.push(k * T, (k + 1) * T); sy.push(v, v); } sx.push(TX, 0.8); sy.push(0, 0);
+  P.line(sx, sy, COL.acc, { lw: 2 });
+  P.legend([{ t: "x(t)", c: COL.ink }, { t: `staircase of ${nk} pulses of width T`, c: COL.acc }]);
+  const mx = Math.max(...yE.map(Math.abs), ...yT.map(Math.abs));
+  P = Panel(c, { frac: [0.5, 1], x: [-0.05, 0.8], y: [-mx * 1.1, mx * 1.35] });
+  P.axes("output: displacement in mm", COL.ink, nice([-mx, mx]));
+  P.line(tA, yE, COL.ink, { lw: 2 }); P.line(tA, yT, COL.acc, { lw: 2.4 });
+  P.legend([{ t: "y = x * h (exact)", c: COL.ink }, { t: "Σ x(kT)·T·g_T(t−kT)", c: COL.acc }]);
+  P.xticks(0, 0.8, 0.1, "t / s");
+  const ym = Math.max(...yE.map(Math.abs)), e = Math.max(...yT.map((v, i) => Math.abs(v - yE[i])));
+  $("ro-arb").textContent = `T = ${ms(T)}  →  ${nk} pulse responses added\nmax. error = ${fm(100 * e / ym, 0)} % of max|y|\npulses per period of the 10 Hz excitation: ${fm(0.1 / T, 1)}\n(exact for the staircase, error = staircase − x)`;
+});
+bindRange("arb-t", drawArb, v => ms(ARB_T[v]));
+
+// ============================================================= step
+const drawStep = reg(() => {
+  const T = ARB_T[+$("step-t").value], nk = Math.round(TX / T);
+  const c = canvasCtx($("cv-step"), 0.62, 0.95);
+  const t = lin(-0.05, 0.8, 800);
+  const sv = t.map(s2), smax = Math.max(1.2, ...sv);
+  let P = Panel(c, { frac: [0, 0.45], x: [-0.05, 0.8], y: [-0.3, smax * 1.25] });
+  P.axes("step response s(t): force step 1 kN, displacement in mm", COL.ink, nice([0, smax]));
+  const hm = Math.max(...t.map(h2));
+  P.line(t, t.map(v => v >= 0 ? 1 : 0), COL.muted, { lw: 1.5 });
+  P.line(t, sv, COL.ink, { lw: 2.4 });
+  P.line(t, t.map(v => h2(v) / hm), COL.acc, { lw: 1.6, dash: true });
+  P.legend([{ t: "u(t)", c: COL.muted }, { t: "s(t)", c: COL.ink }, { t: "h = ds/dt (scaled)", c: COL.acc, dash: true }]);
+  P.xticks(0, 0.8, 0.1, "");
+  const yS = t.map(v => ystair(v, T)), mx = Math.max(1.2, ...yS.map(Math.abs));
+  P = Panel(c, { frac: [0.45, 1], x: [-0.05, 0.8], y: [-mx * 0.9, mx * 1.15] });
+  P.axes(`staircase of ${nk + 1} steps Δx_k: y = Σ Δx_k·s(t − kT)`, COL.ink, nice([-mx, mx]));
+  let prev = 0;
+  if (nk <= 60) for (let k = 0; k <= nk; k++) { const v = k < nk ? xc((k + 0.5) * T) : 0, d = v - prev; prev = v; P.line(t, t.map(u => d * s2(u - k * T)), echoCol(k), { lw: 1, alpha: 0.5 }); }
+  const sx = [-0.05, 0], sy = [0, 0]; for (let k = 0; k < nk; k++) { const v = xc((k + 0.5) * T); sx.push(k * T, (k + 1) * T); sy.push(v, v); } sx.push(TX, 0.8); sy.push(0, 0);
+  P.line(sx, sy, COL.muted, { lw: 1.4 });
+  P.line(t, yS, COL.ink, { lw: 2.6 });
+  P.xticks(0, 0.8, 0.1, "t / s");
+});
+bindRange("step-t", drawStep, v => ms(ARB_T[v]));
+
+// ============================================================= limits
+const drawSat = reg(() => {
+  const t = lin(-0.05, 0.6, 600), g = t.map(v => gT(v, 0.002)), mx = Math.max(...g.map(Math.abs));
+  const L = +$("sat-l").value / 100 * mx;
+  const c = canvasCtx($("cv-sat"), 0.75, 0.75);
+  const P = Panel(c, { x: [-0.05, 0.6], y: [-mx * 1.1, mx * 1.4], lm: 34 });
+  P.axes("", COL.ink, nice([-mx, mx]));
+  P.line(t, g, COL.ink, { lw: 1.5, dash: true });
+  P.line(t, g.map(v => Math.max(-L, Math.min(L, v))), COL.red, { lw: 2.2 });
+  P.legend([{ t: "linear", c: COL.ink, dash: true }, { t: "with end stop", c: COL.red }]);
+  P.xticks(0, 0.6, 0.2, "t / s");
+});
+bindRange("sat-l", drawSat, v => v + " %");
+const drawBand = reg(() => {
+  const [T] = TIPS[+$("band-t").value];
+  const c = canvasCtx($("cv-band"), 0.75, 0.75);
+  const fmax = Math.max(60, 4 * F0), f = lin(0, fmax, 600), Hm = f.map(Habs), hm = Math.max(...Hm);
+  const P = Panel(c, { x: [0, fmax], y: [0, hm * 1.4], lm: 34 });
+  P.axes("", COL.ink, nice([0, hm]));
+  P.line(f, Hm, COL.ink, { lw: 1.6, dash: true });
+  P.line(f, f.map(v => Math.abs(sinc(v * T)) * Habs(v)), COL.acc, { lw: 2.2 });
+  for (let k = 1; k / T <= fmax; k++) P.vline(k / T, COL.acc);
+  P.legend([{ t: "|H(f)|", c: COL.ink, dash: true }, { t: "|P_T·H|", c: COL.acc }]);
+  P.xticks(0, fmax, 10, "f / Hz");
+});
+bindRange("band-t", drawBand, v => ms(TIPS[v][0]));
+const drawNoise = reg(() => {
+  const [T] = TIPS[+$("noise-t").value], J = Math.min(1, 50 * T);
+  const c = canvasCtx($("cv-noise"), 0.75, 0.75);
+  const t = lin(-0.05, 0.6, 600), hv = t.map(h2), mx = Math.max(...hv.map(Math.abs)), sig = 0.02 * mx;
+  const P = Panel(c, { x: [-0.05, 0.6], y: [-mx * 1.6, mx * 1.8], lm: 34 });
+  P.axes("", COL.ink, nice([-mx, mx]));
+  P.line(t, t.map((v, i) => (J * gT(v, T) + sig * GN[i]) / J), COL.violet, { lw: 1.1 });
+  P.line(t, hv, COL.ink, { lw: 1.4, dash: true });
+  P.legend([{ t: `measured ÷ J, J = ${fm(J, 3)} kN·s`, c: COL.violet }, { t: "h(t)", c: COL.ink, dash: true }]);
+  P.xticks(0, 0.6, 0.2, "t / s");
+});
+bindRange("noise-t", drawNoise, v => ms(TIPS[v][0]));
+
+// ============================================================= normalisation
+const NORM_D = [0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001];
+const TSTAR = 0.22;
+const qf = tau => xc(tau) * h2(TSTAR - tau);
+const sums = d => { let s = 0; const n = Math.round(TSTAR / d); for (let k = 0; k < n; k++) s += qf((k + 0.5) * d); return [s, s * d, n]; };
+const drawNorm = reg(() => {
+  const Dl = NORM_D[+$("norm-d").value];
+  const c = canvasCtx($("cv-norm"), 0.66, 1.0);
+  const tau = lin(-0.05, 0.45, 900);
+  const hm = Math.max(...tau.map(v => Math.abs(h2(TSTAR - v))));
+  let P = Panel(c, { frac: [0, 0.45], x: [-0.05, 0.45], y: [-1.1, 1.7] });
+  P.axes(`x(τ) in kN and h(t* − τ) (scaled), t* = ${ms(TSTAR)}`, COL.ink, [-1, 0, 1]);
+  P.line(tau, tau.map(xc), COL.ink, { lw: 2 }); P.line(tau, tau.map(v => h2(TSTAR - v) / hm), COL.acc, { lw: 2 }); P.vline(TSTAR, COL.acc);
+  P.legend([{ t: "x(τ)", c: COL.ink }, { t: "h(t* − τ) ÷ max", c: COL.acc }]);
+  P.xticks(0, 0.45, 0.05, "");
+  const q = tau.map(qf), qm = Math.max(...q.map(Math.abs));
+  const [s, sd, n] = sums(Dl);
+  P = Panel(c, { frac: [0.45, 1], x: [-0.05, 0.45], y: [-qm * 1.15, qm * 1.25] });
+  P.axes(`q(τ) = x(τ)·h(t* − τ) in mm/s: ${n} strips of width Δ = ${ms(Dl)}`, COL.teal, nice([-qm, qm]));
+  for (let k = 0; k < n; k++) { const v = qf((k + 0.5) * Dl); P.rect(k * Dl, (k + 1) * Dl, v, v >= 0 ? COL.teal : COL.red, 0.35); }
+  P.line(tau, q, COL.teal, { lw: 2 });
+  P.xticks(0, 0.45, 0.05, "τ / s");
+  const ex = CACHE.normEx ?? (CACHE.normEx = sums(0.00002)[1]);
+  $("ro-norm").textContent = `Δ = ${ms(Dl)}: ${n} strips\nΣ q(kΔ)    (heights) = ${fm(s, 1)} mm/s  ← grows like 1/Δ\nΣ q(kΔ)·Δ  (areas)   = ${fm(sd, 4)} mm\n∫ q(τ) dτ = y(t*)      = ${fm(ex, 4)} mm`;
+  let html = "<thead><tr><th>Δ</th><th>strips</th><th>Σ q (without Δ)</th><th>Σ q·Δ (with Δ)</th><th>error</th></tr></thead><tbody>";
+  NORM_D.forEach(d => { const [a, b, nn] = sums(d); html += `<tr class="${d === Dl ? "hl" : ""}"><td>${ms(d)}</td><td>${nn}</td><td>${fm(a, 1)}</td><td>${fm(b, 4)}</td><td>${fm(100 * Math.abs(b - ex) / Math.abs(ex), 2)} %</td></tr>`; });
+  $("tab-norm").innerHTML = html + "</tbody>";
+});
+bindRange("norm-d", drawNorm, v => ms(NORM_D[v]));
+const drawSamp = reg(() => {
+  const Ts = +$("samp-t").value / 1000;
+  const c = canvasCtx($("cv-samp"), 0.5, 0.8);
+  const t = lin(-0.05, 0.6, 700), hm = Math.max(...t.map(h2));
+  const ymax = hm * Ts * 1.2;
+  const P = Panel(c, { x: [-0.05, 0.6], y: [-0.75 * ymax, ymax], lm: 46 });
+  P.axes(`h[n] = T_s·h(nT_s) in mm/kN, T_s = ${ms(Ts)}`, COL.ink, nice([-0.7 * ymax, ymax]));
+  P.line(t, t.map(v => Ts * h2(v)), COL.muted, { lw: 1.6 });
+  let sum = 0, sumRaw = 0;
+  for (let n = 0; n * Ts < 3; n++) { const v = h2(n * Ts); sum += Ts * v; sumRaw += v; if (n * Ts <= 0.6) P.stem(n * Ts, Ts * v, COL.acc, { r: Ts >= 0.008 ? 3 : 1.5, lw: 1.2 }); }
+  P.xticks(0, 0.6, 0.1, "t / s");
+  $("ro-samp").textContent = `T_s = ${ms(Ts)}: ${fm(1 / Ts, 0)} values per second, ${fm(2 * PI / SY.wd / Ts, 1)} per oscillation\nΣ T_s·h(nT_s) = ${fm(sum, 3)} mm/kN   (target: H(0) = 1)\nΣ h(nT_s) without T_s = ${fm(sumRaw, 1)}: too large by 1/T_s = ${fm(1 / Ts, 0)}`;
+});
+bindRange("samp-t", drawSamp, v => ms(v / 1000));
+
+// ============================================================= area flip & slide
+const XW = 0.1;
+const drawArea = reg(() => {
+  const t0 = +$("area-t").value / 1000;
+  const c = canvasCtx($("cv-area"), 0.66, 1.05);
+  const tau = lin(-0.1, 0.6, 1001);
+  const hm = Math.max(...tau.map(v => Math.abs(h2(v))));
+  let P = Panel(c, { frac: [0, 1 / 3], x: [-0.1, 0.6], y: [-1.1, 1.5] });
+  P.axes("x(τ) and h(t − τ) (scaled), flipped and shifted to t", COL.ink, [-1, 0, 1]);
+  P.line([-0.1, 0, 0, XW, XW, 0.6], [0, 0, 1, 1, 0, 0], COL.ink, { lw: 2.2 });
+  P.line(tau, tau.map(v => h2(t0 - v) / hm), COL.acc, { lw: 2 }); P.vline(t0, COL.acc);
+  P.legend([{ t: "x(τ): 1 kN for 100 ms", c: COL.ink }, { t: `h(t − τ) ÷ max, t = ${ms(t0)}`, c: COL.acc }]);
+  P = Panel(c, { frac: [1 / 3, 2 / 3], x: [-0.1, 0.6], y: [-hm * 1.1, hm * 1.2] });
+  const yv = s2(t0) - s2(t0 - XW);
+  P.axes(`product x(τ)·h(t − τ)  →  signed area = y(t) = ${fm(yv, 3)} mm`, COL.teal, nice([-hm, hm]));
+  if (t0 > 0) { const ax = lin(0, Math.min(t0, XW), 300), ay = ax.map(v => h2(t0 - v)); P.area(ax, ay, COL.teal, 0.4); P.line(ax, ay, COL.teal, { lw: 2 }); }
+  const yy = tau.map(v => s2(v) - s2(v - XW)), ym = Math.max(...yy.map(Math.abs));
+  P = Panel(c, { frac: [2 / 3, 1], x: [-0.1, 0.6], y: [-ym * 1.1, ym * 1.2] });
+  P.axes("y(t) in mm", COL.ink, nice([-ym, ym]));
+  P.line(tau, yy, COL.ghost, { lw: 2 });
+  const k = tau.findIndex(v => v > t0), kk = k < 0 ? tau.length : k;
+  if (kk > 1) P.line(tau.slice(0, kk), yy.slice(0, kk), COL.ink, { lw: 2.4 });
+  P.dot(t0, yv, COL.acc);
+  P.xticks(-0.1, 0.6, 0.1, "τ or t / s");
+  $("ro-area").textContent = `t = ${ms(t0)}\ny(t) = ∫ x(τ)·h(t−τ) dτ = ${fm(yv, 3)} mm\n` + (t0 <= 0 ? "no overlap → y = 0" : t0 <= XW ? "force still acting: integral from 0 to t" : "force over: integral from 0 to 100 ms, the engine rings out");
+});
+bindRange("area-t", drawArea, v => ms(v / 1000));
+let areaTimer = null;
+$("area-play").addEventListener("click", () => {
+  const el = $("area-t"), btn = $("area-play");
+  if (areaTimer) { clearInterval(areaTimer); areaTimer = null; btn.textContent = "Play"; return; }
+  if (+el.value >= 600) el.value = -50;
+  btn.textContent = "Stop";
+  areaTimer = setInterval(() => { el.value = +el.value + 5; el.dispatchEvent(new Event("input")); if (+el.value >= 600) { clearInterval(areaTimer); areaTimer = null; btn.textContent = "Play"; } }, 40);
+});
+
+// ============================================================= infinite (EMA)
+const drawInf = reg(() => {
+  const a = +$("inf-a").value / 100, M = +$("inf-m").value;
+  const c = canvasCtx($("cv-inf"), 0.5, 0.8);
+  const N = 60, h = Array.from({ length: N + 1 }, (_, n) => (1 - a) * a ** n);
+  const mx = Math.max(1e-6, ...h.map(Math.abs)) * 1.15;
+  const P = Panel(c, { x: [-1, N + 1], y: a > 1 ? [-mx, 0.05 * mx] : [-0.05 * mx, mx] });
+  P.axes(`EMA a = ${fm(a)}: h[n] = (1−a)·aⁿ`, COL.ink, []);
+  h.forEach((v, n) => P.stem(n, v, n < M ? COL.ink : COL.acc, { r: 2.5, lw: 1.2 }));
+  P.vline(M - 0.5, COL.acc); P.xticks(0, N, 10, "n");
+  let s;
+  if (a < 1) s = `Σ|h[n]| = 1  → stable, |y| ≤ max|x|\ntail from n = ${M}: Σ = a^M = ${fm(a ** M, 4)}\ntruncation error ≤ max|x|·${fm(a ** M, 4)}`;
+  else if (a === 1) s = "a = 1: h[n] = 0, the filter just holds its initial value";
+  else s = `a = ${fm(a)} > 1: |h[n]| grows like aⁿ\nΣ|h[n]| = ∞ → not BIBO-stable\neven a step at the input makes y diverge`;
+  $("ro-inf").textContent = s;
+});
+bindRange("inf-a", drawInf, v => fm(v / 100)); bindRange("inf-m", drawInf, v => v);
+
+// ============================================================= eigenfunction (firing forces)
+const drawEig = reg(() => {
+  const f = +$("eig-f").value / 10, dt = 0.002, Tend = 1.6, n = Math.round(Tend / dt);
+  const t = Array.from({ length: n }, (_, i) => i * dt), x = t.map(v => Math.cos(2 * PI * f * v));
+  const hs = Array.from({ length: n }, (_, i) => dt * h2(i * dt));
+  const y = new Float64Array(n); for (let i = 0; i < n; i++) { let s = 0; for (let k = 0; k <= i; k++) s += x[k] * hs[i - k]; y[i] = s; }
+  const A = Habs(f), ph = Harg(f);
+  const c = canvasCtx($("cv-eig"), 0.82, 1.3);
+  let P = Panel(c, { frac: [0, 0.28], x: [-0.05, Tend], y: [-1.3, 1.3] });
+  P.axes(`force x(t) = cos(2π·${fm(f, 1)} Hz·t)·u(t) in kN, from t = 0`, COL.muted, [-1, 0, 1]);
+  P.line([-0.05, 0, ...t], [0, 0, ...x], COL.muted, { lw: 1.4 });
+  P.xticks(0, 1.6, 0.2, "");
+  let ym = Math.max(1.1, A); for (let i = 0; i < n; i++) ym = Math.max(ym, Math.abs(y[i])); ym *= 1.1;
+  P = Panel(c, { frac: [0.28, 0.66], x: [-0.05, Tend], y: [-ym, ym] });
+  P.axes("displacement y(t) in mm; dashed: |H(f)|·cos(2πft + φ)", COL.ink, nice([-ym, ym]));
+  const tt = lin(-0.05, Tend, 1600);
+  P.line(tt, tt.map(v => A * Math.cos(2 * PI * f * v + ph)), COL.acc, { lw: 1.6, dash: true });
+  P.line([-0.05, 0, ...t], [0, 0, ...y], COL.ink, { lw: 2 });
+  P.xticks(0, 1.6, 0.2, "t / s");
+  const fmax = 40, fl = lin(0, fmax, 600), Hm = fl.map(Habs), hm = Math.max(...Hm);
+  P = Panel(c, { frac: [0.66, 1], x: [0, fmax], y: [0, hm * 1.15] });
+  P.axes("|H(f)| in mm/kN", COL.teal, nice([0, hm]));
+  P.line(fl, Hm, COL.teal, { lw: 2 }); P.vline(F0, COL.ghost); P.dot(f, A, COL.acc, 5);
+  P.xticks(0, fmax, 5, "f / Hz");
+  const rel = f / F0;
+  $("ro-eig").textContent = `f = ${fm(f, 1)} Hz  ↔  ${fm(30 * f, 0)} rpm (4 cyl., 2nd order)\n|H(f)| = ${fm(A, 3)} mm/kN,  φ = ${fm(ph * 180 / PI, 0)}°\nnatural oscillation decays with time constant ${ms(1 / (ZETA * SY.w0))}\n${Math.abs(rel - 1) < 0.15 ? "At resonance: the amplitude builds up over many periods." : rel > 1.41 ? "Well above resonance: |H| < 1, the mount isolates." : rel > 1 ? "Above resonance: phase near −180°." : "Below resonance: the mount follows the force almost statically."}`;
+});
+bindRange("eig-f", drawEig, v => fm(v / 10, 1) + " Hz");
+
+// ============================================================= RC reconstruction
+const RC_TP = [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.04];
+let drawRc;
+const rcSel = bindSeg("rc-sel", () => drawRc());
+drawRc = reg(() => {
+  const m = rcSel(), sigma = +$("rc-noise").value / 1000, Tp = RC_TP[+$("rc-tp").value], MA = +$("rc-ma").value, M = +$("rc-m").value;
+  $("rc-tp-w").hidden = m !== 1; $("rc-ma-w").hidden = m !== 2; $("rc-m-w").hidden = m !== 3;
+  const tau = 0.01, dt = 0.00025, N = 1024, n = 400;
+  const hTrue = Array.from({ length: N }, (_, i) => Math.exp(-i * dt / tau) / tau);
+  const sTrue = i => i < 0 ? 0 : 1 - Math.exp(-i * dt / tau);
+  const noise = (i, seed) => sigma * GN[(i * 7 + seed * 131) % GN.length];
+  const hEst = new Float64Array(N); let info = "";
+  if (m === 0) { for (let i = 0; i < N; i++) hEst[i] = hTrue[i]; info = "model: h = (1/τ)·e^(−t/τ), τ = RC from the schematic"; }
+  else if (m === 1) {
+    const A = 10, J = A * Tp, w = Math.max(1, Math.round(Tp / dt));
+    for (let i = 0; i < N; i++) hEst[i] = (A * (sTrue(i) - sTrue(i - w)) + noise(i, 1)) / J;
+    info = `pulse ${A} V × ${ms(Tp)}: voltage impulse J = ${fm(J * 1000, 1)} mV·s, response ÷ J`;
+  } else if (m === 2) {
+    const A = 5, s = Array.from({ length: N }, (_, i) => A * sTrue(i) + noise(i, 2));
+    const d = s.map((v, i) => i === 0 ? v / dt / A : (v - s[i - 1]) / dt / A);
+    const hw = (MA - 1) / 2; for (let i = 0; i < N; i++) { let acc = 0, cnt = 0; for (let k = i - hw; k <= i + hw; k++) if (k >= 0 && k < N) { acc += d[k]; cnt++; } hEst[i] = acc / cnt; }
+    info = `step 5 V, s(t) measured, h = ds/dt${MA > 1 ? `, smoothed with MA${MA} (${ms(MA * dt)})` : ", unsmoothed"}`;
+  } else {
+    const Hr = new Float64Array(N), Hi = new Float64Array(N); for (let i = 0; i < N; i++) Hr[i] = hTrue[i] * dt; fft(Hr, Hi, false);
+    const Sr = new Float64Array(N), Si = new Float64Array(N), Sxx = new Float64Array(N);
+    for (let r = 0; r < M; r++) {
+      const xr = new Float64Array(N), xi = new Float64Array(N); for (let i = 0; i < N; i++) xr[i] = GN[(i + r * 977) % GN.length];
+      const x0 = Float64Array.from(xr); fft(xr, xi, false);
+      const yr = new Float64Array(N), yi = new Float64Array(N);
+      for (let k = 0; k < N; k++) { yr[k] = xr[k] * Hr[k] - xi[k] * Hi[k]; yi[k] = xr[k] * Hi[k] + xi[k] * Hr[k]; }
+      fft(yr, yi, true); for (let i = 0; i < N; i++) { yr[i] += 4 * noise(i, 3 + r); yi[i] = 0; } fft(yr, yi, false);
+      for (let k = 0; k < N; k++) { Sr[k] += yr[k] * xr[k] + yi[k] * xi[k]; Si[k] += yi[k] * xr[k] - yr[k] * xi[k]; Sxx[k] += xr[k] * xr[k] + xi[k] * xi[k]; }
+      void x0;
+    }
+    for (let k = 0; k < N; k++) { Sr[k] /= Sxx[k]; Si[k] /= Sxx[k]; }
+    fft(Sr, Si, true); for (let i = 0; i < N; i++) hEst[i] = Sr[i] / dt;
+    info = `noise 1 V rms, ${M} measurements of ${fm(N * dt * 1000, 0)} ms averaged, H = Y·X*/|X|²`;
+  }
+  const W = Math.round(0.03 / dt), A0 = 5;
+  const yRec = new Float64Array(n), yTrue = new Float64Array(n);
+  const Sest = new Float64Array(n); let acc = 0;
+  for (let i = 0; i < n; i++) { acc += hEst[i]; Sest[i] = dt * (acc - (hEst[0] + hEst[i]) / 2); }
+  for (let i = 0; i < n; i++) { yRec[i] = A0 * (Sest[i] - (i >= W ? Sest[i - W] : 0));
+    const t = i * dt; yTrue[i] = t <= 0.03 ? A0 * (1 - Math.exp(-t / tau)) : A0 * (1 - Math.exp(-0.03 / tau)) * Math.exp(-(t - 0.03) / tau); }
+  const tt = Array.from({ length: n }, (_, i) => i * dt);
+  const c = canvasCtx($("cv-rc"), 0.78, 1.15);
+  let P = Panel(c, { frac: [0, 0.5], x: [0, 0.1], y: [-30, 135] });
+  P.axes("impulse response in 1/s: estimated (orange) and model (dashed)", COL.ink, [0, 50, 100]);
+  P.line(tt, Array.from(hEst.slice(0, n)), COL.acc, { lw: 1.4 }); P.line(tt, hTrue.slice(0, n), COL.ink, { lw: 1.6, dash: true });
+  P.xticks(0, 0.1, 0.01, "t / ms", v => fm(v * 1000, 0));
+  P = Panel(c, { frac: [0.5, 1], x: [0, 0.1], y: [-0.5, 6.2] });
+  P.axes("rectangle 5 V, 30 ms: input, true and reconstructed response in V", COL.ink, [0, 2, 4, 6]);
+  P.line([0, 0, 0.03, 0.03, 0.1], [0, 5, 5, 0, 0], COL.muted, { lw: 1.3 });
+  P.line(tt, Array.from(yTrue), COL.ink, { lw: 2, dash: true }); P.line(tt, Array.from(yRec), COL.acc, { lw: 2.4 });
+  P.legend([{ t: "x(t)", c: COL.muted }, { t: "true response", c: COL.ink, dash: true }, { t: "x * h_estimated", c: COL.acc }]);
+  P.xticks(0, 0.1, 0.01, "t / ms", v => fm(v * 1000, 0));
+  let eh = 0, nh = 0, ey = 0; for (let i = 0; i < n; i++) { eh += (hEst[i] - hTrue[i]) ** 2; nh += hTrue[i] ** 2; ey = Math.max(ey, Math.abs(yRec[i] - yTrue[i])); }
+  $("ro-rc").textContent = `${info}\nerror in h (rms): ${fm(100 * Math.sqrt(eh / nh), 1)} % of h\nerror of the rectangle response: max ${fm(1000 * ey, 0)} mV = ${fm(100 * ey / 5, 1)} % of 5 V\nConvolution averages: noise in h disturbs y much less than h itself.`;
+});
+bindRange("rc-noise", drawRc, v => v + " mV"); bindRange("rc-tp", drawRc, v => ms(RC_TP[v])); bindRange("rc-ma", drawRc, v => v); bindRange("rc-m", drawRc, v => v);
+
+// ============================================================= boot
+const drawAll = () => { readColors(); renderers.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); };
+const sysChanged = () => { F0 = +$("sys-f0").value; ZETA = +$("sys-z").value; updSys(); applyPreset(); readColors(); syncDiscrete(); drawAll(); };
+bindRange("sys-f0", sysChanged, v => fm(v, 1) + " Hz"); bindRange("sys-z", sysChanged, v => fm(v));
+applyPreset(); buildDiscreteControls(); readColors(); syncDiscrete();
+let rt = null; const later = () => { clearTimeout(rt); rt = setTimeout(drawAll, 80); };
+window.addEventListener("resize", later);
+new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", later);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+drawAll();
+})();
+</script>

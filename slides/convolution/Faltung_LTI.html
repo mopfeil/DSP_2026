@@ -284,7 +284,7 @@ footer { margin-top: 56px; color: var(--muted); font-size: 0.88rem; }
     </div>
     <div class="fig">
       <canvas id="cv-echo" aria-label="Eingang, einzelne Echos und ihre Summe"></canvas>
-      <div class="controls"><div class="ctl"><label for="echo-k">Echos addiert</label><input type="range" id="echo-k" min="0" max="40" value="40"><output id="echo-k-o"></output></div></div>
+      <div class="controls"><div class="ctl"><label for="echo-k">Echos addiert</label><input type="range" id="echo-k" min="0" max="50" value="50"><output id="echo-k-o"></output></div></div>
       <div class="controls"><span class="seglabel">Eingang</span><div class="seg" role="group" aria-label="Eingang wählen" data-xsel></div></div>
       <div class="controls"><span class="seglabel">System</span><div class="seg" role="group" aria-label="Impulsantwort wählen" data-hsel></div></div>
     </div>
@@ -304,7 +304,7 @@ footer { margin-top: 56px; color: var(--muted); font-size: 0.88rem; }
     <div class="fig">
       <canvas id="cv-flip" aria-label="x und gespiegelte, geschobene Impulsantwort, ihre Produkte und der Ausgang"></canvas>
       <div class="controls">
-        <div class="ctl"><label for="flip-n">n</label><input type="range" id="flip-n" min="-5" max="79" value="12"><output id="flip-n-o"></output></div>
+        <div class="ctl"><label for="flip-n">n</label><input type="range" id="flip-n" min="-5" max="99" value="12"><output id="flip-n-o"></output></div>
         <button class="b" id="flip-play" type="button">Abspielen</button>
       </div>
       <div class="controls"><span class="seglabel">Eingang</span><div class="seg" role="group" aria-label="Eingang wählen" data-xsel></div></div>
@@ -832,9 +832,9 @@ const drawSynh = reg(() => {
 bindRange("synh-n", drawSynh, v => v);
 
 // ============================================================= discrete data
-const TS = 0.01, NX = 40;
+const TS = 0.01, NX = 50;
 const H_SETS = [
-  { name: "Motorlager", label: "Motorlager, abgetastet: h[n] = T_s·h(nT_s), T_s = 10 ms", get h() { return CACHE.hd || (CACHE.hd = Array.from({ length: 40 }, (_, n) => TS * h2(n * TS))); } },
+  { name: "Motorlager", label: "Motorlager, abgetastet: h[n] = T_s·h(nT_s), T_s = 10 ms", get h() { return CACHE.hd || (CACHE.hd = Array.from({ length: NX }, (_, n) => TS * h2(n * TS))); } },
   { name: "MA8", label: "MA8 (Blatt 3): h[n] = 1/8 für n = 0 … 7", h: Array(8).fill(0.125) },
   { name: "EMA a = 0,8", label: "EMA a = 0,8 (Blatt 3): h[n] = 0,2·0,8ⁿ, bis n = 29", h: Array.from({ length: 30 }, (_, n) => 0.2 * 0.8 ** n) },
   { name: "Blatt 3.1 a", label: "h = {1; −1; 0,5} (Blatt 3.1 a)", h: [1, -1, 0.5] },
@@ -852,7 +852,7 @@ const X_PRE = [
 const D = { x: [], hs: 0, pre: 1 };
 const applyPreset = () => { if (D.pre >= 0) D.x = X_PRE[D.pre].f(); };
 const conv = (x, h) => { const y = new Array(x.length + h.length - 1).fill(0); x.forEach((xv, i) => { if (xv) h.forEach((hv, j) => { y[i + j] += xv * hv; }); }); return y; };
-const NMIN = -5, NMAX = 79, XR = [-2.4, 2.4];
+const NMIN = -5, NMAX = 99, XR = [-2.4, 2.4];
 const stemR = P => Math.max(1.6, Math.min(4, P.W / (P.x1 - P.x0) * 0.32));
 
 // ============================================================= LTI
@@ -948,7 +948,7 @@ drawEcho = reg(() => {
   P.axes(`Summe der Echos von k = 0 bis ${K - 1} = y[n] in mm`, COL.ink, nice(yr));
   y.forEach((v, n) => P.stem(n, v, COL.ghost, { hollow: true, r: rr * 0.8, lw: 1 }));
   if (K > 0) yK.forEach((v, n) => { if (n < K - 1 + h.length) P.stem(n, v, COL.ink, { r: rr * 0.8, lw: 1.2 }); });
-  P.xticks(0, 75, 5, "n (je 10 ms)");
+  P.xticks(0, 90, 10, "n (je 10 ms)");
   const nz = x.slice(0, K).map((v, k) => [k, v]).filter(([, v]) => v);
   let s = nz.length === 0 ? "Noch kein Echo addiert: y[n] = 0" :
     "y[n] = " + nz.slice(0, 3).map(([k]) => `x[${k}]·h[n${k ? "−" + k : ""}]`).join(" + ") + (nz.length > 3 ? ` + … (${nz.length} Echos)` : "");
@@ -979,7 +979,7 @@ drawFlip = reg(() => {
   P.axes("y[n] in mm", COL.ink, nice(yr));
   y.forEach((v, m) => P.stem(m, v, m <= n ? COL.ink : COL.ghost, { hollow: m > n, r: rr * 0.8, lw: 1.2 }));
   if (n >= 0 && n < y.length) P.stem(n, y[n], COL.acc, { r: 5 });
-  P.xticks(0, 75, 5, "k bzw. n (je 10 ms)");
+  P.xticks(0, 90, 10, "k bzw. n (je 10 ms)");
   let s;
   if (!terms.length) s = `n = ${fm(n)}: keine Überlappung mit Eingängen ≠ 0\ny[${fm(n)}] = 0`;
   else { const big = terms.reduce((a, b) => Math.abs(b[1]) > Math.abs(a[1]) ? b : a);
